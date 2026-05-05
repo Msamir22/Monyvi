@@ -197,6 +197,7 @@ export function AppDrawer({
 
       if (result.success) {
         onClose();
+        router.replace("/auth");
         return;
       }
 
@@ -223,6 +224,7 @@ export function AppDrawer({
 
       if (result.success) {
         onClose();
+        router.replace("/auth");
       }
       // If force logout fails, there's not much we can do in the drawer
       // TODO: Replace with structured logging (e.g., Sentry)
