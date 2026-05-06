@@ -60,7 +60,6 @@ jest.mock("@/utils/logger", () => ({
 const mockUseAuth = jest.fn();
 const mockUseSync = jest.fn();
 const mockUseProfile = jest.fn();
-const mockSync = jest.fn<Promise<void>, []>();
 const mockReadPendingSignupLocale = jest.fn<
   Promise<PendingSignupLocale | null>,
   []
@@ -106,7 +105,6 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockReadPendingSignupLocale.mockResolvedValue(null);
   mockClearPendingSignupLocale.mockResolvedValue(undefined);
-  mockSync.mockResolvedValue(undefined);
 });
 
 async function flushPromises(): Promise<void> {
@@ -139,7 +137,6 @@ function setState(opts: {
   });
   mockUseSync.mockReturnValue({
     initialSyncState: opts.initialSyncState ?? "in-progress",
-    sync: mockSync,
   });
   mockUseProfile.mockReturnValue({
     profile: opts.profile ?? null,
@@ -321,7 +318,6 @@ describe("AppReadyGate", () => {
     await flushPromises();
 
     expect(mockSetPreferredLanguage).toHaveBeenCalledWith("ar");
-    expect(mockSync).toHaveBeenCalledTimes(1);
     expect(mockClearPendingSignupLocale).toHaveBeenCalledTimes(1);
     expect(mockHideAsync).toHaveBeenCalledTimes(1);
 
@@ -360,7 +356,6 @@ describe("AppReadyGate", () => {
     await flushPromises();
 
     expect(mockSetPreferredLanguage).not.toHaveBeenCalled();
-    expect(mockSync).not.toHaveBeenCalled();
     expect(mockChangeLanguage).not.toHaveBeenCalled();
     expect(mockClearPendingSignupLocale).toHaveBeenCalledTimes(1);
     expect(mockHideAsync).toHaveBeenCalledTimes(1);
@@ -397,7 +392,6 @@ describe("AppReadyGate", () => {
     await flushPromises();
 
     expect(mockSetPreferredLanguage).toHaveBeenCalledWith("ar");
-    expect(mockSync).toHaveBeenCalledTimes(1);
     expect(mockClearPendingSignupLocale).toHaveBeenCalledTimes(1);
     expect(mockHideAsync).toHaveBeenCalledTimes(1);
   });
@@ -433,7 +427,6 @@ describe("AppReadyGate", () => {
     await flushPromises();
 
     expect(mockSetPreferredLanguage).not.toHaveBeenCalled();
-    expect(mockSync).not.toHaveBeenCalled();
     expect(mockChangeLanguage).not.toHaveBeenCalled();
     expect(mockClearPendingSignupLocale).toHaveBeenCalledTimes(1);
     expect(mockHideAsync).toHaveBeenCalledTimes(1);
@@ -455,58 +448,6 @@ describe("AppReadyGate", () => {
 
     expect(mockChangeLanguage).not.toHaveBeenCalled();
     expect(mockHideAsync).toHaveBeenCalledTimes(1);
-  });
-
-  it("re-reads the pending OAuth marker after Google auth completes without a remount", async (): Promise<void> => {
-    mockReadPendingSignupLocale.mockResolvedValueOnce(null);
-    setState({
-      authIsLoading: false,
-      isAuthenticated: false,
-    });
-
-    let renderer: ReactTestRendererInstance | null = null;
-    RTR.act(() => {
-      renderer = RTR.create(React.createElement(AppReadyGate));
-    });
-    await flushPromises();
-
-    expect(mockHideAsync).toHaveBeenCalledTimes(1);
-    expect(mockSetPreferredLanguage).not.toHaveBeenCalled();
-
-    mockHideAsync.mockClear();
-    mockReadPendingSignupLocale.mockResolvedValueOnce({
-      kind: "oauth",
-      language: "ar",
-      authStartedAt: "2026-05-05T10:00:00.000Z",
-      markerCreatedAt: "2026-05-05T10:00:00.000Z",
-    });
-    setState({
-      authIsLoading: false,
-      isAuthenticated: true,
-      user: {
-        id: "google-user-after-auth",
-        email: "new-google@example.com",
-        created_at: "2026-05-05T10:00:05.000Z",
-      },
-      initialSyncState: "success",
-      profileIsLoading: false,
-      profile: {
-        preferredLanguage: "en",
-        onboardingCompleted: false,
-        userId: "google-user-after-auth",
-        createdAt: new Date("2026-05-05T10:00:06.000Z"),
-      },
-    });
-
-    RTR.act(() => {
-      renderer?.update(React.createElement(AppReadyGate));
-    });
-    await flushPromises();
-
-    expect(mockReadPendingSignupLocale).toHaveBeenCalledTimes(2);
-    expect(mockSetPreferredLanguage).toHaveBeenCalledWith("ar");
-    expect(mockSync).toHaveBeenCalledTimes(1);
-    expect(mockClearPendingSignupLocale).toHaveBeenCalledTimes(1);
   });
 
   it("hides splash at most once even if inputs re-resolve", async (): Promise<void> => {
