@@ -197,9 +197,9 @@ describe("AppReadyGate", () => {
     expect(mockHideAsync).toHaveBeenCalledTimes(1);
   });
 
-  it("hides splash on sync failure (retry path)", async (): Promise<void> => {
+  it("hides splash on sync failure (account-load recovery path)", async (): Promise<void> => {
     // Failed sync counts as "not in-progress", so the splash should hide
-    // and the retry screen can render.
+    // and account-load recovery can render.
     setState({
       authIsLoading: false,
       isAuthenticated: true,

@@ -20,6 +20,8 @@ import { Q } from "@nozbe/watermelondb";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMarketRates } from "./useMarketRates";
 import { usePreferredCurrency } from "./usePreferredCurrency";
+import { queryOwned } from "@/services/user-data-access";
+import { useCurrentUserId } from "./useCurrentUserId";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -133,16 +135,33 @@ export function useRecurringPayments(
   );
   const { latestRates } = useMarketRates();
   const { preferredCurrency } = usePreferredCurrency();
+  const { userId, isResolvingUser } = useCurrentUserId();
 
   // -------------------------------------------------------------------------
   // Observe recurring payments
   // -------------------------------------------------------------------------
 
   useEffect(() => {
+    if (isResolvingUser) {
+      setAllPayments([]);
+      setIsLoading(true);
+      return;
+    }
+
+    if (!userId) {
+      setAllPayments([]);
+      setIsLoading(false);
+      return;
+    }
+
     const collection = database.get<RecurringPayment>("recurring_payments");
 
-    const subscription = collection
-      .query(Q.where("deleted", false), Q.sortBy("next_due_date", Q.asc))
+    const subscription = queryOwned(
+      collection,
+      userId,
+      Q.where("deleted", false),
+      Q.sortBy("next_due_date", Q.asc)
+    )
       .observe()
       .subscribe({
         next: (result) => {
@@ -156,7 +175,7 @@ export function useRecurringPayments(
       });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [userId, isResolvingUser]);
 
   // -------------------------------------------------------------------------
   // Derived data

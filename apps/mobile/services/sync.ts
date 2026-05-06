@@ -15,24 +15,13 @@ import {
   SyncPushResult,
 } from "@nozbe/watermelondb/sync";
 import { getCurrentUserId, supabase } from "./supabase";
-
-// Date columns that need conversion between WatermelonDB (timestamps) and Supabase (ISO strings)
-const DATE_ONLY_COLUMNS = [
-  "date",
-  "due_date",
-  "start_date",
-  "end_date",
-  "next_due_date",
-  "purchase_date",
-  "period_start",
-  "period_end",
-  "snapshot_date",
-] as const;
-
-const TIMESTAMP_COLUMNS = ["created_at", "updated_at"] as const;
-
-// Combined for transformFromSupabase (all date-like columns)
-const ALL_DATE_COLUMNS = [...DATE_ONLY_COLUMNS, ...TIMESTAMP_COLUMNS] as const;
+import {
+  DATE_ONLY_COLUMNS,
+  TIMESTAMP_COLUMNS,
+  transformFromSupabase,
+} from "./sync-transform";
+import { purgeForeignProfiles } from "./profile-bootstrap-service";
+import { logger } from "@/utils/logger";
 
 export const EXCLUDED_TABLES = ["__InternalSupabase"] as const;
 
@@ -48,6 +37,58 @@ const SNAPSHOT_TABLES = [
 ] as const;
 
 type SnapshotTableName = (typeof SNAPSHOT_TABLES)[number];
+
+interface SyncChangeRowCounts {
+  readonly created: number;
+  readonly updated: number;
+  readonly deleted: number;
+  readonly total: number;
+  readonly tableCount: number;
+}
+
+interface CountableTableChanges {
+  readonly created?: readonly unknown[];
+  readonly updated?: readonly unknown[];
+  readonly deleted?: readonly unknown[];
+}
+
+function getElapsedMs(startedAtMs: number): number {
+  return Date.now() - startedAtMs;
+}
+
+function countChangeRows(
+  changes: Partial<Record<string, CountableTableChanges>>
+): SyncChangeRowCounts {
+  let created = 0;
+  let updated = 0;
+  let deleted = 0;
+  let tableCount = 0;
+
+  for (const tableChanges of Object.values(changes)) {
+    if (!tableChanges) continue;
+
+    const tableCreated = tableChanges.created?.length ?? 0;
+    const tableUpdated = tableChanges.updated?.length ?? 0;
+    const tableDeleted = tableChanges.deleted?.length ?? 0;
+    const tableTotal = tableCreated + tableUpdated + tableDeleted;
+
+    if (tableTotal > 0) {
+      tableCount += 1;
+    }
+
+    created += tableCreated;
+    updated += tableUpdated;
+    deleted += tableDeleted;
+  }
+
+  return {
+    created,
+    updated,
+    deleted,
+    total: created + updated + deleted,
+    tableCount,
+  };
+}
 
 // Child tables that don't have user_id - need to sync via parent relationship
 const CHILD_TABLES_MAP: Record<
@@ -278,7 +319,7 @@ async function pullCategories(
   let query = supabase
     .from("categories")
     .select("*")
-    .or(`user_id.eq.${userId},user_id.is.null`);
+    .or(`and(is_system.eq.true,user_id.is.null),user_id.eq.${userId}`);
 
   if (lastSyncDate) {
     query = query.gt("updated_at", lastSyncDate);
@@ -319,7 +360,7 @@ async function pullChanges(
   const userId = await getCurrentUserId();
   // If no user is authenticated, return an empty changeset
   if (!userId) {
-    console.log("No user authenticated, skipping pull");
+    logger.info("syncDatabase.pullChanges.skippedUnauthenticated");
     return { changes: {}, timestamp: Date.now() };
   }
 
@@ -380,7 +421,7 @@ async function pushChanges(
 ): Promise<SyncPushResult | undefined | void> {
   const userId = await getCurrentUserId();
   if (!userId) {
-    console.log("No user authenticated, skipping push");
+    logger.info("syncDatabase.pushChanges.skippedUnauthenticated");
     return;
   }
 
@@ -398,15 +439,16 @@ async function pushChanges(
     ) {
       continue;
     }
+    const writableTable = table as WritableSupabaseTablesNames;
 
     // Check if this is a child table (no user_id column)
-    const isChildTable = table in CHILD_TABLES_MAP;
+    const isChildTable = writableTable in CHILD_TABLES_MAP;
 
     try {
       // Handle created records
       if (tableChanges.created.length > 0) {
         const records = tableChanges.created.map((record) =>
-          transformToSupabase(record, userId, isChildTable)
+          transformToSupabase(record, writableTable, userId, isChildTable)
         );
 
         const { error } = await supabase.from(table).insert(records);
@@ -418,7 +460,12 @@ async function pushChanges(
       // Handle updated records
       if (tableChanges.updated.length > 0) {
         for (const record of tableChanges.updated) {
-          const transformed = transformToSupabase(record, userId, isChildTable);
+          const transformed = transformToSupabase(
+            record,
+            writableTable,
+            userId,
+            isChildTable
+          );
 
           const { error } = await supabase
             .from(table)
@@ -450,35 +497,34 @@ async function pushChanges(
   }
 }
 
-/**
- * Transform Supabase record to WatermelonDB format
- */
-function transformFromSupabase(
-  record: Record<string, unknown>
-): Record<string, unknown> {
-  const transformed: Record<string, unknown> = { ...record };
-
-  for (const col of ALL_DATE_COLUMNS) {
-    if (typeof record[col] === "string") {
-      const timestamp = new Date(record[col]).getTime();
-      if (!Number.isNaN(timestamp)) {
-        transformed[col] = timestamp;
-      }
-    }
-  }
-
-  return transformed;
-}
-
 // Type helper for Supabase insert types
 type SupabaseInsert<T extends WritableSupabaseTablesNames> =
   SupabaseDatabase["public"]["Tables"][T]["Insert"];
+
+const JSON_SUPABASE_COLUMNS_BY_TABLE: Partial<
+  Record<WritableSupabaseTablesNames, readonly string[]>
+> = {
+  profiles: ["notification_settings", "onboarding_flags"],
+  budgets: ["pause_intervals"],
+};
+
+const JSON_SUPABASE_DEFAULTS_BY_TABLE: Partial<
+  Record<WritableSupabaseTablesNames, Readonly<Record<string, unknown>>>
+> = {
+  profiles: {
+    onboarding_flags: {},
+  },
+  budgets: {
+    pause_intervals: [],
+  },
+};
 
 /**
  * Transform WatermelonDB record to Supabase format
  */
 function transformToSupabase<T extends WritableSupabaseTablesNames>(
   record: unknown,
+  table: T,
   userId: string,
   isChildTable: boolean = false
 ): SupabaseInsert<T> {
@@ -508,6 +554,29 @@ function transformToSupabase<T extends WritableSupabaseTablesNames>(
     }
   }
 
+  const jsonColumns: readonly string[] =
+    JSON_SUPABASE_COLUMNS_BY_TABLE[table] ?? [];
+  const jsonDefaults: Readonly<Record<string, unknown>> =
+    JSON_SUPABASE_DEFAULTS_BY_TABLE[table] ?? {};
+
+  for (const col of jsonColumns) {
+    const value = wmRecord[col];
+    if (value === null || value === undefined || value === "") {
+      if (col in jsonDefaults) {
+        transformed[col] = jsonDefaults[col];
+      }
+      continue;
+    }
+
+    if (typeof value === "string") {
+      try {
+        transformed[col] = JSON.parse(value) as unknown;
+      } catch {
+        transformed[col] = jsonDefaults[col] ?? null;
+      }
+    }
+  }
+
   return transformed as SupabaseInsert<T>;
 }
 
@@ -534,54 +603,93 @@ export async function syncDatabase(
   database: Database,
   forceFullSync = false
 ): Promise<void> {
+  const syncStartedAtMs = Date.now();
+
   // If a sync is already in-flight, skip this call
   if (activeSyncPromise) {
-    console.log("Sync already in progress, skipping");
+    logger.info("syncDatabase.skippedAlreadyInProgress", {
+      forceFullSync,
+    });
     return;
   }
 
   const userId = await getCurrentUserId();
   if (!userId) {
-    console.log("Sync skipped: No authenticated user");
+    logger.info("syncDatabase.skippedUnauthenticated", {
+      forceFullSync,
+      durationMs: getElapsedMs(syncStartedAtMs),
+    });
     return;
   }
 
+  const purgeStartedAtMs = Date.now();
+  await purgeForeignProfiles(database, userId);
+  logger.info("syncDatabase.purgeForeignProfiles.complete", {
+    forceFullSync,
+    durationMs: getElapsedMs(purgeStartedAtMs),
+  });
+
   if (forceFullSync) {
-    console.log("🔄 Force full sync requested - fetching all data from server");
+    logger.info("syncDatabase.forceFullSyncRequested", { forceFullSync });
   }
 
   const doSync = async (): Promise<void> => {
     try {
+      logger.info("syncDatabase.start", {
+        forceFullSync,
+      });
+
       await synchronize({
         database,
         pullChanges: async ({ lastPulledAt }): Promise<SyncPullResult> => {
+          const pullStartedAtMs = Date.now();
           // If forceFullSync is true, ignore the stored timestamp
           const effectiveLastPulledAt = forceFullSync ? null : lastPulledAt;
           const result: SyncPullResult = await pullChanges(
             effectiveLastPulledAt ?? null
           );
+          logger.info("syncDatabase.pullChanges.complete", {
+            forceFullSync,
+            wasFullPull: effectiveLastPulledAt === null,
+            durationMs: getElapsedMs(pullStartedAtMs),
+            rowCounts:
+              "changes" in result ? countChangeRows(result.changes) : null,
+          });
           return result;
         },
         pushChanges: async ({ changes, lastPulledAt }) => {
+          const pushStartedAtMs = Date.now();
           await pushChanges({ changes, lastPulledAt });
+          logger.info("syncDatabase.pushChanges.complete", {
+            forceFullSync,
+            durationMs: getElapsedMs(pushStartedAtMs),
+            rowCounts: countChangeRows(changes),
+          });
         },
         // Server may return records that don't exist locally (e.g., first sync or after local data cleared)
         // This flag tells WatermelonDB to create them instead of treating it as an error
         sendCreatedAsUpdated: true,
       });
-      console.log("Sync completed successfully");
+      logger.info("syncDatabase.success", {
+        forceFullSync,
+        durationMs: getElapsedMs(syncStartedAtMs),
+      });
     } catch (error) {
       // WatermelonDB throws a diagnostic error when concurrent synchronize() calls occur.
       // This is benign — the later sync is aborted, no data corruption.
       // This can happen during Metro hot reload (e.g. pre-commit hook updates schema files).
       const errorMessage = String(error);
       if (errorMessage.includes("Concurrent synchronization")) {
-        console.warn(
-          "⚠️ Concurrent sync detected (benign) — later sync was aborted"
-        );
+        logger.warn("syncDatabase.concurrentSyncAborted", {
+          forceFullSync,
+          durationMs: getElapsedMs(syncStartedAtMs),
+        });
         return;
       }
-      console.error("Sync failed:", error);
+      logger.error("syncDatabase.failed", error, {
+        forceFullSync,
+        durationMs: getElapsedMs(syncStartedAtMs),
+      });
       throw error;
     } finally {
       activeSyncPromise = null;
@@ -609,9 +717,7 @@ export async function resetSyncState(db: Database): Promise<void> {
     await db.write(async () => {
       await db.unsafeResetDatabase();
     });
-    console.log(
-      "🔄 Database reset complete. Next sync will be a full sync from server."
-    );
+    logger.info("syncDatabase.resetSyncState.complete");
   } catch (error) {
     console.error("Failed to reset database:", error);
     throw error;

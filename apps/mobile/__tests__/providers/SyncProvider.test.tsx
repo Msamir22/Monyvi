@@ -13,6 +13,7 @@ import React from "react";
 // ---------------------------------------------------------------------------
 
 interface ReactTestRendererInstance {
+  update: (element: React.ReactElement) => void;
   unmount: () => void;
 }
 
@@ -41,6 +42,11 @@ const actSync = ((fn: () => void) => getRTR().act(fn)) as (
 const mockSyncDatabase = jest.fn();
 const mockCheckIsAuthenticated = jest.fn();
 const mockCompleteInterruptedLogout = jest.fn();
+const mockBootstrapCurrentProfile = jest.fn();
+const mockRefreshSharedReferenceDataAfterAuth = jest.fn();
+const mockFetchCount = jest.fn();
+let mockIsAuthenticated = true;
+let mockAuthUserId: string | null = "user-1";
 
 jest.mock("@/services/sync", () => ({
   syncDatabase: (...args: unknown[]): Promise<unknown> =>
@@ -57,16 +63,29 @@ jest.mock("@/services/logout-service", () => ({
     mockCompleteInterruptedLogout(...args) as Promise<void>,
 }));
 
+jest.mock("@/services/profile-bootstrap-service", () => ({
+  bootstrapCurrentProfile: (...args: unknown[]): Promise<unknown> =>
+    mockBootstrapCurrentProfile(...args) as Promise<unknown>,
+}));
+
+jest.mock("@/services/shared-reference-refresh-service", () => ({
+  refreshSharedReferenceDataAfterAuth: (...args: unknown[]): Promise<unknown> =>
+    mockRefreshSharedReferenceDataAfterAuth(...args) as Promise<unknown>,
+}));
+
 jest.mock("@monyvi/db", () => ({
   database: {
     get: jest.fn(() => ({
-      query: () => ({ fetchCount: jest.fn().mockResolvedValue(0) }),
+      query: () => ({ fetchCount: mockFetchCount }),
     })),
   },
 }));
 
 jest.mock("@/context/AuthContext", () => ({
-  useAuth: () => ({ isAuthenticated: true }),
+  useAuth: () => ({
+    isAuthenticated: mockIsAuthenticated,
+    user: mockAuthUserId === null ? null : { id: mockAuthUserId },
+  }),
 }));
 
 // Import after mocks
@@ -77,32 +96,97 @@ import { SyncProvider, useSync } from "../../providers/SyncProvider";
 // ---------------------------------------------------------------------------
 
 interface SyncContextSnapshot {
+  bootstrapRouteBasis: string;
+  bootstrapReason: string | null;
   initialSyncState: string;
+  isInitialSync: boolean;
+  isPostBootstrapSyncing: boolean;
+  syncError: Error | null;
   retryInitialSync: () => Promise<string>;
+}
+
+interface AppStateSubscription {
+  remove: () => void;
+}
+
+interface MockedReactNativeAppState {
+  AppState: {
+    addEventListener: jest.Mock<
+      AppStateSubscription,
+      [string, (state: string) => void]
+    >;
+  };
 }
 
 function renderAndCapture(): {
   result: React.MutableRefObject<SyncContextSnapshot>;
+  update: () => void;
   unmount: () => void;
 } {
   const resultRef =
     React.createRef() as React.MutableRefObject<SyncContextSnapshot>;
 
   const CaptureComponent = (): React.JSX.Element | null => {
-    const { initialSyncState, retryInitialSync } = useSync();
-    resultRef.current = { initialSyncState, retryInitialSync };
+    const {
+      bootstrapRouteBasis,
+      bootstrapReason,
+      initialSyncState,
+      isInitialSync,
+      isPostBootstrapSyncing,
+      syncError,
+      retryInitialSync,
+    } = useSync();
+    resultRef.current = {
+      bootstrapRouteBasis,
+      bootstrapReason,
+      initialSyncState,
+      isInitialSync,
+      isPostBootstrapSyncing,
+      syncError,
+      retryInitialSync,
+    };
     return null;
   };
 
-  const renderer = getRTR().create(
-    React.createElement(
-      SyncProvider,
-      null,
-      React.createElement(CaptureComponent)
-    )
-  );
+  let renderer: ReactTestRendererInstance | null = null;
+  actSync(() => {
+    renderer = getRTR().create(
+      React.createElement(
+        SyncProvider,
+        null,
+        React.createElement(CaptureComponent)
+      )
+    );
+  });
 
-  return { result: resultRef, unmount: () => renderer.unmount() };
+  return {
+    result: resultRef,
+    update: () => {
+      actSync(() => {
+        renderer?.update(
+          React.createElement(
+            SyncProvider,
+            null,
+            React.createElement(CaptureComponent)
+          )
+        );
+      });
+    },
+    unmount: () => {
+      renderer?.unmount();
+    },
+  };
+}
+
+function getLatestAppStateListener(): (state: string) => void {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const RN = require("react-native") as MockedReactNativeAppState;
+  const calls = RN.AppState.addEventListener.mock.calls;
+  const latestCall = calls[calls.length - 1];
+  if (!latestCall) {
+    throw new Error("AppState listener was not registered");
+  }
+  return latestCall[1];
 }
 
 // ---------------------------------------------------------------------------
@@ -113,8 +197,20 @@ describe("SyncProvider initialSyncState", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
+    mockIsAuthenticated = true;
+    mockAuthUserId = "user-1";
     mockCheckIsAuthenticated.mockResolvedValue(true);
     mockCompleteInterruptedLogout.mockResolvedValue(undefined);
+    mockBootstrapCurrentProfile.mockResolvedValue({
+      status: "ready-remote-profile",
+      reason: "remote-profile-applied",
+      routeBasis: "remote-profile",
+    });
+    mockRefreshSharedReferenceDataAfterAuth.mockResolvedValue({
+      marketRates: "applied",
+      systemCategories: "applied",
+    });
+    mockFetchCount.mockResolvedValue(3);
   });
 
   afterEach(() => {
@@ -128,19 +224,67 @@ describe("SyncProvider initialSyncState", () => {
     expect(result.current.initialSyncState).toBe("in-progress");
   });
 
-  // Helper — flush pending microtasks without running every timer. We can't
-  // use `jest.runAllTimersAsync()` here: SyncProvider's effect also schedules
-  // a 15-minute setInterval, and runAllTimers re-fires it forever (test
-  // hangs). Instead we advance past the 20s sync-timeout boundary only.
+  it("does not expose a stale signed-out sync state during the sign-in transition", async () => {
+    mockIsAuthenticated = false;
+    const { result, update } = renderAndCapture();
+
+    await getRTR().act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(result.current.initialSyncState).toBe("success");
+
+    mockIsAuthenticated = true;
+    update();
+
+    expect(result.current.initialSyncState).toBe("in-progress");
+  });
+
+  it("does not start a sync interval while unauthenticated", async () => {
+    mockIsAuthenticated = false;
+    renderAndCapture();
+
+    await getRTR().act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockBootstrapCurrentProfile).not.toHaveBeenCalled();
+    expect(mockSyncDatabase).not.toHaveBeenCalled();
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it("does not start a sync interval from AppState changes while unauthenticated", async () => {
+    mockIsAuthenticated = false;
+    renderAndCapture();
+
+    await getRTR().act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const listener = getLatestAppStateListener();
+    actSync(() => {
+      listener("background");
+    });
+
+    expect(mockSyncDatabase).not.toHaveBeenCalled();
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  // Helper: flush pending microtasks without running every timer. We can't use
+  // `jest.runAllTimersAsync()` here because SyncProvider schedules a 15-minute
+  // interval, and runAllTimers re-fires it forever.
   async function flushInitialSync(): Promise<void> {
     // Advance just past the 20s race — enough to settle both resolve and
     // reject branches of Promise.race without triggering the 15-min interval.
-    await jest.advanceTimersByTimeAsync(20_500);
-    // Flush any remaining microtask continuations after the race settles
-    // (e.g. the `.catch` handler in runInitialSync that sets the final state).
-    for (let i = 0; i < 5; i++) {
-      await Promise.resolve();
-    }
+    await getRTR().act(async () => {
+      await jest.advanceTimersByTimeAsync(20_500);
+      for (let i = 0; i < 5; i++) {
+        await Promise.resolve();
+      }
+    });
   }
 
   it('transitions to "success" when sync completes within timeout', async () => {
@@ -153,6 +297,160 @@ describe("SyncProvider initialSyncState", () => {
     });
 
     expect(result.current.initialSyncState).toBe("success");
+    expect(mockSyncDatabase).toHaveBeenCalledWith(expect.any(Object), true);
+  });
+
+  it("bootstraps the current profile before starting the background full sync", async () => {
+    mockSyncDatabase.mockResolvedValue(undefined);
+    renderAndCapture();
+
+    await flushInitialSync();
+    actSync(() => {
+      // Trigger a React update so captured state catches up.
+    });
+
+    expect(mockBootstrapCurrentProfile).toHaveBeenCalledWith(
+      expect.any(Object),
+      { timeoutMs: 30_000, userId: "user-1" }
+    );
+    expect(mockSyncDatabase).toHaveBeenCalledWith(expect.any(Object), true);
+    expect(
+      mockBootstrapCurrentProfile.mock.invocationCallOrder[0]
+    ).toBeLessThan(mockSyncDatabase.mock.invocationCallOrder[0]);
+  });
+
+  it("starts shared reference refresh after successful profile bootstrap", async () => {
+    mockSyncDatabase.mockResolvedValue(undefined);
+    renderAndCapture();
+
+    await flushInitialSync();
+
+    expect(mockRefreshSharedReferenceDataAfterAuth).toHaveBeenCalledWith(
+      expect.any(Object)
+    );
+    expect(
+      mockBootstrapCurrentProfile.mock.invocationCallOrder[0]
+    ).toBeLessThan(
+      mockRefreshSharedReferenceDataAfterAuth.mock.invocationCallOrder[0]
+    );
+  });
+
+  it("ignores stale profile bootstrap results after the authenticated user changes", async () => {
+    let resolveStaleBootstrap:
+      | ((value: {
+          status: string;
+          reason: string;
+          routeBasis: string;
+        }) => void)
+      | undefined;
+
+    mockBootstrapCurrentProfile.mockImplementation(
+      (_database: unknown, options: { readonly userId?: string | null }) => {
+        if (options.userId === "user-1") {
+          return new Promise((resolve) => {
+            resolveStaleBootstrap = resolve;
+          });
+        }
+
+        return Promise.resolve({
+          status: "ready-remote-profile",
+          reason: "remote-profile-applied",
+          routeBasis: "remote-profile",
+        });
+      }
+    );
+
+    const { result, update } = renderAndCapture();
+
+    await getRTR().act(async () => {
+      for (let i = 0; i < 5; i++) {
+        await Promise.resolve();
+      }
+    });
+
+    expect(mockBootstrapCurrentProfile).toHaveBeenCalledWith(
+      expect.any(Object),
+      { timeoutMs: 30_000, userId: "user-1" }
+    );
+    expect(result.current.initialSyncState).toBe("in-progress");
+
+    mockAuthUserId = "user-2";
+    update();
+
+    await flushInitialSync();
+    expect(mockBootstrapCurrentProfile).toHaveBeenCalledWith(
+      expect.any(Object),
+      { timeoutMs: 30_000, userId: "user-2" }
+    );
+    expect(result.current.initialSyncState).toBe("success");
+
+    await getRTR().act(async () => {
+      resolveStaleBootstrap?.({
+        status: "needs-recovery",
+        reason: "remote-profile-error",
+        routeBasis: "none",
+      });
+      for (let i = 0; i < 5; i++) {
+        await Promise.resolve();
+      }
+    });
+
+    expect(result.current.initialSyncState).toBe("success");
+    expect(result.current.bootstrapRouteBasis).toBe("remote-profile");
+    expect(result.current.bootstrapReason).toBe("remote-profile-applied");
+  });
+  it("unblocks a new user's onboarding route without waiting for full sync completion", async () => {
+    mockBootstrapCurrentProfile.mockResolvedValue({
+      status: "ready-remote-profile",
+      reason: "remote-profile-unfinished",
+      routeBasis: "remote-profile",
+    });
+    mockSyncDatabase.mockReturnValue(new Promise(() => {}));
+    const { result } = renderAndCapture();
+
+    await flushInitialSync();
+
+    expect(result.current.initialSyncState).toBe("success");
+    expect(result.current.bootstrapRouteBasis).toBe("remote-profile");
+    expect(result.current.bootstrapReason).toBe("remote-profile-unfinished");
+    expect(result.current.isInitialSync).toBe(false);
+    expect(result.current.isPostBootstrapSyncing).toBe(true);
+    expect(mockSyncDatabase).toHaveBeenCalledWith(expect.any(Object), true);
+  });
+
+  it("keeps post-bootstrap syncing true only while the first full data refresh is pending", async () => {
+    let resolveFullSync: (() => void) | undefined;
+    mockSyncDatabase.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveFullSync = resolve;
+      })
+    );
+    const { result } = renderAndCapture();
+
+    await flushInitialSync();
+
+    expect(result.current.initialSyncState).toBe("success");
+    expect(result.current.isPostBootstrapSyncing).toBe(true);
+
+    await getRTR().act(async () => {
+      resolveFullSync?.();
+      for (let i = 0; i < 5; i++) {
+        await Promise.resolve();
+      }
+    });
+
+    expect(result.current.isPostBootstrapSyncing).toBe(false);
+  });
+
+  it("keeps the route unblocked and stores a non-blocking error when background sync fails", async () => {
+    mockSyncDatabase.mockRejectedValue(new Error("background refresh failed"));
+    const { result } = renderAndCapture();
+
+    await flushInitialSync();
+
+    expect(result.current.initialSyncState).toBe("success");
+    expect(result.current.isPostBootstrapSyncing).toBe(false);
+    expect(result.current.syncError?.message).toBe("background refresh failed");
   });
 
   // TODO(024): this test is order-dependent in fake-timer mode — passes

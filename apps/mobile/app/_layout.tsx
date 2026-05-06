@@ -35,7 +35,6 @@ import i18n, { initI18n } from "../i18n";
 import "../global.css";
 
 import { ToastProvider } from "../components/ui/Toast";
-import { InitialSyncOverlay } from "../components/ui/InitialSyncOverlay";
 import { AuthProvider, useAuth } from "../context/AuthContext";
 import { CategoriesProvider } from "../context/CategoriesContext";
 
@@ -200,7 +199,6 @@ function RootLayout(): React.ReactNode {
                                   <FirstRunTooltipProvider>
                                     <AuthGuard>
                                       <RootLayoutNav />
-                                      <InitialSyncOverlay />
                                       <AppReadyGate />
                                     </AuthGuard>
                                   </FirstRunTooltipProvider>

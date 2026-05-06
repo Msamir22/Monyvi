@@ -240,6 +240,13 @@ Stores end-of-day asset valuations.
 
 Current live rates (single row, updated every 30 mins).
 
+**Access decision (2026-05-06):** `market_rates` is non-sensitive shared
+reference data, but the mobile app does not load it before authentication
+because signed-out screens do not use it. It may be refreshed after
+authentication/profile bootstrap without blocking the first authenticated
+screen. Mobile remains read-only for this table; writes are still owned by the
+existing server/API rate update flow.
+
 #### Table: `market_rates_history` (new)
 
 Historical rates for trend calculation.
@@ -364,6 +371,16 @@ Self-referential table for all category levels.
 - `parent_id` required when `level > 1`
 - `user_id` required when `is_system = false`
 - Unique: `(user_id, parent_id, system_name)` — prevents duplicates per user
+
+**Access decision (2026-05-06):** Only ownerless system categories
+(`is_system = true`, `user_id IS NULL`, `deleted = false`) are shared reference
+data across authenticated users. The mobile app does not load categories before
+authentication because signed-out screens do not use them. User-created
+categories remain private to the owning authenticated user. A category with
+`user_id IS NOT NULL` is private even if it is incorrectly marked
+`is_system = true`. Authenticated sync must still be able to read the current
+user's soft-deleted custom category rows so WatermelonDB can tombstone local
+records.
 
 ### 5.4 Table: `user_category_settings`
 
@@ -1064,8 +1081,11 @@ auth screen on subsequent launches — no slides, no language picker.
 #### Post-auth (single required step)
 
 Routing gate at `apps/mobile/app/index.tsx` reads the profile from WatermelonDB
-after the initial pull-sync, then routes based on
-`profiles.onboarding_completed` (per FR-031):
+after the post-auth profile bootstrap, then routes based on
+`profiles.onboarding_completed` (per FR-031). The profile bootstrap restores
+only the current user's profile and must not advance WatermelonDB's global sync
+cursor. The remaining account data refreshes through normal background sync
+after routing:
 
 - **`onboarding_completed = false`** → show Currency step.
   - Currency selection is required (no skip).
@@ -1080,6 +1100,11 @@ after the initial pull-sync, then routes based on
     afterward — it persists as a device-level preference (FR-030).
   - Routes to dashboard.
 - **`onboarding_completed = true`** → routes directly to dashboard.
+
+If remote profile verification is unavailable, only a current-user, non-deleted
+local profile with `onboarding_completed = true` may route offline to dashboard.
+Missing, foreign, deleted, or locally unfinished profile states show a
+recoverable Retry/Sign out state instead of defaulting to onboarding.
 
 **Why not `preferred_currency` as the routing signal?** The column is
 `NOT NULL DEFAULT 'EGP'` (migration 042), so it always carries a value on a

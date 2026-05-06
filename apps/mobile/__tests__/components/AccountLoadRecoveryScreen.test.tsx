@@ -1,15 +1,15 @@
 /**
- * Unit tests for RetrySyncScreen.
+ * Unit tests for AccountLoadRecoveryScreen.
  *
  * Regression guard (T033) for PR #238 review Finding #3:
- *   "The status chip must use the dedicated `sync_failed_chip` translation
- *    key, not a substring of `sync_failed_title`. The old `.split(' ').slice(-2)`
+ *   "The status chip must use the dedicated `account_load_failed_chip`
+ *    translation key, not a substring of the title. The old `.split(' ').slice(-2)`
  *    approach breaks on Arabic (RTL + different word order)."
  *
  * Tests:
  * - Pressing Retry invokes `onRetry`.
  * - Pressing Sign out invokes `onSignOut`.
- * - The chip renders the `sync_failed_chip` translation key (not a derived
+ * - The chip renders the `account_load_failed_chip` translation key (not a derived
  *   slice of the title).
  */
 
@@ -56,7 +56,7 @@ jest.mock("react-i18next", () => ({
 // Under test
 // =============================================================================
 
-import { RetrySyncScreen } from "@/components/ui/RetrySyncScreen";
+import { AccountLoadRecoveryScreen } from "@/components/ui/AccountLoadRecoveryScreen";
 
 // =============================================================================
 // Helpers
@@ -96,16 +96,16 @@ function findButtonByLabel(
 // Tests
 // =============================================================================
 
-describe("RetrySyncScreen", () => {
+describe("AccountLoadRecoveryScreen", () => {
   it("invokes onRetry when the Retry button is pressed", () => {
     const onRetry = jest.fn();
     const onSignOut = jest.fn();
 
     const renderer = RTR.create(
-      React.createElement(RetrySyncScreen, { onRetry, onSignOut })
+      React.createElement(AccountLoadRecoveryScreen, { onRetry, onSignOut })
     );
 
-    const handler = findButtonByLabel(renderer, "retry");
+    const handler = findButtonByLabel(renderer, "account_load_failed_retry");
     expect(handler).not.toBeNull();
     handler?.();
 
@@ -118,7 +118,7 @@ describe("RetrySyncScreen", () => {
     const onSignOut = jest.fn();
 
     const renderer = RTR.create(
-      React.createElement(RetrySyncScreen, { onRetry, onSignOut })
+      React.createElement(AccountLoadRecoveryScreen, { onRetry, onSignOut })
     );
 
     const handler = findButtonByLabel(renderer, "sign_out");
@@ -129,9 +129,9 @@ describe("RetrySyncScreen", () => {
     expect(onRetry).not.toHaveBeenCalled();
   });
 
-  it("renders the dedicated `sync_failed_chip` key — not a substring derived from `sync_failed_title` (Finding #3)", () => {
+  it("renders the dedicated account-load chip key instead of deriving the chip from the title", () => {
     const renderer = RTR.create(
-      React.createElement(RetrySyncScreen, {
+      React.createElement(AccountLoadRecoveryScreen, {
         onRetry: jest.fn(),
         onSignOut: jest.fn(),
       })
@@ -141,11 +141,11 @@ describe("RetrySyncScreen", () => {
     collectText(renderer.toJSON(), texts);
 
     // The dedicated chip key must be present; if a regression reintroduced
-    // the old `sync_failed_title.split(" ").slice(-2)` logic, the string
-    // "sync_failed_chip" would NOT appear anywhere in the output.
-    expect(texts).toContain("sync_failed_chip");
+    // the old `title.split(" ").slice(-2)` logic, the string
+    // "account_load_failed_chip" would NOT appear anywhere in the output.
+    expect(texts).toContain("account_load_failed_chip");
     // And the title should still render as a separate string — proving
     // the chip is a distinct key, not a derivation from the title.
-    expect(texts).toContain("sync_failed_title");
+    expect(texts).toContain("account_load_failed_title");
   });
 });

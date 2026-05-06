@@ -1,4 +1,5 @@
 import { QuickActionFab } from "@/components/fab";
+import { SyncStatusBanner } from "@/components/sync/SyncStatusBanner";
 import { CustomBottomTabBar } from "@/components/tab-bar/CustomBottomTabBar";
 import { VoiceRecordingOverlay } from "@/components/voice/VoiceRecordingOverlay";
 import { darkTheme, lightTheme } from "@/constants/colors";
@@ -72,14 +73,17 @@ function TabLayoutInner(): React.ReactElement {
   // so a stale closure is never retained across tab-layout remounts (logout
   // → re-login, hot reload, future multi-window architecture).
   useEffect(() => {
-    registerVoiceEntry(voiceFlow.startFlow);
+    registerVoiceEntry(() => {
+      void voiceFlow.startFlow();
+    });
     return (): void => {
       unregisterVoiceEntry();
     };
-  }, [voiceFlow.startFlow]);
+  }, [voiceFlow]);
 
   return (
     <View className="flex-1">
+      <SyncStatusBanner />
       <Tabs
         tabBar={(props) => (
           <CustomBottomTabBar

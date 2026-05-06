@@ -7,7 +7,7 @@
  *   - initial pull-sync settled (success / failed / timeout — not in-progress), AND
  *   - the profile observation in WatermelonDB loaded (isLoading === false)
  * before it can decide whether to show the dashboard, the onboarding flow,
- * or the retry screen. Previously there was a visible "blank backdrop" flash
+ * or account-load recovery. Previously there was a visible "blank backdrop" flash
  * between splash hide and the first real screen render.
  *
  * This component holds the splash UNTIL all of those conditions are met,

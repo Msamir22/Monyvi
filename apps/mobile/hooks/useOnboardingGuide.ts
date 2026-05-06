@@ -21,12 +21,13 @@
  */
 
 import { logger } from "@/utils/logger";
-import { Account, Budget, Profile, Transaction, database } from "@monyvi/db";
+import { Account, Budget, Transaction, database } from "@monyvi/db";
 import { Q } from "@nozbe/watermelondb";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Platform } from "react-native";
 import { useMicTooltip } from "@/context/MicTooltipContext";
 import { setSetupGuideCompleted as persistSetupGuideCompleted } from "@/services/profile-service";
+import { useProfile } from "./useProfile";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -63,17 +64,13 @@ interface UseOnboardingGuideResult {
 // ---------------------------------------------------------------------------
 
 export function useOnboardingGuide(): UseOnboardingGuideResult {
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [setupGuideCompleted, setSetupGuideCompleted] = useState<
-    boolean | null
-  >(null);
+  const { profile, isLoading: isProfileLoading } = useProfile();
   const [hasBankAccount, setHasBankAccount] = useState(false);
   const [hasVoiceTransaction, setHasVoiceTransaction] = useState(false);
   const [hasBudget, setHasBudget] = useState(false);
   const [hasSmsImported, setHasSmsImported] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  const [profileLoaded, setProfileLoaded] = useState(false);
   const [bankLoaded, setBankLoaded] = useState(false);
   const [voiceLoaded, setVoiceLoaded] = useState(false);
   const [budgetLoaded, setBudgetLoaded] = useState(false);
@@ -93,7 +90,7 @@ export function useOnboardingGuide(): UseOnboardingGuideResult {
 
   useEffect(() => {
     if (
-      profileLoaded &&
+      !isProfileLoading &&
       bankLoaded &&
       voiceLoaded &&
       budgetLoaded &&
@@ -101,37 +98,11 @@ export function useOnboardingGuide(): UseOnboardingGuideResult {
     ) {
       setIsLoading(false);
     }
-  }, [profileLoaded, bankLoaded, voiceLoaded, budgetLoaded, smsLoaded]);
+  }, [isProfileLoading, bankLoaded, voiceLoaded, budgetLoaded, smsLoaded]);
 
-  // ── Observe profile for setupGuideCompleted ──
-  useEffect(() => {
-    const subscription = database
-      .get<Profile>("profiles")
-      .query(Q.where("deleted", false), Q.take(1))
-      .observeWithColumns(["setup_guide_completed"])
-      .subscribe({
-        next: (profiles) => {
-          const nextProfile = profiles[0] ?? null;
-          setProfile(nextProfile);
-          setSetupGuideCompleted(nextProfile?.setupGuideCompleted ?? null);
-          setProfileLoaded(true);
-        },
-        error: (error: unknown) => {
-          logger.error("Failed to observe profile for setup guide", error);
-          setProfileLoaded(true);
-        },
-      });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  // Default to `true` (dismissed) while the profile observer is still
-  // settling — `setupGuideCompleted` is `null` until the first
-  // observable emission. Defaulting to dismissed here means the
-  // OnboardingGuideCard stays hidden during the first render after
-  // mount instead of flashing in and then collapsing once the real
-  // value arrives. Becomes accurate after the observer's first emit.
-  const isDismissed = setupGuideCompleted ?? true;
+  // Default to `true` (dismissed) while the scoped profile observer is still
+  // settling, so the card does not flash in before the current user's row emits.
+  const isDismissed = profile?.setupGuideCompleted ?? true;
 
   // ── Observe bank accounts ──
   useEffect(() => {

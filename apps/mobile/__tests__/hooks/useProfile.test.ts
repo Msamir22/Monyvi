@@ -56,6 +56,14 @@ const mockObserve = jest.fn(() => ({ subscribe: mockSubscribe }));
 
 const mockQuery = jest.fn(() => ({ observe: mockObserve }));
 
+let mockAuthState: {
+  user: { id: string } | null;
+  isLoading: boolean;
+} = {
+  user: { id: "user-1" },
+  isLoading: false,
+};
+
 jest.mock("@monyvi/db", () => ({
   database: {
     get: jest.fn(() => ({
@@ -65,8 +73,28 @@ jest.mock("@monyvi/db", () => ({
   Profile: {},
 }));
 
+jest.mock("@/context/AuthContext", () => ({
+  useAuth: (): typeof mockAuthState => mockAuthState,
+}));
+
+const mockWhere = jest.fn((column: string, value: unknown) => ({
+  column,
+  value,
+}));
+const mockTake = jest.fn((count: number) => ({ count }));
+
 jest.mock("@nozbe/watermelondb", () => ({
-  Q: { where: jest.fn(() => "mock-where"), take: jest.fn(() => "mock-take") },
+  Q: {
+    where: (column: string, value: unknown): unknown =>
+      mockWhere(column, value),
+    take: (count: number): unknown => mockTake(count),
+  },
+}));
+
+jest.mock("@/utils/logger", () => ({
+  logger: {
+    error: jest.fn(),
+  },
 }));
 
 // Import after mocks
@@ -98,7 +126,10 @@ function renderHook(): {
     return null;
   };
 
-  const renderer = RTR.create(React.createElement(HookWrapper));
+  let renderer: ReactTestRendererInstance;
+  RTR.act(() => {
+    renderer = RTR.create(React.createElement(HookWrapper));
+  });
   return { result: resultRef, unmount: () => renderer.unmount() };
 }
 
@@ -109,6 +140,10 @@ function renderHook(): {
 beforeEach(() => {
   jest.clearAllMocks();
   activeSubscriber = null;
+  mockAuthState = {
+    user: { id: "user-1" },
+    isLoading: false,
+  };
 });
 
 describe("useProfile", () => {
@@ -122,6 +157,41 @@ describe("useProfile", () => {
     renderHook();
     expect(mockSubscribe).toHaveBeenCalledTimes(1);
     expect(activeSubscriber).not.toBeNull();
+  });
+
+  it("scopes the profile observation to the authenticated user", () => {
+    renderHook();
+
+    expect(mockWhere).toHaveBeenCalledWith("user_id", "user-1");
+    expect(mockWhere).toHaveBeenCalledWith("deleted", false);
+    expect(mockTake).toHaveBeenCalledWith(1);
+  });
+
+  it("does not subscribe while auth is still resolving", () => {
+    mockAuthState = {
+      user: null,
+      isLoading: true,
+    };
+
+    const { result } = renderHook();
+
+    expect(mockQuery).not.toHaveBeenCalled();
+    expect(mockSubscribe).not.toHaveBeenCalled();
+    expect(result.current.isLoading).toBe(true);
+  });
+
+  it("returns an empty settled result when there is no authenticated user", () => {
+    mockAuthState = {
+      user: null,
+      isLoading: false,
+    };
+
+    const { result } = renderHook();
+
+    expect(mockQuery).not.toHaveBeenCalled();
+    expect(mockSubscribe).not.toHaveBeenCalled();
+    expect(result.current.profile).toBeNull();
+    expect(result.current.isLoading).toBe(false);
   });
 
   it("returns an unsubscribe function from the subscription (cleanup contract)", () => {

@@ -5,6 +5,8 @@
  * around local WatermelonDB reads and writes.
  */
 
+import { Q } from "@nozbe/watermelondb";
+
 interface MockUserOwnedRecord {
   readonly id: string;
   readonly userId: string;
@@ -25,9 +27,24 @@ interface MockCollection<T> {
 }
 
 const mockGetCurrentUserId = jest.fn<Promise<string | null>, []>();
+const mockWhere = jest.fn((column: string, value: unknown) => ({
+  column,
+  value,
+}));
+const mockOr = jest.fn((...clauses: unknown[]) => ({ or: clauses }));
+const mockAnd = jest.fn((...clauses: unknown[]) => ({ and: clauses }));
 
 jest.mock("@/services/supabase", () => ({
   getCurrentUserId: (): Promise<string | null> => mockGetCurrentUserId(),
+}));
+
+jest.mock("@nozbe/watermelondb", () => ({
+  Q: {
+    where: (column: string, value: unknown): unknown =>
+      mockWhere(column, value),
+    or: (...clauses: unknown[]): unknown => mockOr(...clauses),
+    and: (...clauses: unknown[]): unknown => mockAnd(...clauses),
+  },
 }));
 
 import {
@@ -37,6 +54,8 @@ import {
   assertOwnedRecord,
   findOwnedById,
   getRequiredCurrentUserId,
+  queryAccessibleCategories,
+  queryOwned,
 } from "@/services/user-data-access";
 
 describe("user-data-access", () => {
@@ -124,5 +143,30 @@ describe("user-data-access", () => {
     await expect(
       assertChildRecordParentOwned(child, parents, "accountId", "attacker-user")
     ).rejects.toThrow(USER_DATA_ACCESS_ERROR_CODES.OWNERSHIP_FAILED);
+  });
+
+  it("builds current-user-owned queries with user_id scope first", () => {
+    const query = jest.fn((...clauses: unknown[]) => ({ clauses }));
+    const collection = { query };
+    const deletedClause = Q.where("deleted", false);
+
+    queryOwned(collection as never, "user-1", deletedClause);
+
+    expect(query).toHaveBeenCalledWith(
+      { column: "user_id", value: "user-1" },
+      { column: "deleted", value: false }
+    );
+  });
+
+  it("builds category queries for ownerless system and current-user custom rows", () => {
+    const query = jest.fn((...clauses: unknown[]) => ({ clauses }));
+    const collection = { query };
+
+    queryAccessibleCategories(collection as never, "user-1");
+
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(query.mock.calls[0])).toContain("user-1");
+    expect(JSON.stringify(query.mock.calls[0])).toContain("is_system");
+    expect(JSON.stringify(query.mock.calls[0])).toContain("user_id");
   });
 });

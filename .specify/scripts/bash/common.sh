@@ -168,12 +168,16 @@ read_feature_json_feature_directory() {
         if ! _fd=$(jq -r '.feature_directory // empty' "$fj" 2>/dev/null); then
             _fd=''
         fi
-    elif command -v python3 >/dev/null 2>&1; then
+    fi
+
+    if [[ -z "$_fd" ]] && command -v python3 >/dev/null 2>&1; then
         # Use Python so pretty-printed/multi-line JSON still parses correctly.
         if ! _fd=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); v=d.get('feature_directory'); print(v if v else '')" "$fj" 2>/dev/null); then
             _fd=''
         fi
-    else
+    fi
+
+    if [[ -z "$_fd" ]]; then
         # Last-resort single-line grep/sed fallback. The `|| true` guards against
         # grep returning 1 (no match) aborting under `set -e` / `pipefail`.
         _fd=$( { grep -E '"feature_directory"[[:space:]]*:' "$fj" 2>/dev/null || true; } \
@@ -642,4 +646,3 @@ except Exception:
     printf '%s' "$content"
     return 0
 }
-

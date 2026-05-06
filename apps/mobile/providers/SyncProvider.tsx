@@ -18,18 +18,29 @@ import { AppState, AppStateStatus } from "react-native";
 import { useAuth } from "../context/AuthContext";
 import { isAuthenticated as checkIsAuthenticated } from "../services/supabase";
 import { completeInterruptedLogout } from "../services/logout-service";
+import { bootstrapCurrentProfile } from "@/services/profile-bootstrap-service";
+import { refreshSharedReferenceDataAfterAuth } from "@/services/shared-reference-refresh-service";
 import { syncDatabase } from "../services/sync";
-import { logger } from "../utils/logger";
+import type {
+  ProfileBootstrapReason,
+  ProfileBootstrapResult,
+  ProfileBootstrapRouteBasis,
+} from "../services/startup-bootstrap-types";
+import { logger } from "@/utils/logger";
 
 // Sync intervals in milliseconds
 const SYNC_INTERVAL_ACTIVE = 15 * 60 * 1000; // 15 minutes when app is active
 const SYNC_INTERVAL_BACKGROUND = 30 * 60 * 1000; // 30 minutes when backgrounded
 
-/** Timeout for the initial pull-sync before declaring failure (FR-006). */
-const INITIAL_SYNC_TIMEOUT_MS = 20_000;
+/** Timeout for the current-profile bootstrap before declaring recovery needed. */
+const PROFILE_BOOTSTRAP_TIMEOUT_MS = 30_000;
 
 /** State machine for the initial pull-sync that gates post-sign-in routing. */
 export type InitialSyncState = "in-progress" | "success" | "failed" | "timeout";
+
+function getElapsedMs(startedAtMs: number): number {
+  return Date.now() - startedAtMs;
+}
 
 interface SyncContextValue {
   isSyncing: boolean;
@@ -37,9 +48,15 @@ interface SyncContextValue {
   lastSyncedAt: Date | null;
   syncError: Error | null;
   sync: (forceFullSync?: boolean) => Promise<void>;
-  /** Resolved after the initial pull-sync completes or times out. */
+  /** Resolved after the current-profile bootstrap completes or times out. */
   readonly initialSyncState: InitialSyncState;
-  /** Re-trigger the initial sync. Returns the new state when resolved. */
+  /** Non-PII basis used for the first post-auth routing decision. */
+  readonly bootstrapRouteBasis: ProfileBootstrapRouteBasis;
+  /** Non-PII reason for the profile bootstrap outcome. */
+  readonly bootstrapReason: ProfileBootstrapReason | null;
+  /** True while the first account-data refresh after profile bootstrap runs. */
+  readonly isPostBootstrapSyncing: boolean;
+  /** Re-trigger the profile bootstrap. Returns the new state when resolved. */
   readonly retryInitialSync: () => Promise<InitialSyncState>;
 }
 
@@ -49,10 +66,23 @@ interface SyncProviderProps {
   children: ReactNode;
 }
 
+function mapBootstrapResultToInitialState(
+  result: ProfileBootstrapResult
+): InitialSyncState {
+  if (
+    result.status === "ready-remote-profile" ||
+    result.status === "ready-local-trusted"
+  ) {
+    return "success";
+  }
+
+  return result.reason === "remote-profile-timeout" ? "timeout" : "failed";
+}
+
 export function SyncProvider({ children }: SyncProviderProps): JSX.Element {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isInitialSync, setIsInitialSync] = useState(false);
+  const isInitialSync = false;
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const [syncError, setSyncError] = useState<Error | null>(null);
   const [appState, setAppState] = useState<AppStateStatus>(
@@ -60,13 +90,37 @@ export function SyncProvider({ children }: SyncProviderProps): JSX.Element {
   );
   const [initialSyncState, setInitialSyncState] =
     useState<InitialSyncState>("in-progress");
+  const [hasProfileBootstrapSettled, setHasProfileBootstrapSettled] =
+    useState(false);
+  const [bootstrapRouteBasis, setBootstrapRouteBasis] =
+    useState<ProfileBootstrapRouteBasis>("none");
+  const [bootstrapReason, setBootstrapReason] =
+    useState<ProfileBootstrapReason | null>(null);
+  const [isPostBootstrapSyncing, setIsPostBootstrapSyncing] = useState(false);
 
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const profileBootstrapRunIdRef = useRef(0);
+
+  const clearSyncInterval = useCallback((): void => {
+    if (syncIntervalRef.current) {
+      clearInterval(syncIntervalRef.current);
+      syncIntervalRef.current = null;
+    }
+  }, []);
 
   const sync = useCallback(async (forceFullSync = false): Promise<void> => {
+    const syncStartedAtMs = Date.now();
+    logger.info("syncProvider.sync.start", {
+      forceFullSync,
+    });
+
     // Check if authenticated before syncing
     const authenticated = await checkIsAuthenticated();
     if (!authenticated) {
+      logger.info("syncProvider.sync.skippedUnauthenticated", {
+        forceFullSync,
+        durationMs: getElapsedMs(syncStartedAtMs),
+      });
       return;
     }
 
@@ -77,9 +131,18 @@ export function SyncProvider({ children }: SyncProviderProps): JSX.Element {
       // Concurrency guard is handled inside syncDatabase (module-level lock in sync.ts)
       await syncDatabase(database, forceFullSync);
       setLastSyncedAt(new Date());
+      logger.info("syncProvider.sync.success", {
+        forceFullSync,
+        durationMs: getElapsedMs(syncStartedAtMs),
+      });
     } catch (error) {
       const syncErr = error instanceof Error ? error : new Error("Sync failed");
       setSyncError(syncErr);
+      logger.warn("syncProvider.sync.failed", {
+        forceFullSync,
+        durationMs: getElapsedMs(syncStartedAtMs),
+        message: syncErr.message,
+      });
       throw syncErr;
     } finally {
       setIsSyncing(false);
@@ -87,44 +150,89 @@ export function SyncProvider({ children }: SyncProviderProps): JSX.Element {
   }, []);
 
   /**
-   * Runs the initial sync with a 20-second timeout race.
-   * Returns the final InitialSyncState.
+   * Bootstraps the current profile only. The full account sync runs later as
+   * background refresh and must not gate post-auth routing.
    */
-  const runInitialSync = useCallback(async (): Promise<InitialSyncState> => {
-    setInitialSyncState("in-progress");
+  const runInitialSync = useCallback(
+    async (
+      existingRunId?: number,
+      onSuccessBeforeRouteUnlock?: () => void
+    ): Promise<InitialSyncState> => {
+      const runId = existingRunId ?? profileBootstrapRunIdRef.current + 1;
+      profileBootstrapRunIdRef.current = runId;
+      const isCurrentRun = (): boolean =>
+        profileBootstrapRunIdRef.current === runId;
 
-    let syncResult: InitialSyncState = "success";
-    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+      const commit = (apply: () => void): boolean => {
+        if (!isCurrentRun()) return false;
+        apply();
+        return true;
+      };
 
-    try {
-      await Promise.race([
-        sync(true),
-        new Promise<never>((_resolve, reject) => {
-          timeoutHandle = setTimeout(
-            () => reject(new Error("initial-sync-timeout")),
-            INITIAL_SYNC_TIMEOUT_MS
-          );
-        }),
-      ]);
-    } catch (error) {
-      syncResult =
-        error instanceof Error && error.message === "initial-sync-timeout"
-          ? "timeout"
-          : "failed";
-    } finally {
-      // Always clear the timer — otherwise the losing branch of Promise.race
-      // leaks a pending timer that fires 20s later with an unhandled rejection
-      // on the detached Promise (fires after Android/iOS wake-ups too).
-      if (timeoutHandle !== null) {
-        clearTimeout(timeoutHandle);
+      commit(() => {
+        setHasProfileBootstrapSettled(false);
+        setInitialSyncState("in-progress");
+        setBootstrapRouteBasis("none");
+        setBootstrapReason(null);
+      });
+
+      try {
+        logger.info("syncProvider.profileBootstrap.run.start", {
+          hasAuthUser: Boolean(user?.id),
+        });
+
+        const bootstrapResult = await bootstrapCurrentProfile(database, {
+          timeoutMs: PROFILE_BOOTSTRAP_TIMEOUT_MS,
+          userId: user?.id ?? null,
+        });
+        const syncResult = mapBootstrapResultToInitialState(bootstrapResult);
+
+        logger.info("syncProvider.profileBootstrap.run.result", {
+          status: bootstrapResult.status,
+          reason: bootstrapResult.reason,
+          routeBasis: bootstrapResult.routeBasis,
+          initialSyncState: syncResult,
+        });
+
+        if (
+          !commit(() => {
+            if (syncResult === "success") {
+              onSuccessBeforeRouteUnlock?.();
+            }
+            setBootstrapRouteBasis(bootstrapResult.routeBasis);
+            setBootstrapReason(bootstrapResult.reason);
+            setInitialSyncState(syncResult);
+            setHasProfileBootstrapSettled(true);
+          })
+        ) {
+          return "in-progress";
+        }
+
+        return syncResult;
+      } catch (error: unknown) {
+        logger.warn(
+          "syncProvider.profileBootstrap.run.exception",
+          error instanceof Error ? { message: error.message } : { error }
+        );
+
+        if (
+          !commit(() => {
+            setBootstrapRouteBasis("none");
+            setBootstrapReason("remote-profile-error");
+            setInitialSyncState("failed");
+            setHasProfileBootstrapSettled(true);
+          })
+        ) {
+          return "in-progress";
+        }
+
+        return "failed";
       }
-    }
+    },
+    [user?.id]
+  );
 
-    setInitialSyncState(syncResult);
-    return syncResult;
-  }, [sync]);
-
-  /** Re-trigger the initial sync from the retry screen. */
+  /** Re-trigger the initial sync from account-load recovery. */
   const retryInitialSync = useCallback(async (): Promise<InitialSyncState> => {
     return runInitialSync();
   }, [runInitialSync]);
@@ -138,15 +246,11 @@ export function SyncProvider({ children }: SyncProviderProps): JSX.Element {
   const setupSyncInterval = useCallback(
     (isActive: boolean) => {
       // Clear existing interval
-      if (syncIntervalRef.current) {
-        clearInterval(syncIntervalRef.current);
-      }
+      clearSyncInterval();
 
       const interval = isActive
         ? SYNC_INTERVAL_ACTIVE
         : SYNC_INTERVAL_BACKGROUND;
-
-      // TODO: Replace with structured logging (e.g., Sentry)
 
       syncIntervalRef.current = setInterval(() => {
         // Use async auth check instead of closed-over isAuthenticated
@@ -157,37 +261,47 @@ export function SyncProvider({ children }: SyncProviderProps): JSX.Element {
             if (authenticated) {
               await sync();
             }
-          } catch {
-            // TODO: Replace with structured logging (e.g., Sentry)
+          } catch (error: unknown) {
+            logger.warn("syncProvider.intervalSync.failed", {
+              message: error instanceof Error ? error.message : String(error),
+            });
           }
         };
-        runSync().catch(() => {
-          // TODO: Replace with structured logging (e.g., Sentry)
+        runSync().catch((error: unknown) => {
+          logger.warn("syncProvider.intervalSync.unhandled", {
+            message: error instanceof Error ? error.message : String(error),
+          });
         });
       }, interval);
     },
-    [sync]
+    [clearSyncInterval, sync]
   );
 
   // Handle app state changes (foreground/background)
   useEffect(() => {
     const handleAppStateChange = (nextAppState: AppStateStatus): void => {
+      if (!isAuthenticated) {
+        clearSyncInterval();
+        setAppState(nextAppState);
+        return;
+      }
+
       const wasBackground = appState.match(/inactive|background/);
       const isNowActive = nextAppState === "active";
 
       // App came to foreground from background
       if (wasBackground && isNowActive) {
-        // TODO: Replace with structured logging (e.g., Sentry)
         // Sync immediately when returning to foreground
-        sync().catch(() => {
-          // TODO: Replace with structured logging (e.g., Sentry)
+        sync().catch((error: unknown) => {
+          logger.warn("syncProvider.foregroundSync.failed", {
+            message: error instanceof Error ? error.message : String(error),
+          });
         });
         setupSyncInterval(true);
       }
 
       // App went to background
       if (appState === "active" && nextAppState.match(/inactive|background/)) {
-        // TODO: Replace with structured logging (e.g., Sentry)
         setupSyncInterval(false);
       }
 
@@ -200,63 +314,163 @@ export function SyncProvider({ children }: SyncProviderProps): JSX.Element {
     );
 
     return () => subscription.remove();
-  }, [appState, sync, setupSyncInterval]);
+  }, [appState, clearSyncInterval, isAuthenticated, sync, setupSyncInterval]);
 
   // Initial sync on mount + data cleared detection
   useEffect(() => {
+    const effectRunId = profileBootstrapRunIdRef.current + 1;
+    profileBootstrapRunIdRef.current = effectRunId;
+    const startupStartedAtMs = Date.now();
+    const isCurrentRun = (): boolean =>
+      profileBootstrapRunIdRef.current === effectRunId;
+
+    if (isAuthenticated) {
+      setHasProfileBootstrapSettled(false);
+      setInitialSyncState("in-progress");
+      setBootstrapRouteBasis("none");
+      setBootstrapReason(null);
+      setIsPostBootstrapSyncing(false);
+    } else {
+      clearSyncInterval();
+      setBootstrapRouteBasis("none");
+      setBootstrapReason(null);
+      setInitialSyncState("success");
+      setHasProfileBootstrapSettled(false);
+      setIsPostBootstrapSyncing(false);
+    }
+
     const initialSync = async (): Promise<void> => {
+      logger.info("syncProvider.postAuthStartup.start", {
+        runId: effectRunId,
+        isAuthenticated,
+        hasAuthUser: Boolean(user?.id),
+      });
+
       // FR-012: Complete any interrupted logout from a force-close
+      const logoutRecoveryStartedAtMs = Date.now();
       await completeInterruptedLogout(database);
+      logger.info("syncProvider.postAuthStartup.logoutRecovery.complete", {
+        runId: effectRunId,
+        durationMs: getElapsedMs(logoutRecoveryStartedAtMs),
+      });
+      if (!isCurrentRun()) return;
 
       // Check user is authenticated before syncing
       if (!isAuthenticated) {
-        setupSyncInterval(true);
-        setInitialSyncState("success");
+        logger.info("syncProvider.postAuthStartup.skippedUnauthenticated", {
+          runId: effectRunId,
+          durationMs: getElapsedMs(startupStartedAtMs),
+        });
         return;
       }
 
-      // Check if data was cleared (empty local DB but authenticated)
-      const accountsCollection = database.get("accounts");
-      const count = await accountsCollection.query().fetchCount();
+      // Authenticated launches verify only the current profile before routing.
+      // The broader account pull continues after the route gate is unblocked.
+      const profileBootstrapStartedAtMs = Date.now();
+      const bootstrapState = await runInitialSync(effectRunId, () => {
+        setIsPostBootstrapSyncing(true);
+      });
+      logger.info("syncProvider.postAuthStartup.profileBootstrap.complete", {
+        runId: effectRunId,
+        bootstrapState,
+        durationMs: getElapsedMs(profileBootstrapStartedAtMs),
+        totalDurationMs: getElapsedMs(startupStartedAtMs),
+      });
+      if (!isCurrentRun()) return;
+      if (bootstrapState === "success") {
+        const runPostBootstrapRefresh = async (): Promise<void> => {
+          const refreshStartedAtMs = Date.now();
+          logger.info("syncProvider.postBootstrapRefresh.start", {
+            runId: effectRunId,
+          });
 
-      if (count === 0) {
-        setIsInitialSync(true);
-        await runInitialSync();
-        setIsInitialSync(false);
+          try {
+            try {
+              const sharedReferenceStartedAtMs = Date.now();
+              const sharedReferenceResult =
+                await refreshSharedReferenceDataAfterAuth(database);
+              logger.info(
+                "syncProvider.postBootstrapRefresh.sharedReference.complete",
+                {
+                  runId: effectRunId,
+                  durationMs: getElapsedMs(sharedReferenceStartedAtMs),
+                  marketRates: sharedReferenceResult.marketRates,
+                  systemCategories: sharedReferenceResult.systemCategories,
+                }
+              );
+            } catch (error: unknown) {
+              logger.warn(
+                "syncProvider.postBootstrapRefresh.sharedReference.failed",
+                {
+                  runId: effectRunId,
+                  message:
+                    error instanceof Error ? error.message : String(error),
+                }
+              );
+            }
+
+            const fullSyncStartedAtMs = Date.now();
+            await sync(true);
+            logger.info("syncProvider.postBootstrapRefresh.fullSync.complete", {
+              runId: effectRunId,
+              durationMs: getElapsedMs(fullSyncStartedAtMs),
+            });
+          } finally {
+            if (isCurrentRun()) {
+              setIsPostBootstrapSyncing(false);
+              logger.info("syncProvider.postBootstrapRefresh.complete", {
+                runId: effectRunId,
+                durationMs: getElapsedMs(refreshStartedAtMs),
+                totalDurationMs: getElapsedMs(startupStartedAtMs),
+              });
+            }
+          }
+        };
+
+        runPostBootstrapRefresh().catch((error: unknown) => {
+          logger.warn("syncProvider.postBootstrapRefresh.failed", {
+            runId: effectRunId,
+            durationMs: getElapsedMs(startupStartedAtMs),
+            message: error instanceof Error ? error.message : String(error),
+          });
+        });
       } else {
-        // Non-empty DB — data already exists, so the app is fully usable
-        // offline. Mark the initial-sync gate as "success" immediately so
-        // the routing gate unblocks, then run the background sync
-        // non-awaited. Previously this path `await`ed `sync()`, which on a
-        // slow network could leave `initialSyncState === "in-progress"`
-        // well past the 20s timeout and violate FR-006 for returning users.
-        setInitialSyncState("success");
-        sync().catch((error: unknown) => {
-          // Background sync failure is non-fatal; regular sync-interval retries
-          // will recover. Log so it is diagnosable but don't flip the gate.
-          logger.warn(
-            "sync.backgroundRefreshOnBoot.failed",
-            error instanceof Error ? { message: error.message } : { error }
-          );
+        setIsPostBootstrapSyncing(false);
+        logger.info("syncProvider.postAuthStartup.recoveryRequired", {
+          runId: effectRunId,
+          bootstrapState,
+          durationMs: getElapsedMs(startupStartedAtMs),
         });
       }
 
-      // Set up initial interval (app starts active)
-      setupSyncInterval(true);
+      setupSyncInterval(AppState.currentState === "active");
     };
 
     initialSync().catch(() => {
+      if (!isCurrentRun() || !isAuthenticated) return;
+      setBootstrapRouteBasis("none");
+      setBootstrapReason("remote-profile-error");
       setInitialSyncState("failed");
+      setHasProfileBootstrapSettled(true);
     });
 
     // Cleanup interval on unmount
     return () => {
-      if (syncIntervalRef.current) {
-        clearInterval(syncIntervalRef.current);
-      }
+      clearSyncInterval();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated]);
+  }, [
+    clearSyncInterval,
+    isAuthenticated,
+    runInitialSync,
+    setupSyncInterval,
+    sync,
+    user?.id,
+  ]);
+
+  const exposedInitialSyncState: InitialSyncState =
+    isAuthenticated && !hasProfileBootstrapSettled
+      ? "in-progress"
+      : initialSyncState;
 
   const value = useMemo<SyncContextValue>(
     () => ({
@@ -265,7 +479,10 @@ export function SyncProvider({ children }: SyncProviderProps): JSX.Element {
       lastSyncedAt,
       syncError,
       sync,
-      initialSyncState,
+      initialSyncState: exposedInitialSyncState,
+      bootstrapRouteBasis,
+      bootstrapReason,
+      isPostBootstrapSyncing,
       retryInitialSync,
     }),
     [
@@ -274,7 +491,10 @@ export function SyncProvider({ children }: SyncProviderProps): JSX.Element {
       lastSyncedAt,
       syncError,
       sync,
-      initialSyncState,
+      exposedInitialSyncState,
+      bootstrapRouteBasis,
+      bootstrapReason,
+      isPostBootstrapSyncing,
       retryInitialSync,
     ]
   );

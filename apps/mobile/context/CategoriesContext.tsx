@@ -15,6 +15,8 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import { useCurrentUserId } from "@/hooks/useCurrentUserId";
+import { queryAccessibleCategories } from "@/services/user-data-access";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -48,25 +50,41 @@ export function CategoriesProvider({
 }: CategoriesProviderProps): React.JSX.Element {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { userId, isResolvingUser } = useCurrentUserId();
 
   useEffect(() => {
-    const subscription = database
-      .get<Category>("categories")
-      .query(Q.where("deleted", false), Q.sortBy("sort_order", Q.asc))
-      .observe()
-      .subscribe({
-        next: (result) => {
-          setCategories(result);
-          setIsLoading(false);
-        },
-        error: (err) => {
-          console.error("CategoriesProvider: observation error", err);
-          setIsLoading(false);
-        },
-      });
+    if (isResolvingUser) {
+      setIsLoading(true);
+      return;
+    }
+
+    const collection = database.get<Category>("categories");
+    const query = userId
+      ? queryAccessibleCategories(
+          collection,
+          userId,
+          Q.where("deleted", false),
+          Q.sortBy("sort_order", Q.asc)
+        )
+      : collection.query(
+          Q.and(Q.where("is_system", true), Q.where("user_id", null)),
+          Q.where("deleted", false),
+          Q.sortBy("sort_order", Q.asc)
+        );
+
+    const subscription = query.observe().subscribe({
+      next: (result) => {
+        setCategories(result);
+        setIsLoading(false);
+      },
+      error: (err) => {
+        console.error("CategoriesProvider: observation error", err);
+        setIsLoading(false);
+      },
+    });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [isResolvingUser, userId]);
 
   const categoryMap = useMemo(
     () => new Map(categories.map((c) => [c.id, c])),

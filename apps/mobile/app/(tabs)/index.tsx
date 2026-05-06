@@ -73,7 +73,7 @@ export default function DashboardScreen(): React.JSX.Element {
   const isDbReady = useDatabaseReady();
   const { t } = useTranslation("common");
   const { profile } = useProfile();
-  const { sync } = useSync();
+  const { sync, isPostBootstrapSyncing } = useSync();
   const { accounts, isLoading: accountsLoading } = useTopAccounts(3);
   const {
     latestRates,
@@ -165,11 +165,12 @@ export default function DashboardScreen(): React.JSX.Element {
   // Overall loading state
   const isLoading = accountsLoading || ratesLoading || netWorthLoading;
 
-  // Show the full dashboard skeleton while WatermelonDB is still initializing
-  // so the user sees the real content layout immediately instead of a blank
-  // spinner. Section-level hooks handle their own loading states once the DB
-  // is ready.
-  if (!isDbReady) {
+  // Show the full dashboard skeleton while WatermelonDB is initializing, or
+  // while the first post-auth data refresh is still running after the route
+  // gate has been unblocked.
+  // Without this, Watermelon observers can emit an empty first result and the
+  // dashboard looks "loaded" for a few seconds before remote data appears.
+  if (!isDbReady || isPostBootstrapSyncing) {
     return (
       <StarryBackground>
         <DashboardSkeleton />

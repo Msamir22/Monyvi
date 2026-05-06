@@ -5,6 +5,7 @@
 
 import {
   Account,
+  Asset,
   AssetMetal,
   DailySnapshotNetWorth,
   database,
@@ -47,9 +48,11 @@ interface UseNetWorthResult {
  */
 export function useNetWorth(): UseNetWorthResult {
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [assets, setAssets] = useState<Asset[]>([]);
   const [assetMetals, setAssetMetals] = useState<AssetMetal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAccountsLoading, setIsAccountsLoading] = useState(true);
+  const [isAssetsLoading, setIsAssetsLoading] = useState(true);
   const [isAssetMetalsLoading, setIsAssetMetalsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -102,8 +105,64 @@ export function useNetWorth(): UseNetWorthResult {
   }, [refreshKey, userId, isResolvingUser]);
 
   useEffect(() => {
+    if (isResolvingUser) {
+      setAssets([]);
+      setIsLoading(true);
+      setIsAssetsLoading(true);
+      return;
+    }
+
+    if (!userId) {
+      setAssets([]);
+      setIsAssetsLoading(false);
+      return;
+    }
+
+    const assetsCollection = database.get<Asset>("assets");
+    const query = queryOwned(
+      assetsCollection,
+      userId,
+      Q.where("deleted", false)
+    );
+
+    setIsAssetsLoading(true);
+
+    const subscription = query.observe().subscribe({
+      next: (result) => {
+        setAssets(result);
+        setIsAssetsLoading(false);
+      },
+      error: (err: unknown) => {
+        console.error("Error observing assets:", err);
+        setError(err instanceof Error ? err : new Error(String(err)));
+        setIsAssetsLoading(false);
+      },
+    });
+
+    return () => subscription.unsubscribe();
+  }, [refreshKey, userId, isResolvingUser]);
+
+  useEffect(() => {
+    if (isResolvingUser || isAssetsLoading) {
+      setAssetMetals([]);
+      setIsLoading(true);
+      setIsAssetMetalsLoading(true);
+      return;
+    }
+
+    if (!userId || assets.length === 0) {
+      setAssetMetals([]);
+      setIsLoading(false);
+      setIsAssetMetalsLoading(false);
+      return;
+    }
+
     const assetMetalsCollection = database.get<AssetMetal>("asset_metals");
-    const query = assetMetalsCollection.query(Q.where("deleted", false));
+    const assetIds = assets.map((asset) => asset.id);
+    const query = assetMetalsCollection.query(
+      Q.where("deleted", false),
+      Q.where("asset_id", Q.oneOf(assetIds))
+    );
 
     const subscription = query.observe().subscribe({
       next: (result) => {
@@ -120,7 +179,7 @@ export function useNetWorth(): UseNetWorthResult {
     });
 
     return () => subscription.unsubscribe();
-  }, [refreshKey]);
+  }, [refreshKey, userId, isResolvingUser, assets, isAssetsLoading]);
 
   /** Convert a USD amount to the user's preferred currency. */
   const toPreferred = useMemo(
@@ -136,6 +195,7 @@ export function useNetWorth(): UseNetWorthResult {
       isResolvingUser ||
       isLoading ||
       isAccountsLoading ||
+      isAssetsLoading ||
       isAssetMetalsLoading ||
       isRatesLoading ||
       !latestRates
@@ -162,6 +222,7 @@ export function useNetWorth(): UseNetWorthResult {
     isLoading,
     isResolvingUser,
     isAccountsLoading,
+    isAssetsLoading,
     isAssetMetalsLoading,
     isRatesLoading,
     toPreferred,
@@ -202,15 +263,31 @@ export function useMonthlyPercentageChange(): {
     number | null
   >(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { userId, isResolvingUser } = useCurrentUserId();
 
   useEffect(() => {
+    if (isResolvingUser) {
+      setMonthlyPercentageChange(null);
+      setIsLoading(true);
+      return;
+    }
+
+    if (!userId) {
+      setMonthlyPercentageChange(null);
+      setIsLoading(false);
+      return;
+    }
+
     const collection = database.get<DailySnapshotNetWorth>(
       "daily_snapshot_net_worth"
     );
 
     // Observe the collection to react to sync updates
-    const subscription = collection
-      .query(Q.sortBy("snapshot_date", Q.desc))
+    const subscription = queryOwned(
+      collection,
+      userId,
+      Q.sortBy("snapshot_date", Q.desc)
+    )
       .observe()
       .subscribe({
         next: (snapshots) => {
@@ -252,7 +329,7 @@ export function useMonthlyPercentageChange(): {
       });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [userId, isResolvingUser]);
 
   return {
     monthlyPercentageChange,

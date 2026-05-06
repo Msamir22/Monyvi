@@ -1,9 +1,9 @@
 /**
- * RetrySyncScreen — Variant 2 "Status Card" (approved 2026-04-18)
+ * AccountLoadRecoveryScreen.
  *
- * Shown when the initial pull-sync fails or times out (FR-006).
- * Two actions only: Retry (re-triggers sync) and Sign out (clears session).
- * No top-app-bar — the retry screen has no valid close destination.
+ * Shown when account/profile bootstrap fails or times out.
+ * Two actions only: Retry loading account and Sign out (clears session).
+ * No top-app-bar — the recovery screen has no valid close destination.
  *
  * Theming: follows the app's standard pattern — semantic tokens
  * (`bg-background`, `bg-surface`, `text-text-primary`, …) + `dark:` variants,
@@ -13,7 +13,7 @@
  *
  * Mockup reference: specs/024-skip-returning-onboarding/mockups/retry-sync-screen.html
  *
- * @module RetrySyncScreen
+ * @module AccountLoadRecoveryScreen
  */
 
 import { palette } from "@/constants/colors";
@@ -27,8 +27,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 // Types
 // ---------------------------------------------------------------------------
 
-interface RetrySyncScreenProps {
-  /** Re-trigger the initial sync. */
+interface AccountLoadRecoveryScreenProps {
+  /** Re-trigger account/profile bootstrap. */
   readonly onRetry: () => void;
   /** Clear the session and return to sign-in. */
   readonly onSignOut: () => void;
@@ -38,10 +38,10 @@ interface RetrySyncScreenProps {
 // Component
 // ---------------------------------------------------------------------------
 
-export function RetrySyncScreen({
+export function AccountLoadRecoveryScreen({
   onRetry,
   onSignOut,
-}: RetrySyncScreenProps): React.JSX.Element {
+}: AccountLoadRecoveryScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation("common");
 
@@ -58,22 +58,22 @@ export function RetrySyncScreen({
         </View>
 
         {/* Status Chip — dedicated i18n key per review Finding #3.
-            Previously derived via sync_failed_title.split(" ").slice(-2),
+            Previously derived via title.split(" ").slice(-2),
             which breaks in Arabic (RTL + different word order). */}
         <View className="px-3 py-1 rounded-full mb-4 bg-red-500/10 dark:bg-red-500/15">
           <Text className="text-xs font-semibold uppercase tracking-wider text-red-600 dark:text-red-400">
-            {t("sync_failed_chip")}
+            {t("account_load_failed_chip")}
           </Text>
         </View>
 
         {/* Headline */}
         <Text className="text-[22px] font-bold leading-tight mb-3 text-text-primary dark:text-text-primary-dark text-center max-w-[280px]">
-          {t("sync_failed_title")}
+          {t("account_load_failed_title")}
         </Text>
 
         {/* Body */}
         <Text className="text-sm leading-relaxed mb-6 text-text-secondary dark:text-text-secondary-dark text-center max-w-[280px]">
-          {t("sync_failed_description")}
+          {t("account_load_failed_description")}
         </Text>
 
         {/* Buttons Side-by-Side */}
@@ -96,8 +96,8 @@ export function RetrySyncScreen({
             onPress={onRetry}
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel={t("retry")}
-            className="flex-1 h-12 items-center justify-center rounded-xl bg-nileGreen-500"
+            accessibilityLabel={t("account_load_failed_retry")}
+            className="flex-1 h-12 items-center justify-center rounded-xl  bg-nileGreen-500"
             // NativeWind v4 crash: shadow on TouchableOpacity must use inline style
             // eslint-disable-next-line react-native/no-inline-styles
             style={{
@@ -108,8 +108,11 @@ export function RetrySyncScreen({
               shadowRadius: 8,
             }}
           >
-            <Text className="text-[15px] font-semibold text-white">
-              {t("retry")}
+            <Text
+              className="text-[13px] leading-4 font-semibold text-white text-center"
+              numberOfLines={2}
+            >
+              {t("account_load_failed_retry")}
             </Text>
           </TouchableOpacity>
         </View>
@@ -117,7 +120,7 @@ export function RetrySyncScreen({
 
       {/* Helper line */}
       <Text className="mt-6 text-xs text-text-muted dark:text-text-muted-dark text-center max-w-[300px]">
-        {t("sync_helper_text")}
+        {t("account_load_helper_text")}
       </Text>
     </View>
   );

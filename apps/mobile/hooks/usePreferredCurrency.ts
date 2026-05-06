@@ -3,10 +3,11 @@ import {
   DEFAULT_CURRENCY,
   detectCurrencyFromTimezone,
 } from "@/utils/currency-detection";
-import { database, Profile, type CurrencyType } from "@monyvi/db";
+import { database, type CurrencyType } from "@monyvi/db";
 import { SUPPORTED_CURRENCIES } from "@monyvi/logic";
-import { Q } from "@nozbe/watermelondb";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useProfile } from "./useProfile";
+import { logger } from "@/utils/logger";
 
 interface UsePreferredCurrencyResult {
   /** The user's preferred display currency */
@@ -25,29 +26,8 @@ interface UsePreferredCurrencyResult {
  * - `isLoading`: `true` while the initial Profile observation is pending, `false` otherwise.
  */
 export function usePreferredCurrency(): UsePreferredCurrencyResult {
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { profile, isLoading } = useProfile();
   const { showToast } = useToast();
-
-  // Observe the first profile record
-  useEffect(() => {
-    const collection = database.get<Profile>("profiles");
-    const subscription = collection
-      .query(Q.where("deleted", false), Q.take(1))
-      .observe()
-      .subscribe({
-        next: (profiles) => {
-          setProfile(profiles[0] ?? null);
-          setIsLoading(false);
-        },
-        error: (err: unknown) => {
-          console.error("Error observing profile:", err);
-          setIsLoading(false);
-        },
-      });
-
-    return () => subscription.unsubscribe();
-  }, []);
 
   const preferredCurrency = useMemo<CurrencyType>(() => {
     if (profile?.preferredCurrency) {
@@ -74,7 +54,7 @@ export function usePreferredCurrency(): UsePreferredCurrencyResult {
         });
       });
     } catch (error) {
-      console.error("Failed to save currency preference:", error);
+      logger.error("preferredCurrency.save.failed", error);
       showToast({
         type: "error",
         title: "Error",

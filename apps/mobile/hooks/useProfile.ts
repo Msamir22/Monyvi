@@ -13,6 +13,8 @@
 import { database, Profile } from "@monyvi/db";
 import { Q } from "@nozbe/watermelondb";
 import { useEffect, useState } from "react";
+import { useCurrentUserId } from "./useCurrentUserId";
+import { logger } from "@/utils/logger";
 
 // =============================================================================
 // Types
@@ -42,14 +44,29 @@ interface UseProfileResult {
 export function useProfile(): UseProfileResult {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { userId, isResolvingUser } = useCurrentUserId();
 
-  // Observe the first profile record
-  // TODO: Scope this query by user_id when multi-account support is added.
-  // Currently safe because Monyvi is single-user and login wipes local data.
+  // Observe only the authenticated user's profile. Local SQLite can contain
+  // stale rows after interrupted logout/debug restores, so "first profile"
+  // is not a safe identity boundary.
   useEffect(() => {
+    if (isResolvingUser) {
+      setProfile(null);
+      setIsLoading(true);
+      return;
+    }
+
+    if (!userId) {
+      setProfile(null);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+
     const collection = database.get<Profile>("profiles");
     const subscription = collection
-      .query(Q.where("deleted", false), Q.take(1))
+      .query(Q.where("user_id", userId), Q.where("deleted", false), Q.take(1))
       .observe()
       .subscribe({
         next: (profiles) => {
@@ -57,13 +74,13 @@ export function useProfile(): UseProfileResult {
           setIsLoading(false);
         },
         error: (err: unknown) => {
-          console.error("Error observing profile:", err);
+          logger.error("useProfile.observation.failed", err);
           setIsLoading(false);
         },
       });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [userId, isResolvingUser]);
 
   return {
     profile,

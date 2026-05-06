@@ -163,6 +163,22 @@ export function queryOwned<TRecord extends Model & UserOwnedRecord>(
   return collection.query(Q.where("user_id", currentUserId), ...conditions);
 }
 
+export function queryAccessibleCategories<
+  TRecord extends Model & UserScopedCategoryRecord,
+>(
+  collection: Collection<TRecord>,
+  currentUserId: string,
+  ...conditions: Clause[]
+): Query<TRecord> {
+  return collection.query(
+    Q.or(
+      Q.and(Q.where("is_system", true), Q.where("user_id", null)),
+      Q.where("user_id", currentUserId)
+    ),
+    ...conditions
+  );
+}
+
 /**
  * Assert that a child row without `user_id` belongs to the current user through
  * an owned parent row.
