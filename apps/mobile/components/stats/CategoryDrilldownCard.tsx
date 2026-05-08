@@ -15,6 +15,8 @@ import { palette } from "@/constants/colors";
 import { useAllCategories } from "@/context/CategoriesContext";
 import { usePreferredCurrency } from "@/hooks/usePreferredCurrency";
 import { useTheme } from "@/context/ThemeContext";
+import { useCurrentUserId } from "@/hooks/useCurrentUserId";
+import { queryOwned } from "@/services/user-data-access";
 import { database, Transaction } from "@monyvi/db";
 import { formatCurrency, getYearMonthBoundaries } from "@monyvi/logic";
 import { Ionicons } from "@expo/vector-icons";
@@ -31,6 +33,7 @@ import { useTranslation } from "react-i18next";
 export function CategoryDrilldownCard(): React.JSX.Element {
   const { isDark } = useTheme();
   const { preferredCurrency } = usePreferredCurrency();
+  const { userId, isResolvingUser } = useCurrentUserId();
   const { t } = useTranslation("common");
   const currentMonth = new Date().getMonth() + 1;
   const currentYear = new Date().getFullYear();
@@ -48,19 +51,31 @@ export function CategoryDrilldownCard(): React.JSX.Element {
 
   // Load transactions only (categories come from context)
   useEffect(() => {
+    if (isResolvingUser) {
+      setTransactions([]);
+      setTransactionsLoading(true);
+      return;
+    }
+
+    if (!userId) {
+      setTransactions([]);
+      setTransactionsLoading(false);
+      return;
+    }
+
     const { startDate, endDate } = getYearMonthBoundaries(
       currentYear,
       currentMonth
     );
 
-    const subscription = database
-      .get<Transaction>("transactions")
-      .query(
-        Q.where("deleted", false),
-        Q.where("date", Q.gte(startDate)),
-        Q.where("date", Q.lte(endDate)),
-        Q.where("type", "EXPENSE")
-      )
+    const subscription = queryOwned(
+      database.get<Transaction>("transactions"),
+      userId,
+      Q.where("deleted", false),
+      Q.where("date", Q.gte(startDate)),
+      Q.where("date", Q.lte(endDate)),
+      Q.where("type", "EXPENSE")
+    )
       .observe()
       .subscribe({
         next: (result) => {
@@ -71,7 +86,7 @@ export function CategoryDrilldownCard(): React.JSX.Element {
       });
 
     return () => subscription.unsubscribe();
-  }, [currentYear, currentMonth]);
+  }, [currentYear, currentMonth, userId, isResolvingUser]);
 
   // Build category map with children info
   const categoryMap = useMemo(() => {

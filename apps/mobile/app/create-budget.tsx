@@ -15,6 +15,7 @@ import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 import { palette } from "@/constants/colors";
 import { useTranslation } from "react-i18next";
+import { getCurrentUserDataScope } from "@/services/user-data-access";
 
 // =============================================================================
 // Screen
@@ -36,7 +37,11 @@ export default function CreateBudgetScreen(): React.JSX.Element {
 
     async function loadBudget(): Promise<void> {
       try {
-        const found = await database.get<Budget>("budgets").find(budgetId);
+        const scope = await getCurrentUserDataScope();
+        const found = await scope.findOwned(
+          database.get<Budget>("budgets"),
+          budgetId
+        );
         setBudget(found);
       } catch (error) {
         // WatermelonDB .find() throws when record not found.

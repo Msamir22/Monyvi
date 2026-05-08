@@ -24,6 +24,10 @@ import {
   getSpendingForBudget,
   getCategoryAndSubcategoryIds,
 } from "@/services/budget-service";
+import {
+  queryAccessibleCategories,
+  queryOwned,
+} from "@/services/user-data-access";
 
 // =============================================================================
 // TYPES
@@ -159,14 +163,17 @@ export function useBudgetDetail(budgetId: string): UseBudgetDetailResult {
           conditions.push(Q.where("category_id", Q.oneOf(categoryIds)));
         }
 
-        const allTxs = await database
-          .get<Transaction>("transactions")
-          .query(Q.and(...conditions))
-          .fetch();
+        const transactionsCollection =
+          database.get<Transaction>("transactions");
+        const weeklyTransactions = await queryOwned(
+          transactionsCollection,
+          budget.userId,
+          Q.and(...conditions)
+        ).fetch();
 
         // Exclude paused-window transactions
         const activeTxs = filterExcludedTransactions(
-          allTxs,
+          weeklyTransactions,
           budget.typedPauseIntervals,
           budget.pausedAtMs
         );
@@ -180,31 +187,29 @@ export function useBudgetDetail(budgetId: string): UseBudgetDetailResult {
       // Subcategory breakdown (for category budgets)
       let breakdown: SubcategorySpending[] = [];
       if (budget.isCategoryBudget && budget.categoryId && spent > 0) {
-        const children = await database
-          .get<Category>("categories")
-          .query(
-            Q.and(
-              Q.where("parent_id", budget.categoryId),
-              Q.where("deleted", false)
-            )
+        const children = await queryAccessibleCategories(
+          database.get<Category>("categories"),
+          budget.userId,
+          Q.and(
+            Q.where("parent_id", budget.categoryId),
+            Q.where("deleted", false)
           )
-          .fetch();
+        ).fetch();
 
         for (const child of children) {
           // M1 fix: Include L3 (grandchild) transactions in subcategory breakdown
           const childCategoryIds = await getCategoryAndSubcategoryIds(child.id);
-          const allChildTxs = await database
-            .get<Transaction>("transactions")
-            .query(
-              Q.and(
-                Q.where("deleted", false),
-                Q.where("type", "EXPENSE"),
-                Q.where("category_id", Q.oneOf(childCategoryIds)),
-                Q.where("date", Q.gte(bounds.start.getTime())),
-                Q.where("date", Q.lte(bounds.end.getTime()))
-              )
+          const allChildTxs = await queryOwned(
+            database.get<Transaction>("transactions"),
+            budget.userId,
+            Q.and(
+              Q.where("deleted", false),
+              Q.where("type", "EXPENSE"),
+              Q.where("category_id", Q.oneOf(childCategoryIds)),
+              Q.where("date", Q.gte(bounds.start.getTime())),
+              Q.where("date", Q.lte(bounds.end.getTime()))
             )
-            .fetch();
+          ).fetch();
 
           // Exclude paused-window transactions
           const activeChildTxs = filterExcludedTransactions(
@@ -244,14 +249,13 @@ export function useBudgetDetail(budgetId: string): UseBudgetDetailResult {
         recentConditions.push(Q.where("category_id", Q.oneOf(categoryIds)));
       }
 
-      const recentRaw = await database
-        .get<Transaction>("transactions")
-        .query(
-          ...recentConditions,
-          Q.sortBy("date", Q.desc),
-          Q.take(RECENT_TRANSACTIONS_LIMIT * 2)
-        )
-        .fetch();
+      const recentRaw = await queryOwned(
+        database.get<Transaction>("transactions"),
+        budget.userId,
+        ...recentConditions,
+        Q.sortBy("date", Q.desc),
+        Q.take(RECENT_TRANSACTIONS_LIMIT * 2)
+      ).fetch();
 
       // Exclude paused-window transactions, then trim to the desired limit
       const recentFiltered = filterExcludedTransactions(

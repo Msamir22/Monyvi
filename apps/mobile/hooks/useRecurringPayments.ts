@@ -20,6 +20,9 @@ import { Q } from "@nozbe/watermelondb";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMarketRates } from "./useMarketRates";
 import { usePreferredCurrency } from "./usePreferredCurrency";
+import { queryOwned } from "@/services/user-data-access";
+import { useCurrentUserId } from "./useCurrentUserId";
+import { logger } from "@/utils/logger";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -133,16 +136,31 @@ export function useRecurringPayments(
   );
   const { latestRates } = useMarketRates();
   const { preferredCurrency } = usePreferredCurrency();
+  const { userId, isResolvingUser } = useCurrentUserId();
 
   // -------------------------------------------------------------------------
   // Observe recurring payments
   // -------------------------------------------------------------------------
 
   useEffect(() => {
-    const collection = database.get<RecurringPayment>("recurring_payments");
+    if (isResolvingUser) {
+      setAllPayments([]);
+      setIsLoading(true);
+      return;
+    }
 
-    const subscription = collection
-      .query(Q.where("deleted", false), Q.sortBy("next_due_date", Q.asc))
+    if (!userId) {
+      setAllPayments([]);
+      setIsLoading(false);
+      return;
+    }
+
+    const subscription = queryOwned(
+      database.get<RecurringPayment>("recurring_payments"),
+      userId,
+      Q.where("deleted", false),
+      Q.sortBy("next_due_date", Q.asc)
+    )
       .observe()
       .subscribe({
         next: (result) => {
@@ -150,13 +168,13 @@ export function useRecurringPayments(
           setIsLoading(false);
         },
         error: (err) => {
-          console.error("Error loading recurring payments:", err);
+          logger.error("recurringPayments.observe.failed", err, { userId });
           setIsLoading(false);
         },
       });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [userId, isResolvingUser]);
 
   // -------------------------------------------------------------------------
   // Derived data

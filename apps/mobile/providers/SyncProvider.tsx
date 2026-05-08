@@ -3,7 +3,8 @@
  * Provides sync status and functions to the app with smart sync intervals
  */
 
-import { database } from "@monyvi/db";
+import { database, type Profile } from "@monyvi/db";
+import { Q } from "@nozbe/watermelondb";
 import {
   createContext,
   ReactNode,
@@ -19,6 +20,7 @@ import { useAuth } from "../context/AuthContext";
 import { isAuthenticated as checkIsAuthenticated } from "../services/supabase";
 import { completeInterruptedLogout } from "../services/logout-service";
 import { syncDatabase } from "../services/sync";
+import { queryOwned } from "../services/user-data-access";
 import { logger } from "../utils/logger";
 
 // Sync intervals in milliseconds
@@ -50,7 +52,7 @@ interface SyncProviderProps {
 }
 
 export function SyncProvider({ children }: SyncProviderProps): JSX.Element {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [isSyncing, setIsSyncing] = useState(false);
   const [isInitialSync, setIsInitialSync] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
@@ -216,20 +218,27 @@ export function SyncProvider({ children }: SyncProviderProps): JSX.Element {
       }
 
       // Check if data was cleared (empty local DB but authenticated)
-      const accountsCollection = database.get("accounts");
-      const count = await accountsCollection.query().fetchCount();
+      const userId = user?.id;
+      if (!userId) {
+        setInitialSyncState("failed");
+        return;
+      }
 
-      if (count === 0) {
+      const profilesCollection = database.get<Profile>("profiles");
+      const currentUserProfileCount = await queryOwned(
+        profilesCollection,
+        userId,
+        Q.where("deleted", false)
+      ).fetchCount();
+
+      if (currentUserProfileCount === 0) {
         setIsInitialSync(true);
         await runInitialSync();
         setIsInitialSync(false);
       } else {
-        // Non-empty DB — data already exists, so the app is fully usable
-        // offline. Mark the initial-sync gate as "success" immediately so
-        // the routing gate unblocks, then run the background sync
-        // non-awaited. Previously this path `await`ed `sync()`, which on a
-        // slow network could leave `initialSyncState === "in-progress"`
-        // well past the 20s timeout and violate FR-006 for returning users.
+        // Current-user profile exists locally, so the route gate can decide
+        // offline. Mark the initial-sync gate as "success" immediately and
+        // refresh the rest of the user's data in the background.
         setInitialSyncState("success");
         sync().catch((error: unknown) => {
           // Background sync failure is non-fatal; regular sync-interval retries
@@ -255,8 +264,7 @@ export function SyncProvider({ children }: SyncProviderProps): JSX.Element {
         clearInterval(syncIntervalRef.current);
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated]);
+  }, [isAuthenticated, runInitialSync, setupSyncInterval, sync, user?.id]);
 
   const value = useMemo<SyncContextValue>(
     () => ({

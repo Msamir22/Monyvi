@@ -136,6 +136,7 @@ import {
   convertTransactionToTransfer,
   batchDeleteDisplayTransactions,
 } from "@/services/transaction-service";
+import { USER_DATA_ACCESS_ERROR_CODES } from "@/services/user-data-access";
 
 import type { DisplayTransaction } from "@/hooks/useTransactionsGrouping";
 
@@ -156,7 +157,7 @@ const {
 // ---------------------------------------------------------------------------
 
 function seedAccount(id: string, balance: number): MockModelRecord {
-  const acc = mockModel(id, { balance });
+  const acc = mockModel(id, { balance, userId: "test-user-id" });
   mockSeed("accounts", acc);
   return acc;
 }
@@ -263,7 +264,7 @@ describe("transaction-service", () => {
           type: "EXPENSE",
           source: "MANUAL",
         })
-      ).rejects.toThrow("User not authenticated");
+      ).rejects.toThrow(USER_DATA_ACCESS_ERROR_CODES.USER_REQUIRED);
     });
   });
 
@@ -402,7 +403,7 @@ describe("transaction-service", () => {
           transactionId: "tx-1",
           toAccountId: "acc-to",
         })
-      ).rejects.toThrow("User not authenticated");
+      ).rejects.toThrow(USER_DATA_ACCESS_ERROR_CODES.USER_REQUIRED);
     });
   });
 
@@ -419,6 +420,7 @@ describe("transaction-service", () => {
       seedAccount("acc-1", 800);
       const i1 = mockModel("tx-1", {
         _type: "transaction",
+        userId: "test-user-id",
         accountId: "acc-1",
         amount: 100,
         isExpense: true,
@@ -427,6 +429,7 @@ describe("transaction-service", () => {
       });
       const i2 = mockModel("tx-2", {
         _type: "transaction",
+        userId: "test-user-id",
         accountId: "acc-1",
         amount: 200,
         isExpense: true,
@@ -448,6 +451,7 @@ describe("transaction-service", () => {
       seedAccount("acc-2", 500);
       const txI = mockModel("tx-1", {
         _type: "transaction",
+        userId: "test-user-id",
         accountId: "acc-1",
         amount: 100,
         isExpense: true,
@@ -456,6 +460,7 @@ describe("transaction-service", () => {
       });
       const tfI = mockModel("tf-1", {
         _type: "transfer",
+        userId: "test-user-id",
         fromAccountId: "acc-1",
         toAccountId: "acc-2",
         amount: 200,

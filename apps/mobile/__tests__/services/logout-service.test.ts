@@ -1,6 +1,6 @@
 /**
  * @file logout-service.test.ts
- * @description Unit tests for the logout service (Facade for sync → DB reset → session management).
+ * @description Unit tests for the logout service (Facade for sync → session management).
  *
  * Mock strategy: inline factory pattern (mock infra defined inside jest.mock
  * factory) with __mocks re-export for typed access — same pattern as
@@ -163,7 +163,7 @@ describe("logout-service", () => {
   });
 
   // =========================================================================
-  // Test 1: Happy path — full logout sequence (correct order)
+  // Test 1: Happy path — sync before session cleanup (correct order)
   // =========================================================================
   it("should complete full logout sequence in correct order", async () => {
     const callOrder: string[] = [];
@@ -184,14 +184,6 @@ describe("logout-service", () => {
       callOrder.push("sync");
       return Promise.resolve();
     });
-    syncMocks.resetSyncState.mockImplementation(() => {
-      callOrder.push("resetDB");
-      return Promise.resolve();
-    });
-    asyncMocks.multiRemove.mockImplementation(() => {
-      callOrder.push("clearKeys");
-      return Promise.resolve();
-    });
     supaMocks.signOut.mockImplementation(() => {
       callOrder.push("signOut");
       return Promise.resolve({ error: null });
@@ -200,14 +192,7 @@ describe("logout-service", () => {
     const result = await performLogout(db);
 
     expect(result).toEqual({ success: true });
-    expect(callOrder).toEqual([
-      "networkCheck",
-      "sync",
-      "setFlag",
-      "resetDB",
-      "clearKeys",
-      "signOut",
-    ]);
+    expect(callOrder).toEqual(["networkCheck", "sync", "setFlag", "signOut"]);
     expect(asyncMocks.removeItem).toHaveBeenCalledWith(
       "@monyvi/logout-in-progress"
     );
@@ -235,6 +220,7 @@ describe("logout-service", () => {
   // =========================================================================
   it("should retry sync once and succeed on second attempt", async () => {
     const syncMocks = getSyncMocks();
+    const supaMocks = getSupabaseMocks();
     let callCount = 0;
     syncMocks.syncDatabase.mockImplementation(() => {
       callCount++;
@@ -248,7 +234,7 @@ describe("logout-service", () => {
 
     expect(result).toEqual({ success: true });
     expect(syncMocks.syncDatabase).toHaveBeenCalledTimes(2);
-    expect(syncMocks.resetSyncState).toHaveBeenCalledTimes(1);
+    expect(supaMocks.signOut).toHaveBeenCalledTimes(1);
   });
 
   // =========================================================================
@@ -271,7 +257,7 @@ describe("logout-service", () => {
   // =========================================================================
   // Test 5: Force-proceed — skips sync (post-warning flow)
   // =========================================================================
-  it("should skip sync and proceed with reset when forceSkipSync is true", async () => {
+  it("should skip sync and proceed with session cleanup when forceSkipSync is true", async () => {
     const netInfoMocks = getNetInfoMocks();
     const syncMocks = getSyncMocks();
     const supaMocks = getSupabaseMocks();
@@ -281,26 +267,20 @@ describe("logout-service", () => {
     expect(result).toEqual({ success: true });
     expect(netInfoMocks.fetch).not.toHaveBeenCalled();
     expect(syncMocks.syncDatabase).not.toHaveBeenCalled();
-    expect(syncMocks.resetSyncState).toHaveBeenCalledTimes(1);
+    expect(syncMocks.resetSyncState).not.toHaveBeenCalled();
     expect(supaMocks.signOut).toHaveBeenCalledTimes(1);
   });
 
   // =========================================================================
-  // Test 6: AsyncStorage cleanup — user keys cleared, hasOnboarded preserved (FR-007)
+  // Test 6: AsyncStorage cleanup — local user data is preserved on logout
   // =========================================================================
-  it("should clear user-specific keys but not device-level keys", async () => {
+  it("should not clear user-specific local storage keys", async () => {
     const asyncMocks = getAsyncStorageMocks();
 
     const result = await performLogout(db);
 
     expect(result).toEqual({ success: true });
-    expect(asyncMocks.multiRemove).toHaveBeenCalledWith([
-      "@monyvi/first-use-date",
-    ]);
-    const clearedKeys = (
-      asyncMocks.multiRemove.mock.calls as string[][][]
-    )[0][0];
-    expect(clearedKeys).not.toContain("hasOnboarded");
+    expect(asyncMocks.multiRemove).not.toHaveBeenCalled();
   });
 
   // =========================================================================
@@ -316,8 +296,8 @@ describe("logout-service", () => {
 
       await completeInterruptedLogout(db);
 
-      expect(syncMocks.resetSyncState).toHaveBeenCalledTimes(1);
-      expect(asyncMocks.multiRemove).toHaveBeenCalledTimes(1);
+      expect(syncMocks.resetSyncState).not.toHaveBeenCalled();
+      expect(asyncMocks.multiRemove).not.toHaveBeenCalled();
       expect(supaMocks.signOut).toHaveBeenCalledTimes(1);
       expect(asyncMocks.removeItem).toHaveBeenCalledWith(
         "@monyvi/logout-in-progress"
@@ -336,18 +316,18 @@ describe("logout-service", () => {
   });
 
   // =========================================================================
-  // Test 8: DB reset failure — still clears session (FR-008)
+  // Test 8: Session cleanup failure is reported
   // =========================================================================
-  it("should still clear session even when DB reset fails", async () => {
+  it("should report unknown when session cleanup fails", async () => {
     const syncMocks = getSyncMocks();
     const supaMocks = getSupabaseMocks();
 
-    syncMocks.resetSyncState.mockRejectedValue(new Error("SQLite lock error"));
+    supaMocks.signOut.mockRejectedValue(new Error("Sign out failed"));
 
     const result = await performLogout(db);
 
     expect(result).toEqual({ success: false, error: "unknown" });
-    expect(supaMocks.signOut).toHaveBeenCalledTimes(1);
+    expect(syncMocks.resetSyncState).not.toHaveBeenCalled();
   });
 
   // =========================================================================

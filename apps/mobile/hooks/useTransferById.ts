@@ -5,6 +5,9 @@
 
 import { database, Transfer } from "@monyvi/db";
 import { useEffect, useState } from "react";
+import { observeOwnedById } from "@/services/user-data-access";
+import { useCurrentUserId } from "./useCurrentUserId";
+import { logger } from "@/utils/logger";
 
 interface UseTransferByIdResult {
   readonly transfer: Transfer | null;
@@ -21,6 +24,7 @@ interface UseTransferByIdResult {
 export function useTransferById(id: string): UseTransferByIdResult {
   const [transfer, setTransfer] = useState<Transfer | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const { userId, isResolvingUser } = useCurrentUserId();
 
   useEffect(() => {
     if (!id) {
@@ -29,16 +33,32 @@ export function useTransferById(id: string): UseTransferByIdResult {
       return;
     }
 
+    if (isResolvingUser) {
+      setTransfer(null);
+      setIsLoading(true);
+      return;
+    }
+
+    if (!userId) {
+      setTransfer(null);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
 
     const collection = database.get<Transfer>("transfers");
-    const subscription = collection.findAndObserve(id).subscribe({
+    const subscription = observeOwnedById<Transfer>(
+      collection,
+      id,
+      userId
+    ).subscribe({
       next: (record) => {
         setTransfer(record);
         setIsLoading(false);
       },
       error: (err) => {
-        console.error("[useTransferById] Observation error:", err);
+        logger.error("transferById.observe.failed", err, { userId });
         setTransfer(null);
         setIsLoading(false);
       },
@@ -47,7 +67,7 @@ export function useTransferById(id: string): UseTransferByIdResult {
     return (): void => {
       subscription.unsubscribe();
     };
-  }, [id]);
+  }, [id, userId, isResolvingUser]);
 
   return { transfer, isLoading };
 }

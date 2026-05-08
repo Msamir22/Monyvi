@@ -9,13 +9,13 @@
  * 1. Auth or intro-seen still loading → splash (return null).
  * 2. Unauthenticated → pitch (if !intro-seen) or auth.
  * 3. Sync in-progress OR profile-observation hasn't emitted yet →
- *    BootLoadingView (sits beneath the InitialSyncOverlay's fade-in so
+ *    StartupLoadingView (the account-loading surface so
  *    the screen is never blank during the mid-session auth → /index
  *    transition triggered by router.replace("/")).
  * 4. Authenticated but `profile === null` — an authenticated user MUST
  *    have a profile row, so this is either an observation race or a
  *    data inconsistency:
- *    a. Inside the grace window AND sync is settling → BootLoadingView.
+ *    a. Inside the grace window AND sync is settling → StartupLoadingView.
  *    b. Sync FAILED / TIMED OUT → RetrySyncScreen.
  *    c. Sync SUCCEEDED but grace elapsed with profile still null →
  *       RetrySyncScreen (data inconsistency, e.g. stale auth.users
@@ -32,6 +32,7 @@
 
 import { database } from "@monyvi/db";
 import { RetrySyncScreen } from "@/components/ui/RetrySyncScreen";
+import { StartupLoadingView } from "@/components/ui/StartupLoadingView";
 import { useProfile } from "@/hooks/useProfile";
 import { useIntroSeen } from "@/hooks/useIntroSeen";
 import { useSync } from "@/providers/SyncProvider";
@@ -42,11 +43,8 @@ import {
   getRoutingDecision,
 } from "@/utils/routing-decision";
 import { logger } from "@/utils/logger";
-import { palette } from "@/constants/colors";
-import { Redirect } from "expo-router";
+import { Redirect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Text, View } from "react-native";
-import { useTranslation } from "react-i18next";
 
 /**
  * How long to wait, after the initial sync has settled, for the WatermelonDB
@@ -162,14 +160,13 @@ export default function Index(): React.ReactNode {
   }
 
   // Mid-session auth → /index transition: when /auth calls router.replace("/")
-  // after sign-up, the InitialSyncOverlay's 300ms fade-in is animating over
-  // whatever this gate renders. Returning `null` here exposes a blank screen
-  // for the duration of the fade. Render BootLoadingView so the overlay
-  // fades in on top of an identical-looking loader (no visual flash).
+  // after sign-up, returning `null` here exposes a blank screen during the
+  // route transition. Render StartupLoadingView so the account-loading state
+  // is explicit and stable.
   // On cold launch this is harmless — AppReadyGate keeps the native splash
   // covering the screen until sync + profile both settle.
   if (initialSyncState === "in-progress" || isProfileLoading) {
-    return <BootLoadingView />;
+    return <StartupLoadingView />;
   }
 
   // Authenticated user but `useProfile` returned `null`. This is a
@@ -185,7 +182,7 @@ export default function Index(): React.ReactNode {
   // Behavior:
   //   - Sync FAILED / TIMED OUT → RetrySyncScreen (network / server
   //     issue, user might have cloud data we couldn't pull).
-  //   - Inside the grace window with sync settling → BootLoadingView
+  //   - Inside the grace window with sync settling → StartupLoadingView
   //     (loading indicator, never blank). AppReadyGate has already
   //     released the native splash so a `null` here would surface a
   //     blank screen.
@@ -212,12 +209,12 @@ export default function Index(): React.ReactNode {
         <RetrySyncScreen onRetry={handleRetry} onSignOut={handleSignOut} />
       );
     }
-    return <BootLoadingView />;
+    return <StartupLoadingView />;
   }
 
   switch (outcome) {
     case "dashboard":
-      return <Redirect href="/(tabs)" />;
+      return <RedirectWithTransitionFallback href="/(tabs)" />;
     case "retry":
       return (
         <RetrySyncScreen onRetry={handleRetry} onSignOut={handleSignOut} />
@@ -226,27 +223,22 @@ export default function Index(): React.ReactNode {
       return null;
     default:
       // "onboarding" — resume handled by onboarding.tsx via AsyncStorage cursor
-      return <Redirect href="/onboarding" />;
+      return <RedirectWithTransitionFallback href="/onboarding" />;
   }
 }
 
-/**
- * Themed loading view shown during the post-sync profile-observation grace
- * window. Reuses the same copy as the InitialSyncOverlay (`syncing_your_data`)
- * so the user perceives a continuous "still syncing" state rather than a new
- * loading screen popping up after the overlay disappears.
- */
-function BootLoadingView(): React.ReactElement {
-  const { t } = useTranslation("common");
-  return (
-    <View className="flex-1 items-center justify-center gap-4 bg-background dark:bg-background-dark px-6">
-      <ActivityIndicator size="large" color={palette.nileGreen[500]} />
-      <Text className="text-base font-semibold text-text-primary dark:text-text-primary-dark text-center">
-        {t("syncing_your_data")}
-      </Text>
-      <Text className="text-sm text-text-secondary dark:text-text-secondary-dark text-center">
-        {t("syncing_subtitle")}
-      </Text>
-    </View>
-  );
+interface RedirectWithTransitionFallbackProps {
+  readonly href: "/(tabs)" | "/onboarding";
+}
+
+function RedirectWithTransitionFallback({
+  href,
+}: RedirectWithTransitionFallbackProps): React.ReactElement {
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace(href);
+  }, [href, router]);
+
+  return <StartupLoadingView />;
 }

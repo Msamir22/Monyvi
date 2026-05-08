@@ -37,6 +37,7 @@ const RTR: ReactTestRendererModule = require("react-test-renderer");
 const mockUseSync = jest.fn();
 const mockUseProfile = jest.fn();
 const mockPerformLogout = jest.fn().mockResolvedValue(undefined);
+const mockRouterReplace = jest.fn();
 
 // Tag the Redirect element with its `href` so the test can assert the target
 // without depending on expo-router internals.
@@ -52,6 +53,9 @@ jest.mock("expo-router", () => ({
     ) as React.ReactElement;
     /* eslint-enable @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return */
   },
+  useRouter: (): { replace: jest.Mock } => ({
+    replace: mockRouterReplace,
+  }),
 }));
 
 jest.mock("@monyvi/db", () => ({ database: {} }));
@@ -116,6 +120,21 @@ jest.mock("@/components/ui/RetrySyncScreen", () => {
   /* eslint-enable @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return */
 });
 
+jest.mock("@/components/ui/StartupLoadingView", () => {
+  /* eslint-disable @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return */
+  const ReactMod = require("react");
+  const RN = require("react-native");
+  return {
+    StartupLoadingView: (): React.ReactElement =>
+      ReactMod.createElement(
+        RN.View,
+        { testID: "startup-loading" },
+        ReactMod.createElement(RN.ActivityIndicator, null)
+      ) as React.ReactElement,
+  };
+  /* eslint-enable @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return */
+});
+
 // =============================================================================
 // Under test
 // =============================================================================
@@ -157,6 +176,15 @@ function renderGate(): ReactTestRendererInstance {
   return RTR.create(React.createElement(Index));
 }
 
+function renderGateWithEffects(): ReactTestRendererInstance {
+  let renderer: ReactTestRendererInstance | undefined;
+  RTR.act(() => {
+    renderer = renderGate();
+  });
+  if (!renderer) throw new Error("renderer not initialised");
+  return renderer;
+}
+
 function findRedirectHref(
   renderer: ReactTestRendererInstance
 ): string | undefined {
@@ -185,10 +213,10 @@ describe("index.tsx routing gate", () => {
     jest.useRealTimers();
   });
 
-  it("renders the loader (NOT null) while sync is still in progress — keeps the screen non-blank under the InitialSyncOverlay fade-in", () => {
+  it("renders the loader (NOT null) while sync is still in progress — keeps the route transition non-blank", () => {
     setState({ syncState: "in-progress" });
     const renderer = renderGate();
-    // No redirect, no retry — just the BootLoadingView.
+    // No redirect, no retry — just the StartupLoadingView.
     expect(findRedirectHref(renderer)).toBeUndefined();
     expect(
       renderer.root.findAllByProps({ testID: "retry-screen" })
@@ -211,8 +239,12 @@ describe("index.tsx routing gate", () => {
       syncState: "success",
       onboardingCompleted: true,
     });
-    const renderer = renderGate();
-    expect(findRedirectHref(renderer)).toBe("/(tabs)");
+    const renderer = renderGateWithEffects();
+    expect(findRedirectHref(renderer)).toBeUndefined();
+    expect(
+      renderer.root.findAllByProps({ testID: "startup-loading" })
+    ).not.toHaveLength(0);
+    expect(mockRouterReplace).toHaveBeenCalledWith("/(tabs)");
   });
 
   it("redirects to /onboarding when sync succeeded and onboarding is NOT completed", () => {
@@ -220,8 +252,12 @@ describe("index.tsx routing gate", () => {
       syncState: "success",
       onboardingCompleted: false,
     });
-    const renderer = renderGate();
-    expect(findRedirectHref(renderer)).toBe("/onboarding");
+    const renderer = renderGateWithEffects();
+    expect(findRedirectHref(renderer)).toBeUndefined();
+    expect(
+      renderer.root.findAllByProps({ testID: "startup-loading" })
+    ).not.toHaveLength(0);
+    expect(mockRouterReplace).toHaveBeenCalledWith("/onboarding");
   });
 
   it("renders the retry screen when sync failed and the user has NOT onboarded yet", () => {
@@ -239,8 +275,9 @@ describe("index.tsx routing gate", () => {
       syncState: "failed",
       onboardingCompleted: true,
     });
-    const renderer = renderGate();
-    expect(findRedirectHref(renderer)).toBe("/(tabs)");
+    const renderer = renderGateWithEffects();
+    expect(findRedirectHref(renderer)).toBeUndefined();
+    expect(mockRouterReplace).toHaveBeenCalledWith("/(tabs)");
   });
 
   it("routes an onboarded user to the dashboard even when sync TIMED OUT — offline-first guarantee", () => {
@@ -248,8 +285,9 @@ describe("index.tsx routing gate", () => {
       syncState: "timeout",
       onboardingCompleted: true,
     });
-    const renderer = renderGate();
-    expect(findRedirectHref(renderer)).toBe("/(tabs)");
+    const renderer = renderGateWithEffects();
+    expect(findRedirectHref(renderer)).toBeUndefined();
+    expect(mockRouterReplace).toHaveBeenCalledWith("/(tabs)");
   });
 
   // Race-condition guards — `useProfile.isLoading` flips false on the FIRST
@@ -260,11 +298,11 @@ describe("index.tsx routing gate", () => {
   it("does NOT route to /onboarding when sync succeeded but profile observation is still null", () => {
     setState({ syncState: "success", profileNull: true });
     const renderer = renderGate();
-    // Should render the BootLoadingView (themed loader during the grace
+    // Should render the StartupLoadingView during the grace
     // window) — NOT a redirect to /onboarding, and NOT null/blank
     // (AppReadyGate has already released the native splash by this point,
     // so a `null` here would surface a blank screen — see
-    // BootLoadingView in app/index.tsx).
+    // StartupLoadingView in app/index.tsx).
     expect(findRedirectHref(renderer)).toBeUndefined();
     expect(
       renderer.root.findAllByProps({ testID: "retry-screen" })
@@ -329,7 +367,7 @@ describe("index.tsx routing gate", () => {
     });
     if (!renderer) throw new Error("renderer not initialised");
 
-    // Before grace elapses → BootLoadingView, NO redirect, NO retry.
+    // Before grace elapses → StartupLoadingView, NO redirect, NO retry.
     expect(findRedirectHref(renderer)).toBeUndefined();
     expect(
       renderer.root.findAllByProps({ testID: "retry-screen" })

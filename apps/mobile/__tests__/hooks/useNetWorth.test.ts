@@ -11,8 +11,12 @@ interface MockObservable<T> {
 
 const mockAccountsObserveWithColumns = jest.fn();
 const mockAssetMetalsObserve = jest.fn();
+const mockAssetsFetch = jest.fn();
 const mockAccountsQuery = {
   observeWithColumns: mockAccountsObserveWithColumns,
+};
+const mockAssetsQuery = {
+  fetch: mockAssetsFetch,
 };
 const mockAssetMetalsQuery = {
   observe: mockAssetMetalsObserve,
@@ -23,12 +27,19 @@ const mockAccountsCollection = {
 const mockAssetMetalsCollection = {
   query: jest.fn(() => mockAssetMetalsQuery),
 };
+const mockAssetsCollection = {
+  query: jest.fn(() => mockAssetsQuery),
+};
 const mockDatabaseGet = jest.fn((collectionName: string) => {
   if (collectionName === "accounts") return mockAccountsCollection;
+  if (collectionName === "assets") return mockAssetsCollection;
   if (collectionName === "asset_metals") return mockAssetMetalsCollection;
   throw new Error(`Unexpected collection: ${collectionName}`);
 });
-const mockQueryOwned = jest.fn<unknown, unknown[]>(() => mockAccountsQuery);
+const mockQueryOwned = jest.fn<unknown, unknown[]>((collection) => {
+  if (collection === mockAssetsCollection) return mockAssetsQuery;
+  return mockAccountsQuery;
+});
 
 jest.mock("@monyvi/db", () => ({
   database: {
@@ -38,6 +49,7 @@ jest.mock("@monyvi/db", () => ({
 
 jest.mock("@nozbe/watermelondb", () => ({
   Q: {
+    oneOf: (...args: readonly unknown[]) => ({ kind: "oneOf", args }),
     where: (...args: readonly unknown[]) => ({ kind: "where", args }),
   },
 }));
@@ -94,14 +106,20 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockAccountsObserveWithColumns.mockReturnValue(buildObservable());
   mockAssetMetalsObserve.mockReturnValue(buildObservable());
+  mockAssetsFetch.mockResolvedValue([{ id: "asset-1" }]);
 });
 
 describe("useNetWorth", () => {
-  it("scopes account reads to the current user", () => {
+  it("scopes account and asset reads to the current user", () => {
     const { unmount } = renderHook(() => useNetWorth());
 
     expect(mockQueryOwned).toHaveBeenCalledWith(
       mockAccountsCollection,
+      "user-1",
+      { kind: "where", args: ["deleted", false] }
+    );
+    expect(mockQueryOwned).toHaveBeenCalledWith(
+      mockAssetsCollection,
       "user-1",
       { kind: "where", args: ["deleted", false] }
     );

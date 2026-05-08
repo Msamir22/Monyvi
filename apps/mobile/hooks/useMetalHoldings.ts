@@ -32,6 +32,8 @@ import {
 
 import { useMarketRates } from "./useMarketRates";
 import { usePreferredCurrency } from "./usePreferredCurrency";
+import { queryOwned } from "@/services/user-data-access";
+import { useCurrentUserId } from "./useCurrentUserId";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -81,6 +83,7 @@ const ZERO_PROFIT_LOSS: ProfitLoss = { amount: 0, percent: 0 };
 export function useMetalHoldings(): UseMetalHoldingsResult {
   const { latestRates, isLoading: ratesLoading } = useMarketRates();
   const { preferredCurrency } = usePreferredCurrency();
+  const { userId, isResolvingUser } = useCurrentUserId();
 
   const [assets, setAssets] = useState<readonly Asset[]>([]);
   const [assetMetals, setAssetMetals] = useState<readonly AssetMetal[]>([]);
@@ -88,8 +91,21 @@ export function useMetalHoldings(): UseMetalHoldingsResult {
 
   // Observe assets of type METAL
   useEffect(() => {
-    const assetsCollection = database.get<Asset>("assets");
-    const query = assetsCollection.query(
+    if (isResolvingUser) {
+      setAssets([]);
+      setDataLoading(true);
+      return;
+    }
+
+    if (!userId) {
+      setAssets([]);
+      setDataLoading(false);
+      return;
+    }
+
+    const query = queryOwned(
+      database.get<Asset>("assets"),
+      userId,
       Q.where("type", "METAL"),
       Q.where("deleted", false)
     );
@@ -106,12 +122,34 @@ export function useMetalHoldings(): UseMetalHoldingsResult {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [userId, isResolvingUser]);
 
   // Observe asset_metals (deleted=false)
   useEffect(() => {
+    if (isResolvingUser) {
+      setAssetMetals([]);
+      setDataLoading(true);
+      return;
+    }
+
+    if (!userId) {
+      setAssetMetals([]);
+      setDataLoading(false);
+      return;
+    }
+
+    const assetIds = assets.map((asset) => asset.id);
+    if (assetIds.length === 0) {
+      setAssetMetals([]);
+      setDataLoading(false);
+      return;
+    }
+
     const metalsCollection = database.get<AssetMetal>("asset_metals");
-    const query = metalsCollection.query(Q.where("deleted", false));
+    const query = metalsCollection.query(
+      Q.where("asset_id", Q.oneOf(assetIds)),
+      Q.where("deleted", false)
+    );
 
     const subscription = query.observe().subscribe({
       next: (result) => {
@@ -126,7 +164,7 @@ export function useMetalHoldings(): UseMetalHoldingsResult {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [assets, userId, isResolvingUser]);
 
   // Compute enriched holdings when raw data or rates change
   const computedData = useMemo((): Omit<

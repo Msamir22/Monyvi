@@ -13,8 +13,6 @@
  * @module metal-holding-service
  */
 
-import { getCurrentUserId } from "./supabase";
-
 import {
   Asset,
   AssetMetal,
@@ -22,6 +20,7 @@ import {
   type CurrencyType,
   type MetalType,
 } from "@monyvi/db";
+import { getCurrentUserDataScope } from "@/services/user-data-access";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -109,11 +108,7 @@ async function createMetalHolding(
 ): Promise<Asset> {
   validateCreateMetalHoldingData(data);
 
-  const userId = await getCurrentUserId();
-  if (!userId) {
-    // i18n-ignore — developer-facing error
-    throw new Error("User not authenticated");
-  }
+  const scope = await getCurrentUserDataScope();
 
   const assetsCollection = database.get<Asset>("assets");
   const assetMetalsCollection = database.get<AssetMetal>("asset_metals");
@@ -121,7 +116,7 @@ async function createMetalHolding(
   const newAsset = await database.write(async () => {
     // 1. Create the parent Asset record
     const asset = await assetsCollection.create((record) => {
-      record.userId = userId;
+      record.userId = scope.userId;
       record.name = data.name.trim();
       record.type = "METAL";
       record.purchasePrice = data.purchasePrice;

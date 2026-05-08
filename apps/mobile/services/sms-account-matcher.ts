@@ -35,6 +35,7 @@ import {
   isKnownFinancialSender,
 } from "@monyvi/logic";
 import { Q } from "@nozbe/watermelondb";
+import { queryOwned } from "./user-data-access";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -243,16 +244,17 @@ async function fetchAccountsWithDetails(
   userId: string,
   accountType?: AccountTypeFilter
 ): Promise<readonly AccountWithBankDetails[]> {
-  const clauses = [Q.where("user_id", userId), Q.where("deleted", false)];
+  const clauses = [Q.where("deleted", false)];
 
   if (accountType) {
     clauses.push(Q.where("type", accountType));
   }
 
-  const accounts = await database
-    .get<Account>("accounts")
-    .query(...clauses)
-    .fetch();
+  const accounts = await queryOwned(
+    database.get<Account>("accounts"),
+    userId,
+    ...clauses
+  ).fetch();
 
   const results: AccountWithBankDetails[] = [];
 

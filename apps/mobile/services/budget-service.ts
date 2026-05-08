@@ -7,7 +7,6 @@
  * @module budget-service
  */
 
-import { getCurrentUserId } from "./supabase";
 import {
   Budget,
   database,
@@ -26,6 +25,10 @@ import {
   buildPauseInterval,
   parsePauseIntervals,
 } from "@monyvi/logic";
+import {
+  getCurrentUserDataScope,
+  type CurrentUserDataScope,
+} from "@/services/user-data-access";
 
 // =============================================================================
 // TYPES
@@ -70,6 +73,13 @@ function categoriesCollection(): Collection<Category> {
   return database.get<Category>("categories");
 }
 
+async function getOwnedBudget(
+  budgetId: string,
+  scope: CurrentUserDataScope
+): Promise<Budget> {
+  return scope.findOwned(budgetsCollection(), budgetId);
+}
+
 // =============================================================================
 // CREATE
 // =============================================================================
@@ -81,11 +91,7 @@ function categoriesCollection(): Collection<Category> {
  * @throws Error if validation fails (uniqueness, required fields)
  */
 export async function createBudget(input: CreateBudgetInput): Promise<Budget> {
-  const userId = await getCurrentUserId();
-  if (!userId) {
-    // i18n-ignore — developer-facing error
-    throw new Error("User not authenticated");
-  }
+  const scope = await getCurrentUserDataScope();
 
   // Type-specific validation
   if (input.type === "CATEGORY" && !input.categoryId) {
@@ -105,7 +111,7 @@ export async function createBudget(input: CreateBudgetInput): Promise<Budget> {
     await validateBudgetUniqueness(input.type, input.period, input.categoryId);
 
     const budget = await budgetsCollection().create((b) => {
-      b.userId = userId;
+      b.userId = scope.userId;
       b.name = input.name;
       b.type = input.type;
       b.categoryId = input.categoryId ?? undefined;
@@ -133,7 +139,8 @@ export async function updateBudget(
   budgetId: string,
   input: UpdateBudgetInput
 ): Promise<Budget> {
-  const budget = await budgetsCollection().find(budgetId);
+  const scope = await getCurrentUserDataScope();
+  const budget = await getOwnedBudget(budgetId, scope);
 
   // Type-specific validation for period changes (C1 fix: correct operator precedence)
   const effectivePeriod = input.period ?? budget.period;
@@ -191,7 +198,8 @@ export async function updateBudget(
  * Consistent with the existing project pattern (transaction-service, edit-account-service).
  */
 export async function deleteBudget(budgetId: string): Promise<void> {
-  const budget = await budgetsCollection().find(budgetId);
+  const scope = await getCurrentUserDataScope();
+  const budget = await getOwnedBudget(budgetId, scope);
 
   await database.write(async () => {
     await budget.update((b) => {
@@ -209,7 +217,8 @@ export async function deleteBudget(budgetId: string): Promise<void> {
  * Records `paused_at` timestamp for interval tracking.
  */
 export async function pauseBudget(budgetId: string): Promise<void> {
-  const budget = await budgetsCollection().find(budgetId);
+  const scope = await getCurrentUserDataScope();
+  const budget = await getOwnedBudget(budgetId, scope);
 
   // M2 fix: Guard against pausing an already-paused budget
   if (budget.status === "PAUSED") {
@@ -231,7 +240,8 @@ export async function pauseBudget(budgetId: string): Promise<void> {
  * into `pause_intervals` and clears `paused_at`.
  */
 export async function resumeBudget(budgetId: string): Promise<void> {
-  const budget = await budgetsCollection().find(budgetId);
+  const scope = await getCurrentUserDataScope();
+  const budget = await getOwnedBudget(budgetId, scope);
 
   // M3 fix: Guard against resuming a non-paused budget
   if (budget.status !== "PAUSED") {
@@ -272,7 +282,8 @@ export async function setAlertFiredLevel(
   budgetId: string,
   level: AlertFiredLevel
 ): Promise<void> {
-  const budget = await budgetsCollection().find(budgetId);
+  const scope = await getCurrentUserDataScope();
+  const budget = await getOwnedBudget(budgetId, scope);
 
   await database.write(async () => {
     await budget.update((b) => {
@@ -285,7 +296,8 @@ export async function setAlertFiredLevel(
  * Reset the alert fired level (on period rollover).
  */
 export async function resetAlertFiredLevel(budgetId: string): Promise<void> {
-  const budget = await budgetsCollection().find(budgetId);
+  const scope = await getCurrentUserDataScope();
+  const budget = await getOwnedBudget(budgetId, scope);
 
   await database.write(async () => {
     await budget.update((b) => {
@@ -298,7 +310,8 @@ export async function resetAlertFiredLevel(budgetId: string): Promise<void> {
  * Auto-pause a custom budget whose period has expired.
  */
 export async function autoPauseBudget(budgetId: string): Promise<void> {
-  const budget = await budgetsCollection().find(budgetId);
+  const scope = await getCurrentUserDataScope();
+  const budget = await getOwnedBudget(budgetId, scope);
   if (budget.status !== "ACTIVE") return;
 
   await database.write(async () => {
@@ -330,6 +343,7 @@ export async function getSpendingForBudget(budget: Budget): Promise<number> {
   );
 
   const baseConditions = [
+    Q.where("user_id", budget.userId),
     Q.where("deleted", false),
     Q.where("type", "EXPENSE"),
     Q.where("date", Q.gte(bounds.start.getTime())),
@@ -416,6 +430,8 @@ export async function validateBudgetUniqueness(
   categoryId?: string,
   excludeBudgetId?: string
 ): Promise<void> {
+  const scope = await getCurrentUserDataScope();
+
   const conditions = [
     Q.where("deleted", false),
     Q.where("type", type),
@@ -430,8 +446,8 @@ export async function validateBudgetUniqueness(
     conditions.push(Q.where("id", Q.notEq(excludeBudgetId)));
   }
 
-  const existing = await budgetsCollection()
-    .query(Q.and(...conditions))
+  const existing = await scope
+    .queryOwned(budgetsCollection(), Q.and(...conditions))
     .fetchCount();
 
   if (existing > 0) {

@@ -131,6 +131,7 @@ import {
   deleteTransfer,
   convertTransferToTransaction,
 } from "@/services/transfer-service";
+import { USER_DATA_ACCESS_ERROR_CODES } from "@/services/user-data-access";
 
 // ---------------------------------------------------------------------------
 // Grab mock helpers (typed via MockDbApi interface)
@@ -149,7 +150,7 @@ const {
 // ---------------------------------------------------------------------------
 
 function seedAccount(id: string, balance: number): MockModelRecord {
-  const acc = mockModel(id, { balance });
+  const acc = mockModel(id, { balance, userId: "test-user-id" });
   mockSeed("accounts", acc);
   return acc;
 }
@@ -262,7 +263,7 @@ describe("transfer-service", () => {
           fromAccountId: "acc-from",
           toAccountId: "acc-to",
         })
-      ).rejects.toThrow("User not authenticated");
+      ).rejects.toThrow(USER_DATA_ACCESS_ERROR_CODES.USER_REQUIRED);
     });
 
     it("should wrap everything in a single database.write", async () => {
@@ -475,7 +476,7 @@ describe("transfer-service", () => {
           type: "EXPENSE",
           categoryId: "cat-1",
         })
-      ).rejects.toThrow("User not authenticated");
+      ).rejects.toThrow(USER_DATA_ACCESS_ERROR_CODES.USER_REQUIRED);
     });
 
     it("should wrap everything in a single atomic write", async () => {

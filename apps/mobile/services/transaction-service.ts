@@ -1,4 +1,3 @@
-import { getCurrentUserId } from "./supabase";
 import {
   Account,
   CurrencyType,
@@ -10,6 +9,34 @@ import {
 } from "@monyvi/db";
 import { Q, type Model } from "@nozbe/watermelondb";
 import type { DisplayTransaction } from "@/hooks/useTransactionsGrouping";
+import {
+  getCurrentUserDataScope,
+  type CurrentUserDataScope,
+} from "@/services/user-data-access";
+
+function accountsCollection(): ReturnType<typeof database.get<Account>> {
+  return database.get<Account>("accounts");
+}
+
+function transactionsCollection(): ReturnType<
+  typeof database.get<Transaction>
+> {
+  return database.get<Transaction>("transactions");
+}
+
+async function getOwnedAccount(
+  accountId: string,
+  scope: CurrentUserDataScope
+): Promise<Account> {
+  return scope.findOwned(accountsCollection(), accountId);
+}
+
+async function getOwnedTransaction(
+  transactionId: string,
+  scope: CurrentUserDataScope
+): Promise<Transaction> {
+  return scope.findOwned(transactionsCollection(), transactionId);
+}
 
 /**
  * Create a transaction from manual input.
@@ -27,20 +54,17 @@ export async function createTransaction(data: {
   linkedRecurringId?: string;
   source: TransactionSource;
 }): Promise<Transaction> {
-  const userId = await getCurrentUserId();
-  if (!userId) {
-    // i18n-ignore — developer-facing error
-    throw new Error("User not authenticated");
-  }
+  const scope = await getCurrentUserDataScope();
 
-  const transactionsCollection = database.get<Transaction>("transactions");
-  const accountsCollection = database.get<Account>("accounts");
+  const transactionCollection = transactionsCollection();
 
   // Combine transaction creation and balance update in a single atomic write
   const newTransaction = await database.write(async () => {
+    const account = await getOwnedAccount(data.accountId, scope);
+
     // Create the transaction
-    const transaction = await transactionsCollection.create((tx) => {
-      tx.userId = userId;
+    const transaction = await transactionCollection.create((tx) => {
+      tx.userId = scope.userId;
       tx.accountId = data.accountId;
       tx.amount = Math.abs(data.amount); // Amount is always positive
       tx.currency = data.currency;
@@ -56,7 +80,6 @@ export async function createTransaction(data: {
     });
 
     // Update account balance in the same write block
-    const account = await accountsCollection.find(data.accountId);
     await account.update((acc) => {
       if (data.type === "EXPENSE") {
         acc.balance -= Math.abs(data.amount);
@@ -95,11 +118,10 @@ export async function updateTransaction(
     readonly accountId?: string;
   }
 ): Promise<void> {
-  const transactionsCollection = database.get<Transaction>("transactions");
-  const accountsCollection = database.get<Account>("accounts");
+  const scope = await getCurrentUserDataScope();
 
   await database.write(async () => {
-    const transaction = await transactionsCollection.find(transactionId);
+    const transaction = await getOwnedTransaction(transactionId, scope);
 
     const oldType = transaction.type;
     const oldAmount = transaction.amount;
@@ -117,7 +139,7 @@ export async function updateTransaction(
     // Only adjust balances when amount, type, or account actually changed
     if (isAccountChanging || isTypeChanging || isAmountChanging) {
       // --- Revert the old effect on the old account ---
-      const oldAccount = await accountsCollection.find(oldAccountId);
+      const oldAccount = await getOwnedAccount(oldAccountId, scope);
       await oldAccount.update((acc) => {
         if (oldType === "EXPENSE") {
           acc.balance += oldAmount; // was -oldAmount, revert by +oldAmount
@@ -128,7 +150,7 @@ export async function updateTransaction(
 
       // --- Apply the new effect on the (possibly different) account ---
       const targetAccount = isAccountChanging
-        ? await accountsCollection.find(newAccountId)
+        ? await getOwnedAccount(newAccountId, scope)
         : oldAccount;
 
       // Only update targetAccount if it's a different record from oldAccount;
@@ -173,14 +195,13 @@ export async function updateTransaction(
  * Atomically reverses the account balance change and soft-deletes the record.
  */
 export async function deleteTransaction(transactionId: string): Promise<void> {
-  const transactionsCollection = database.get<Transaction>("transactions");
+  const scope = await getCurrentUserDataScope();
 
   await database.write(async () => {
-    const transaction = await transactionsCollection.find(transactionId);
+    const transaction = await getOwnedTransaction(transactionId, scope);
 
     // Reverse the balance change
-    const accountsCollection = database.get<Account>("accounts");
-    const account = await accountsCollection.find(transaction.accountId);
+    const account = await getOwnedAccount(transaction.accountId, scope);
 
     await account.update((acc) => {
       if (transaction.type === "EXPENSE") {
@@ -220,23 +241,16 @@ interface ConvertToTransferPayload {
 export async function convertTransactionToTransfer(
   payload: ConvertToTransferPayload
 ): Promise<void> {
-  const userId = await getCurrentUserId();
-  if (!userId) {
-    // i18n-ignore — developer-facing error
-    throw new Error("User not authenticated");
-  }
+  const scope = await getCurrentUserDataScope();
 
-  const transactionsCollection = database.get<Transaction>("transactions");
   const transfersCollection = database.get<Transfer>("transfers");
-  const accountsCollection = database.get<Account>("accounts");
 
   await database.write(async () => {
-    const transaction = await transactionsCollection.find(
-      payload.transactionId
-    );
+    const transaction = await getOwnedTransaction(payload.transactionId, scope);
+    const toAccount = await getOwnedAccount(payload.toAccountId, scope);
 
     // 1. Revert the transaction's balance effect on its account
-    const fromAccount = await accountsCollection.find(transaction.accountId);
+    const fromAccount = await getOwnedAccount(transaction.accountId, scope);
     await fromAccount.update((acc) => {
       if (transaction.type === "EXPENSE") {
         acc.balance += transaction.amount; // was -amount, revert
@@ -252,7 +266,7 @@ export async function convertTransactionToTransfer(
 
     // 3. Create the new transfer
     await transfersCollection.create((t: Transfer) => {
-      t.userId = userId;
+      t.userId = scope.userId;
       t.fromAccountId = transaction.accountId;
       t.toAccountId = payload.toAccountId;
       t.amount = transaction.amount;
@@ -270,7 +284,6 @@ export async function convertTransactionToTransfer(
     });
 
     // Credit the to-account
-    const toAccount = await accountsCollection.find(payload.toAccountId);
     await toAccount.update((acc) => {
       acc.balance += transaction.amount;
     });
@@ -308,6 +321,7 @@ export async function batchDeleteDisplayTransactions(
   items: readonly DisplayTransaction[]
 ): Promise<void> {
   if (items.length === 0) return;
+  const scope = await getCurrentUserDataScope();
 
   await database.write(async () => {
     const softDeleteBatches: Model[] = [];
@@ -316,6 +330,8 @@ export async function batchDeleteDisplayTransactions(
     const balanceDeltas = new Map<string, number>();
 
     for (const item of items) {
+      scope.assertOwned(item);
+
       if (item._type === "transaction") {
         softDeleteBatches.push(
           item.prepareUpdate((t) => {
@@ -351,9 +367,11 @@ export async function batchDeleteDisplayTransactions(
     const accountIds = Array.from(balanceDeltas.keys());
     const accounts =
       accountIds.length > 0
-        ? await database
-            .get<Account>("accounts")
-            .query(Q.where("id", Q.oneOf(accountIds)))
+        ? await scope
+            .queryOwned(
+              database.get<Account>("accounts"),
+              Q.where("id", Q.oneOf(accountIds))
+            )
             .fetch()
         : [];
 

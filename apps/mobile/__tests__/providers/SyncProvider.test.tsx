@@ -41,6 +41,12 @@ const actSync = ((fn: () => void) => getRTR().act(fn)) as (
 const mockSyncDatabase = jest.fn();
 const mockCheckIsAuthenticated = jest.fn();
 const mockCompleteInterruptedLogout = jest.fn();
+const mockFetchProfileCount = jest.fn();
+const mockDbGet = jest.fn();
+const mockWhere = jest.fn((column: string, value: unknown) => ({
+  column,
+  value,
+}));
 
 jest.mock("@/services/sync", () => ({
   syncDatabase: (...args: unknown[]): Promise<unknown> =>
@@ -59,14 +65,19 @@ jest.mock("@/services/logout-service", () => ({
 
 jest.mock("@monyvi/db", () => ({
   database: {
-    get: jest.fn(() => ({
-      query: () => ({ fetchCount: jest.fn().mockResolvedValue(0) }),
-    })),
+    get: (table: string): unknown => mockDbGet(table),
   },
 }));
 
 jest.mock("@/context/AuthContext", () => ({
-  useAuth: () => ({ isAuthenticated: true }),
+  useAuth: () => ({ isAuthenticated: true, user: { id: "current-user" } }),
+}));
+
+jest.mock("@nozbe/watermelondb", () => ({
+  Q: {
+    where: (column: string, value: unknown): unknown =>
+      mockWhere(column, value),
+  },
 }));
 
 // Import after mocks
@@ -94,15 +105,23 @@ function renderAndCapture(): {
     return null;
   };
 
-  const renderer = getRTR().create(
-    React.createElement(
-      SyncProvider,
-      null,
-      React.createElement(CaptureComponent)
-    )
-  );
+  let renderer: ReactTestRendererInstance | null = null;
+  getRTR().act(() => {
+    renderer = getRTR().create(
+      React.createElement(
+        SyncProvider,
+        null,
+        React.createElement(CaptureComponent)
+      )
+    );
+  });
 
-  return { result: resultRef, unmount: () => renderer.unmount() };
+  if (renderer === null) {
+    throw new Error("renderer not initialised");
+  }
+  const mountedRenderer = renderer as ReactTestRendererInstance;
+
+  return { result: resultRef, unmount: () => mountedRenderer.unmount() };
 }
 
 // ---------------------------------------------------------------------------
@@ -115,6 +134,10 @@ describe("SyncProvider initialSyncState", () => {
     jest.useFakeTimers();
     mockCheckIsAuthenticated.mockResolvedValue(true);
     mockCompleteInterruptedLogout.mockResolvedValue(undefined);
+    mockFetchProfileCount.mockResolvedValue(0);
+    mockDbGet.mockReturnValue({
+      query: jest.fn(() => ({ fetchCount: mockFetchProfileCount })),
+    });
   });
 
   afterEach(() => {
@@ -143,6 +166,14 @@ describe("SyncProvider initialSyncState", () => {
     }
   }
 
+  async function flushStartupMicrotasks(): Promise<void> {
+    await getRTR().act(async () => {
+      for (let i = 0; i < 5; i++) {
+        await Promise.resolve();
+      }
+    });
+  }
+
   it('transitions to "success" when sync completes within timeout', async () => {
     mockSyncDatabase.mockResolvedValue(undefined);
     const { result } = renderAndCapture();
@@ -152,6 +183,23 @@ describe("SyncProvider initialSyncState", () => {
       // No-op - just trigger a React update
     });
 
+    expect(result.current.initialSyncState).toBe("success");
+  });
+
+  it("checks the current user's profile instead of accounts before trusting local startup data", async () => {
+    mockFetchProfileCount.mockResolvedValue(1);
+    mockSyncDatabase.mockResolvedValue(undefined);
+    const { result } = renderAndCapture();
+
+    await flushStartupMicrotasks();
+    actSync(() => {
+      // No-op - just trigger a React update
+    });
+
+    expect(mockDbGet).toHaveBeenCalledWith("profiles");
+    expect(mockWhere).toHaveBeenCalledWith("user_id", "current-user");
+    expect(mockWhere).toHaveBeenCalledWith("deleted", false);
+    expect(mockSyncDatabase).toHaveBeenCalledWith(expect.anything(), false);
     expect(result.current.initialSyncState).toBe("success");
   });
 

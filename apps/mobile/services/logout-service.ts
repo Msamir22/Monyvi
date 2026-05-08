@@ -1,21 +1,18 @@
 /**
  * Logout Service
  *
- * Orchestrates the full logout sequence: sync → reset DB → clear preferences → destroy session.
+ * Orchestrates the full logout sequence: sync → destroy session.
  * Implements the Facade pattern — components call a single function, not five subsystems.
  *
  * @module logout-service
  */
 
-import {
-  CLEARABLE_USER_KEYS,
-  LOGOUT_IN_PROGRESS_KEY,
-} from "@/constants/storage-keys";
+import { LOGOUT_IN_PROGRESS_KEY } from "@/constants/storage-keys";
 import type { Database } from "@nozbe/watermelondb";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { fetch } from "@react-native-community/netinfo";
 import { supabase } from "./supabase";
-import { getActiveSyncPromise, resetSyncState, syncDatabase } from "./sync";
+import { getActiveSyncPromise, syncDatabase } from "./sync";
 
 // =============================================================================
 // Types
@@ -50,10 +47,8 @@ const ACTIVE_SYNC_TIMEOUT_MS = 10_000;
  * 1. Set `logout_in_progress` flag (force-close recovery)
  * 2. Verify network connectivity
  * 3. Await any in-flight sync, then run a fresh sync (retry once on failure)
- * 4. Reset local WatermelonDB database
- * 5. Clear user-specific AsyncStorage keys (preserve device-level keys)
- * 6. Destroy Supabase session
- * 7. Remove `logout_in_progress` flag
+ * 4. Destroy Supabase session
+ * 5. Remove `logout_in_progress` flag
  *
  * @param database - The WatermelonDB database instance
  * @param forceSkipSync - If true, skip sync entirely (used after user acknowledges data loss risk)
@@ -82,7 +77,7 @@ export async function performLogout(
     await AsyncStorage.setItem(LOGOUT_IN_PROGRESS_KEY, "true");
 
     // Steps 4–7: Perform the actual cleanup
-    await executeLogoutCleanup(database);
+    await executeLogoutCleanup();
 
     return { success: true };
   } catch {
@@ -102,13 +97,13 @@ export async function performLogout(
  * Complete an interrupted logout that was interrupted by a force-close.
  *
  * Checks for the `logout_in_progress` flag in AsyncStorage.
- * If present, runs the cleanup steps (reset DB, clear keys, new session).
+ * If present, completes the session cleanup.
  * Sync is skipped since we can't guarantee the app state after a force-close.
  *
  * @param database - The WatermelonDB database instance
  */
 export async function completeInterruptedLogout(
-  database: Database
+  _database: Database
 ): Promise<void> {
   try {
     const flag = await AsyncStorage.getItem(LOGOUT_IN_PROGRESS_KEY);
@@ -117,7 +112,7 @@ export async function completeInterruptedLogout(
     }
 
     // TODO: Replace with structured logging (e.g., Sentry)
-    await executeLogoutCleanup(database);
+    await executeLogoutCleanup();
     // TODO: Replace with structured logging (e.g., Sentry)
   } catch {
     // TODO: Replace with structured logging (e.g., Sentry)
@@ -177,34 +172,14 @@ async function attemptSync(database: Database): Promise<boolean> {
 }
 
 /**
- * Execute the logout cleanup steps: reset DB → clear keys → destroy session → remove flag.
- *
- * @param database - The WatermelonDB database instance
+ * Execute the logout cleanup steps: destroy session → remove flag.
  */
-async function executeLogoutCleanup(database: Database): Promise<void> {
-  // Step 4: Reset local WatermelonDB database
-  await resetSyncState(database);
-
-  // Step 5: Clear user-specific AsyncStorage keys
-  await clearUserPreferences();
-
-  // Step 6: Destroy session
+async function executeLogoutCleanup(): Promise<void> {
+  // Step 4: Destroy session
   await destroySession();
 
-  // Step 7: Remove force-close recovery flag
+  // Step 5: Remove force-close recovery flag
   await AsyncStorage.removeItem(LOGOUT_IN_PROGRESS_KEY);
-}
-
-/**
- * Clear all user-specific AsyncStorage keys while preserving device-level keys.
- */
-async function clearUserPreferences(): Promise<void> {
-  try {
-    await AsyncStorage.multiRemove([...CLEARABLE_USER_KEYS]);
-  } catch {
-    // TODO: Replace with structured logging (e.g., Sentry)
-    // Non-fatal — continue with logout
-  }
 }
 
 /**

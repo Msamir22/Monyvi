@@ -5,6 +5,7 @@
 
 import {
   Account,
+  Asset,
   AssetMetal,
   DailySnapshotNetWorth,
   database,
@@ -102,25 +103,80 @@ export function useNetWorth(): UseNetWorthResult {
   }, [refreshKey, userId, isResolvingUser]);
 
   useEffect(() => {
-    const assetMetalsCollection = database.get<AssetMetal>("asset_metals");
-    const query = assetMetalsCollection.query(Q.where("deleted", false));
+    if (isResolvingUser) {
+      setAssetMetals([]);
+      setIsLoading(true);
+      setIsAssetMetalsLoading(true);
+      return;
+    }
 
-    const subscription = query.observe().subscribe({
-      next: (result) => {
-        setAssetMetals(result);
+    if (!userId) {
+      setAssetMetals([]);
+      setIsLoading(false);
+      setIsAssetMetalsLoading(false);
+      return;
+    }
+
+    let isCancelled = false;
+    const assetMetalsCollection = database.get<AssetMetal>("asset_metals");
+
+    const run = async (): Promise<() => void> => {
+      const assetIds = (
+        await queryOwned(
+          database.get<Asset>("assets"),
+          userId,
+          Q.where("deleted", false)
+        ).fetch()
+      ).map((asset) => asset.id);
+
+      if (isCancelled) return () => undefined;
+
+      if (assetIds.length === 0) {
+        setAssetMetals([]);
         setIsLoading(false);
         setIsAssetMetalsLoading(false);
-      },
-      error: (err: unknown) => {
-        console.error("Error observing asset metals:", err);
-        setError(err instanceof Error ? err : new Error(String(err)));
-        setIsLoading(false);
-        setIsAssetMetalsLoading(false);
-      },
+        return () => undefined;
+      }
+
+      const query = assetMetalsCollection.query(
+        Q.where("asset_id", Q.oneOf(assetIds)),
+        Q.where("deleted", false)
+      );
+
+      const subscription = query.observe().subscribe({
+        next: (result) => {
+          setAssetMetals(result);
+          setIsLoading(false);
+          setIsAssetMetalsLoading(false);
+        },
+        error: (err: unknown) => {
+          console.error("Error observing asset metals:", err);
+          setError(err instanceof Error ? err : new Error(String(err)));
+          setIsLoading(false);
+          setIsAssetMetalsLoading(false);
+        },
+      });
+
+      return () => subscription.unsubscribe();
+    };
+
+    setAssetMetals([]);
+    setIsAssetMetalsLoading(true);
+
+    let unsubscribe: (() => void) | undefined;
+    void run().then((nextUnsubscribe) => {
+      if (isCancelled) {
+        nextUnsubscribe();
+        return;
+      }
+      unsubscribe = nextUnsubscribe;
     });
 
-    return () => subscription.unsubscribe();
-  }, [refreshKey]);
+    return () => {
+      isCancelled = true;
+      unsubscribe?.();
+    };
+  }, [refreshKey, userId, isResolvingUser]);
 
   /** Convert a USD amount to the user's preferred currency. */
   const toPreferred = useMemo(
@@ -202,15 +258,31 @@ export function useMonthlyPercentageChange(): {
     number | null
   >(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { userId, isResolvingUser } = useCurrentUserId();
 
   useEffect(() => {
+    if (isResolvingUser) {
+      setMonthlyPercentageChange(null);
+      setIsLoading(true);
+      return;
+    }
+
+    if (!userId) {
+      setMonthlyPercentageChange(null);
+      setIsLoading(false);
+      return;
+    }
+
     const collection = database.get<DailySnapshotNetWorth>(
       "daily_snapshot_net_worth"
     );
 
     // Observe the collection to react to sync updates
-    const subscription = collection
-      .query(Q.sortBy("snapshot_date", Q.desc))
+    const subscription = queryOwned(
+      collection,
+      userId,
+      Q.sortBy("snapshot_date", Q.desc)
+    )
       .observe()
       .subscribe({
         next: (snapshots) => {
@@ -252,7 +324,7 @@ export function useMonthlyPercentageChange(): {
       });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [userId, isResolvingUser]);
 
   return {
     monthlyPercentageChange,

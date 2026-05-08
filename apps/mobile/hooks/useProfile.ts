@@ -1,7 +1,7 @@
 /**
  * useProfile Hook
  *
- * Observes the first Profile record from WatermelonDB.
+ * Observes the current authenticated user's Profile record from WatermelonDB.
  * Only handles data subscription — all presentation logic (initials,
  * display name, avatar URL) lives in `@/utils/profile-helpers`.
  *
@@ -13,6 +13,9 @@
 import { database, Profile } from "@monyvi/db";
 import { Q } from "@nozbe/watermelondb";
 import { useEffect, useState } from "react";
+import { useAuth } from "@/context/AuthContext";
+import { queryOwned } from "@/services/user-data-access";
+import { logger } from "@/utils/logger";
 
 // =============================================================================
 // Types
@@ -40,16 +43,34 @@ interface UseProfileResult {
  * @returns An object with profile and isLoading.
  */
 export function useProfile(): UseProfileResult {
+  const { user, isLoading: isAuthLoading } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const userId = user?.id ?? null;
 
-  // Observe the first profile record
-  // TODO: Scope this query by user_id when multi-account support is added.
-  // Currently safe because Monyvi is single-user and login wipes local data.
   useEffect(() => {
+    if (isAuthLoading) {
+      setProfile(null);
+      setIsLoading(true);
+      return;
+    }
+
+    if (userId === null) {
+      setProfile(null);
+      setIsLoading(false);
+      return;
+    }
+
+    setProfile(null);
+    setIsLoading(true);
+
     const collection = database.get<Profile>("profiles");
-    const subscription = collection
-      .query(Q.where("deleted", false), Q.take(1))
+    const subscription = queryOwned(
+      collection,
+      userId,
+      Q.where("deleted", false),
+      Q.take(1)
+    )
       .observe()
       .subscribe({
         next: (profiles) => {
@@ -57,13 +78,13 @@ export function useProfile(): UseProfileResult {
           setIsLoading(false);
         },
         error: (err: unknown) => {
-          console.error("Error observing profile:", err);
+          logger.error("profile.observe.failed", err, { userId });
           setIsLoading(false);
         },
       });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [isAuthLoading, userId]);
 
   return {
     profile,

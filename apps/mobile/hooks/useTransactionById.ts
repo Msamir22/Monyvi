@@ -5,6 +5,9 @@
 
 import { database, Transaction } from "@monyvi/db";
 import { useEffect, useState } from "react";
+import { observeOwnedById } from "@/services/user-data-access";
+import { useCurrentUserId } from "./useCurrentUserId";
+import { logger } from "@/utils/logger";
 
 interface UseTransactionByIdResult {
   readonly transaction: Transaction | null;
@@ -21,6 +24,7 @@ interface UseTransactionByIdResult {
 export function useTransactionById(id: string): UseTransactionByIdResult {
   const [transaction, setTransaction] = useState<Transaction | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const { userId, isResolvingUser } = useCurrentUserId();
 
   useEffect(() => {
     if (!id) {
@@ -29,16 +33,32 @@ export function useTransactionById(id: string): UseTransactionByIdResult {
       return;
     }
 
+    if (isResolvingUser) {
+      setTransaction(null);
+      setIsLoading(true);
+      return;
+    }
+
+    if (!userId) {
+      setTransaction(null);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
 
     const collection = database.get<Transaction>("transactions");
-    const subscription = collection.findAndObserve(id).subscribe({
+    const subscription = observeOwnedById<Transaction>(
+      collection,
+      id,
+      userId
+    ).subscribe({
       next: (record) => {
         setTransaction(record);
         setIsLoading(false);
       },
       error: (err) => {
-        console.error("[useTransactionById] Observation error:", err);
+        logger.error("transactionById.observe.failed", err, { userId });
         setTransaction(null);
         setIsLoading(false);
       },
@@ -47,7 +67,7 @@ export function useTransactionById(id: string): UseTransactionByIdResult {
     return (): void => {
       subscription.unsubscribe();
     };
-  }, [id]);
+  }, [id, userId, isResolvingUser]);
 
   return { transaction, isLoading };
 }

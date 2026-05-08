@@ -8,6 +8,8 @@
 
 import { Category, database } from "@monyvi/db";
 import { Q } from "@nozbe/watermelondb";
+import { queryAccessibleCategories } from "@/services/user-data-access";
+import { useCurrentUserId } from "@/hooks/useCurrentUserId";
 import React, {
   createContext,
   useContext,
@@ -48,11 +50,27 @@ export function CategoriesProvider({
 }: CategoriesProviderProps): React.JSX.Element {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { userId, isResolvingUser } = useCurrentUserId();
 
   useEffect(() => {
-    const subscription = database
-      .get<Category>("categories")
-      .query(Q.where("deleted", false), Q.sortBy("sort_order", Q.asc))
+    if (isResolvingUser) {
+      setCategories([]);
+      setIsLoading(true);
+      return;
+    }
+
+    if (!userId) {
+      setCategories([]);
+      setIsLoading(false);
+      return;
+    }
+
+    const subscription = queryAccessibleCategories(
+      database.get<Category>("categories"),
+      userId,
+      Q.where("deleted", false),
+      Q.sortBy("sort_order", Q.asc)
+    )
       .observe()
       .subscribe({
         next: (result) => {
@@ -66,7 +84,7 @@ export function CategoriesProvider({
       });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [userId, isResolvingUser]);
 
   const categoryMap = useMemo(
     () => new Map(categories.map((c) => [c.id, c])),

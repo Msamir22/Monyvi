@@ -36,6 +36,7 @@ import {
   assertChildRecordParentOwned,
   assertOwnedRecord,
   findOwnedById,
+  getCurrentUserDataScope,
   getRequiredCurrentUserId,
 } from "@/services/user-data-access";
 
@@ -76,6 +77,37 @@ describe("user-data-access", () => {
     await expect(
       findOwnedById(collection, "acc-1", "attacker-user")
     ).rejects.toThrow(USER_DATA_ACCESS_ERROR_CODES.OWNERSHIP_FAILED);
+  });
+
+  it("creates a bound current-user scope for repeated owned reads", async () => {
+    mockGetCurrentUserId.mockResolvedValueOnce(" user-1 ");
+    const collection: MockCollection<MockUserOwnedRecord> = {
+      find: jest.fn((_id: string) =>
+        Promise.resolve({ id: "acc-1", userId: "user-1" })
+      ),
+    };
+
+    const scope = await getCurrentUserDataScope();
+    const record = await scope.findOwned(collection, "acc-1");
+
+    expect(scope.userId).toBe("user-1");
+    expect(record.id).toBe("acc-1");
+    expect(mockGetCurrentUserId).toHaveBeenCalledTimes(1);
+  });
+
+  it("scope denies foreign owned records", async () => {
+    mockGetCurrentUserId.mockResolvedValueOnce("attacker-user");
+    const collection: MockCollection<MockUserOwnedRecord> = {
+      find: jest.fn((_id: string) =>
+        Promise.resolve({ id: "acc-1", userId: "owner-user" })
+      ),
+    };
+
+    const scope = await getCurrentUserDataScope();
+
+    await expect(scope.findOwned(collection, "acc-1")).rejects.toThrow(
+      USER_DATA_ACCESS_ERROR_CODES.OWNERSHIP_FAILED
+    );
   });
 
   it("allows system categories for any signed-in user", () => {

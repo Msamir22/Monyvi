@@ -7,6 +7,9 @@ import { database, Transaction } from "@monyvi/db";
 import { getMonthBoundaries } from "@monyvi/logic";
 import { Q } from "@nozbe/watermelondb";
 import { useEffect, useState } from "react";
+import { queryOwned } from "@/services/user-data-access";
+import { useCurrentUserId } from "./useCurrentUserId";
+import { logger } from "@/utils/logger";
 
 interface UseTransactionsResult {
   transactions: Transaction[];
@@ -34,12 +37,25 @@ export function useTransactions(
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const { userId, isResolvingUser } = useCurrentUserId();
 
   const refetch = (): void => {
     setRefreshKey((prev) => prev + 1);
   };
 
   useEffect(() => {
+    if (isResolvingUser) {
+      setTransactions([]);
+      setIsLoading(true);
+      return;
+    }
+
+    if (!userId) {
+      setTransactions([]);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -60,7 +76,9 @@ export function useTransactions(
       conditions.push(Q.where("type", type));
     }
 
-    const query = transactionsCollection.query(
+    const query = queryOwned(
+      transactionsCollection,
+      userId,
       ...conditions,
       Q.sortBy("date", Q.desc),
       Q.take(limit)
@@ -73,14 +91,14 @@ export function useTransactions(
         setIsLoading(false);
       },
       error: (err: unknown) => {
-        console.error("Error observing transactions:", err);
+        logger.error("transactions.observe.failed", err, { userId });
         setError(err instanceof Error ? err : new Error(String(err)));
         setIsLoading(false);
       },
     });
 
     return () => subscription.unsubscribe();
-  }, [limit, accountId, categoryId, type, refreshKey]);
+  }, [limit, accountId, categoryId, type, refreshKey, userId, isResolvingUser]);
 
   return {
     transactions,
@@ -108,12 +126,25 @@ export function useMonthlyTransactions(
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const { userId, isResolvingUser } = useCurrentUserId();
 
   const refetch = (): void => {
     setRefreshKey((prev) => prev + 1);
   };
 
   useEffect(() => {
+    if (isResolvingUser) {
+      setTransactions([]);
+      setIsLoading(true);
+      return;
+    }
+
+    if (!userId) {
+      setTransactions([]);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -122,7 +153,9 @@ export function useMonthlyTransactions(
     // Calculate start and end of month
     const { startDate, endDate } = getMonthBoundaries(year, month);
 
-    const query = transactionsCollection.query(
+    const query = queryOwned(
+      transactionsCollection,
+      userId,
       Q.where("deleted", false),
       Q.where("date", Q.gte(startDate)),
       Q.where("date", Q.lte(endDate)),
@@ -135,14 +168,14 @@ export function useMonthlyTransactions(
         setIsLoading(false);
       },
       error: (err: unknown) => {
-        console.error("Error observing monthly transactions:", err);
+        logger.error("monthlyTransactions.observe.failed", err, { userId });
         setError(err instanceof Error ? err : new Error(String(err)));
         setIsLoading(false);
       },
     });
 
     return () => subscription.unsubscribe();
-  }, [year, month, refreshKey]);
+  }, [year, month, refreshKey, userId, isResolvingUser]);
 
   // TODO : mvoe this to different function & file.
   // Use shared analytics for calculations

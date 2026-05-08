@@ -1,8 +1,8 @@
 /**
  * Runtime user-scoped data access helpers.
  *
- * Defense-in-depth on top of Supabase RLS and local SQLite reset-on-logout:
- * direct local reads must still prove that the row belongs to the current
+ * Defense-in-depth on top of Supabase RLS: logout preserves local rows, so
+ * direct local reads must prove that the row belongs to the current
  * authenticated user before exposing or mutating it.
  *
  * @module user-data-access
@@ -59,6 +59,43 @@ interface ObservableCollection<TRecord> {
   readonly findAndObserve: (id: string) => ObservableLike<TRecord>;
 }
 
+export interface CurrentUserDataScope {
+  readonly userId: string;
+  readonly assertOwned: <TRecord extends UserOwnedRecord>(
+    record: TRecord
+  ) => TRecord;
+  readonly findOwned: <TRecord extends UserOwnedRecord>(
+    collection: FindableCollection<TRecord>,
+    id: string
+  ) => Promise<TRecord>;
+  readonly queryOwned: <TRecord extends Model & UserOwnedRecord>(
+    collection: Collection<TRecord>,
+    ...conditions: Clause[]
+  ) => Query<TRecord>;
+  readonly queryAccessibleCategories: <
+    TRecord extends Model & UserScopedCategoryRecord,
+  >(
+    collection: Collection<TRecord>,
+    ...conditions: Clause[]
+  ) => Query<TRecord>;
+  readonly assertAccessibleCategory: <TRecord extends UserScopedCategoryRecord>(
+    record: TRecord
+  ) => TRecord;
+  readonly findAccessibleCategory: <TRecord extends UserScopedCategoryRecord>(
+    collection: FindableCollection<TRecord>,
+    id: string
+  ) => Promise<TRecord>;
+  readonly assertChildRecordParentOwned: <
+    TChildRecord extends { readonly id: string },
+    TParentRecord extends UserOwnedRecord,
+    TForeignKey extends keyof TChildRecord,
+  >(
+    childRecord: TChildRecord,
+    parentCollection: FindableCollection<TParentRecord>,
+    parentForeignKey: TForeignKey
+  ) => Promise<TChildRecord>;
+}
+
 // ---------------------------------------------------------------------------
 // Auth Guard
 // ---------------------------------------------------------------------------
@@ -75,6 +112,61 @@ export async function getRequiredCurrentUserId(): Promise<string> {
   }
 
   return normalizedUserId;
+}
+
+/**
+ * Resolve the authenticated user once, then expose scoped read helpers bound to
+ * that user. Use this in service functions that perform multiple local reads or
+ * writes for the same action.
+ */
+export async function getCurrentUserDataScope(): Promise<CurrentUserDataScope> {
+  const userId = await getRequiredCurrentUserId();
+
+  return {
+    userId,
+    assertOwned: <TRecord extends UserOwnedRecord>(record: TRecord): TRecord =>
+      assertOwnedRecord(record, userId),
+    findOwned: <TRecord extends UserOwnedRecord>(
+      collection: FindableCollection<TRecord>,
+      id: string
+    ): Promise<TRecord> => findOwnedById(collection, id, userId),
+    queryOwned: <TRecord extends Model & UserOwnedRecord>(
+      collection: Collection<TRecord>,
+      ...conditions: Clause[]
+    ): Query<TRecord> => queryOwned(collection, userId, ...conditions),
+    queryAccessibleCategories: <
+      TRecord extends Model & UserScopedCategoryRecord,
+    >(
+      collection: Collection<TRecord>,
+      ...conditions: Clause[]
+    ): Query<TRecord> =>
+      queryAccessibleCategories(collection, userId, ...conditions),
+    assertAccessibleCategory: <TRecord extends UserScopedCategoryRecord>(
+      record: TRecord
+    ): TRecord => assertAccessibleCategory(record, userId),
+    findAccessibleCategory: async <TRecord extends UserScopedCategoryRecord>(
+      collection: FindableCollection<TRecord>,
+      id: string
+    ): Promise<TRecord> => {
+      const record = await collection.find(id);
+      return assertAccessibleCategory(record, userId);
+    },
+    assertChildRecordParentOwned: async <
+      TChildRecord extends { readonly id: string },
+      TParentRecord extends UserOwnedRecord,
+      TForeignKey extends keyof TChildRecord,
+    >(
+      childRecord: TChildRecord,
+      parentCollection: FindableCollection<TParentRecord>,
+      parentForeignKey: TForeignKey
+    ): Promise<TChildRecord> =>
+      assertChildRecordParentOwned(
+        childRecord,
+        parentCollection,
+        parentForeignKey,
+        userId
+      ),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -161,6 +253,25 @@ export function queryOwned<TRecord extends Model & UserOwnedRecord>(
   ...conditions: Clause[]
 ): Query<TRecord> {
   return collection.query(Q.where("user_id", currentUserId), ...conditions);
+}
+
+/**
+ * Build a category query visible to the current user.
+ *
+ * System categories use `user_id = null`; custom categories use the owner's
+ * concrete `user_id`.
+ */
+export function queryAccessibleCategories<
+  TRecord extends Model & UserScopedCategoryRecord,
+>(
+  collection: Collection<TRecord>,
+  currentUserId: string,
+  ...conditions: Clause[]
+): Query<TRecord> {
+  return collection.query(
+    Q.or(Q.where("user_id", currentUserId), Q.where("user_id", null)),
+    ...conditions
+  );
 }
 
 /**
