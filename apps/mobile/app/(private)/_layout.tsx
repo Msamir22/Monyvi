@@ -8,20 +8,30 @@ import { MarketRatesRealtimeProvider } from "@/providers/MarketRatesRealtimeProv
 import { PrivateDataBoundary } from "@/providers/PrivateDataBoundary";
 import { QueryProvider } from "@/providers/QueryProvider";
 import { SyncProvider } from "@/providers/SyncProvider";
-import { router, Stack, useRootNavigation } from "expo-router";
+import { router, Stack, useRootNavigationState } from "expo-router";
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
+
+interface RootNavigationState {
+  readonly key?: string;
+}
 
 export default function PrivateLayout(): React.ReactNode {
   const { isAuthenticated, isLoading } = useAuth();
-  const rootNavigation = useRootNavigation();
+  const rootNavigationState = useRootNavigationState() as
+    | RootNavigationState
+    | undefined;
+  const { t: tCommon } = useTranslation("common");
+  const { t: tTransactions } = useTranslation("transactions");
+  const isNavigationReady = Boolean(rootNavigationState?.key);
 
   useEffect(() => {
-    if (isLoading || isAuthenticated || !rootNavigation?.isReady()) {
+    if (isLoading || isAuthenticated || !isNavigationReady) {
       return;
     }
 
     router.replace("/auth");
-  }, [isAuthenticated, isLoading, rootNavigation]);
+  }, [isAuthenticated, isLoading, isNavigationReady]);
 
   if (isLoading || !isAuthenticated) {
     return null;
@@ -54,21 +64,21 @@ export default function PrivateLayout(): React.ReactNode {
                       <Stack.Screen
                         name="add-transaction"
                         options={{
-                          title: "Add Transaction",
+                          title: tTransactions("add_transaction"),
                         }}
                       />
                       <Stack.Screen name="edit-account" />
                       <Stack.Screen
                         name="edit-transaction"
                         options={{
-                          title: "Edit Transaction",
+                          title: tTransactions("edit_transaction"),
                         }}
                       />
                       <Stack.Screen name="edit-transfer" />
                       <Stack.Screen
                         name="settings"
                         options={{
-                          title: "Settings",
+                          title: tCommon("settings"),
                         }}
                       />
                       <Stack.Screen

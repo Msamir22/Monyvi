@@ -15,6 +15,8 @@ import {
 } from "@/services/user-data-access";
 
 const INVALID_ACCOUNT_BALANCE_ERROR_CODE = "INVALID_ACCOUNT_BALANCE";
+const BALANCE_REVERSAL_ACCOUNT_NOT_FOUND_ERROR_CODE =
+  "BALANCE_REVERSAL_ACCOUNT_NOT_FOUND";
 
 function accountsCollection(): ReturnType<typeof database.get<Account>> {
   return database.get<Account>("accounts");
@@ -312,35 +314,19 @@ export async function batchDeleteDisplayTransactions(
   const scope = await getCurrentUserDataScope();
 
   await database.write(async () => {
-    const softDeleteBatches: Model[] = [];
-
-    // Phase 1: Collect soft-delete updates and balance deltas (no DB reads)
+    // Phase 1: Validate item ownership and collect balance deltas (no DB reads)
     const balanceDeltas = new Map<string, number>();
 
     for (const item of items) {
       scope.assertOwned(item);
 
       if (item._type === "transaction") {
-        softDeleteBatches.push(
-          item.prepareUpdate((t) => {
-            t.deleted = true;
-          })
-        );
-
-        // Determine balance reversion
         if (item.isIncome) {
           accumulateBalanceDelta(balanceDeltas, item.accountId, -item.amount);
         } else if (item.isExpense) {
           accumulateBalanceDelta(balanceDeltas, item.accountId, item.amount);
         }
       } else if (item._type === "transfer") {
-        softDeleteBatches.push(
-          item.prepareUpdate((t) => {
-            t.deleted = true;
-          })
-        );
-
-        // Revert source (add back) and destination (subtract)
         accumulateBalanceDelta(balanceDeltas, item.fromAccountId, item.amount);
         const amountToDeduct = item.convertedAmount ?? item.amount;
         accumulateBalanceDelta(
@@ -363,11 +349,15 @@ export async function batchDeleteDisplayTransactions(
             .fetch()
         : [];
 
-    // Phase 3: Prepare balance updates
+    assertFetchedAccountsCoverBalanceDeltas(accountIds, accounts);
+
+    // Phase 3: Prepare balance updates and soft-deletes
+    const batches: Model[] = [];
+
     for (const account of accounts) {
       const delta = balanceDeltas.get(account.id);
       if (delta && delta !== 0) {
-        softDeleteBatches.push(
+        batches.push(
           account.prepareUpdate((a) => {
             const nextBalance = a.balance + delta;
             if (!Number.isFinite(a.balance) || !Number.isFinite(nextBalance)) {
@@ -379,7 +369,29 @@ export async function batchDeleteDisplayTransactions(
       }
     }
 
+    for (const item of items) {
+      batches.push(
+        item.prepareUpdate((record) => {
+          record.deleted = true;
+        })
+      );
+    }
+
     // Execute everything in a single atomic batch
-    await database.batch(softDeleteBatches);
+    await database.batch(batches);
   });
+}
+
+function assertFetchedAccountsCoverBalanceDeltas(
+  expectedAccountIds: readonly string[],
+  accounts: readonly Account[]
+): void {
+  const fetchedAccountIds = new Set(accounts.map((account) => account.id));
+  const missingAccountId = expectedAccountIds.find(
+    (accountId) => !fetchedAccountIds.has(accountId)
+  );
+
+  if (missingAccountId) {
+    throw new Error(BALANCE_REVERSAL_ACCOUNT_NOT_FOUND_ERROR_CODE);
+  }
 }

@@ -60,12 +60,17 @@ jest.mock("expo-router", () => {
     router: {
       replace: mockReplace,
     },
-    useRootNavigation: (): { isReady: () => boolean } => ({
-      isReady: () => mockRootNavigationReady,
-    }),
+    useRootNavigationState: (): { key: string } | undefined =>
+      mockRootNavigationReady ? { key: "root" } : undefined,
   };
   /* eslint-enable @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return */
 });
+
+jest.mock("react-i18next", () => ({
+  useTranslation: (): { t: (key: string) => string } => ({
+    t: (key: string) => key,
+  }),
+}));
 
 jest.mock("@/context/AuthContext", () => ({
   useAuth: (): MockAuthState => mockUseAuth(),
@@ -162,16 +167,19 @@ describe("private route layout", () => {
       isLoading: false,
     });
 
-    const renderer = renderLayout();
+    let renderer: ReactTestRendererInstance | undefined;
+    RTR.act(() => {
+      renderer = renderLayout();
+    });
 
     expect(
-      renderer.root.findAllByProps({ testID: "sync-provider" }).length
+      renderer?.root.findAllByProps({ testID: "sync-provider" }).length
     ).toBeGreaterThan(0);
     expect(
-      renderer.root.findAllByProps({ testID: "categories-provider" }).length
+      renderer?.root.findAllByProps({ testID: "categories-provider" }).length
     ).toBeGreaterThan(0);
     expect(
-      renderer.root.findAllByProps({ testID: "private-stack" }).length
+      renderer?.root.findAllByProps({ testID: "private-stack" }).length
     ).toBeGreaterThan(0);
     expect(mockReplace).not.toHaveBeenCalled();
   });

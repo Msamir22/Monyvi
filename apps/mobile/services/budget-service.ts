@@ -113,13 +113,10 @@ export async function createBudget(input: CreateBudgetInput): Promise<Budget> {
 
   // F7 fix: Validate uniqueness inside database.write for atomicity
   return database.write(async () => {
-    await validateBudgetUniqueness(
-      input.type,
-      input.period,
-      input.categoryId,
-      undefined,
-      scope
-    );
+    await validateBudgetUniqueness(input.type, input.period, {
+      categoryId: input.categoryId,
+      scope,
+    });
 
     const budget = await budgetsCollection().create((b) => {
       b.userId = scope.userId;
@@ -180,9 +177,11 @@ export async function updateBudget(
       await validateBudgetUniqueness(
         budget.type,
         input.period ?? budget.period,
-        input.categoryId ?? budget.categoryId,
-        budgetId,
-        scope
+        {
+          categoryId: input.categoryId ?? budget.categoryId,
+          excludeBudgetId: budgetId,
+          scope,
+        }
       );
     }
 
@@ -449,14 +448,18 @@ export async function getCategoryAndSubcategoryIds(
  *
  * @throws Error if a duplicate is found
  */
+interface ValidateBudgetUniquenessOptions {
+  readonly categoryId?: string;
+  readonly excludeBudgetId?: string;
+  readonly scope?: CurrentUserDataScope;
+}
+
 export async function validateBudgetUniqueness(
   type: BudgetType,
   period: BudgetPeriod,
-  categoryId?: string,
-  excludeBudgetId?: string,
-  scope?: CurrentUserDataScope
+  options: ValidateBudgetUniquenessOptions = {}
 ): Promise<void> {
-  const currentScope = scope ?? (await getCurrentUserDataScope());
+  const currentScope = options.scope ?? (await getCurrentUserDataScope());
 
   const conditions = [
     Q.where("deleted", false),
@@ -464,12 +467,12 @@ export async function validateBudgetUniqueness(
     Q.where("period", period),
   ];
 
-  if (type === "CATEGORY" && categoryId) {
-    conditions.push(Q.where("category_id", categoryId));
+  if (type === "CATEGORY" && options.categoryId) {
+    conditions.push(Q.where("category_id", options.categoryId));
   }
 
-  if (excludeBudgetId) {
-    conditions.push(Q.where("id", Q.notEq(excludeBudgetId)));
+  if (options.excludeBudgetId) {
+    conditions.push(Q.where("id", Q.notEq(options.excludeBudgetId)));
   }
 
   const existing = await currentScope

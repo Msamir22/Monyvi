@@ -11,7 +11,7 @@ interface MockObservable<T> {
 
 const mockAccountsObserveWithColumns = jest.fn();
 const mockAssetMetalsObserve = jest.fn();
-const mockAssetsObserve = jest.fn();
+const mockAssetsObserveWithColumns = jest.fn();
 const mockQueryChildrenOfOwnedParents = jest.fn<unknown, unknown[]>(
   () => mockAssetMetalsQuery
 );
@@ -19,7 +19,7 @@ const mockAccountsQuery = {
   observeWithColumns: mockAccountsObserveWithColumns,
 };
 const mockAssetsQuery = {
-  observe: mockAssetsObserve,
+  observeWithColumns: mockAssetsObserveWithColumns,
 };
 const mockAssetMetalsQuery = {
   observe: mockAssetMetalsObserve,
@@ -136,7 +136,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockAccountsObserveWithColumns.mockReturnValue(buildObservable());
   mockAssetMetalsObserve.mockReturnValue(buildObservable());
-  mockAssetsObserve.mockReturnValue(buildObservable());
+  mockAssetsObserveWithColumns.mockReturnValue(buildObservable());
 });
 
 describe("useNetWorth", () => {

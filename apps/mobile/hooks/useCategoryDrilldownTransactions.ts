@@ -27,10 +27,12 @@ export function useCategoryDrilldownTransactions(
       isResolvingUser,
       onResolving: () => {
         setTransactions([]);
+        setError(null);
         setIsLoading(true);
       },
       onSignedOut: () => {
         setTransactions([]);
+        setError(null);
         setIsLoading(false);
       },
       onAuthenticated: (currentUserId) => {

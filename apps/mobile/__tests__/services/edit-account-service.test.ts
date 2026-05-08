@@ -209,8 +209,15 @@ jest.mock("@monyvi/db", () => {
     Transaction: {},
     Transfer: {},
     Q: {
-      where: jest.fn((_f: string, c: unknown) => c),
-      notEq: jest.fn((v: unknown) => ({ $ne: v })),
+      where: jest.fn((left: string, right: unknown) => ({
+        type: "where",
+        left,
+        comparison: { right },
+      })),
+      notEq: jest.fn((value: unknown) => ({
+        operator: "notEq",
+        right: value,
+      })),
       sortBy: jest.fn(),
     },
     __mockDb: db,
@@ -401,6 +408,46 @@ describe("edit-account-service", () => {
       expect(tx.deleted).toBe(true);
       expect(tx.prepareUpdate).toHaveBeenCalled();
       expect(tx.prepareMarkAsDeleted).not.toHaveBeenCalled();
+    });
+
+    it("should leave foreign child rows untouched during cascade delete", async () => {
+      seedAccount("acc-1");
+      const ownedTx = mockModel("tx-owned", {
+        accountId: "acc-1",
+        userId: "user-1",
+        deleted: false,
+      });
+      const foreignTx = mockModel("tx-foreign", {
+        accountId: "acc-1",
+        userId: "user-2",
+        deleted: false,
+      });
+      const ownedTransfer = mockModel("tf-owned", {
+        fromAccountId: "acc-1",
+        toAccountId: "other",
+        userId: "user-1",
+        deleted: false,
+      });
+      const foreignTransfer = mockModel("tf-foreign", {
+        fromAccountId: "acc-1",
+        toAccountId: "other",
+        userId: "user-2",
+        deleted: false,
+      });
+
+      mockSeed("transactions", ownedTx);
+      mockSeed("transactions", foreignTx);
+      mockSeed("transfers", ownedTransfer);
+      mockSeed("transfers", foreignTransfer);
+
+      await deleteAccountWithCascade("acc-1", "user-1");
+
+      expect(ownedTx.deleted).toBe(true);
+      expect(ownedTransfer.deleted).toBe(true);
+      expect(foreignTx.deleted).toBe(false);
+      expect(foreignTransfer.deleted).toBe(false);
+      expect(foreignTx.prepareUpdate).not.toHaveBeenCalled();
+      expect(foreignTransfer.prepareUpdate).not.toHaveBeenCalled();
     });
 
     it("should cascade delete transfers (from_account)", async () => {

@@ -36,6 +36,7 @@ import {
   queryChildrenOfOwnedParents,
   queryOwned,
 } from "@/services/user-data-access";
+import { logger } from "@/utils/logger";
 import { useCurrentUserId } from "./useCurrentUserId";
 
 // ---------------------------------------------------------------------------
@@ -118,8 +119,7 @@ export function useMetalHoldings(): UseMetalHoldingsResult {
         setAssets(result);
       },
       error: (err: unknown) => {
-        // TODO: Replace with structured logging when logging infrastructure is added
-        console.error("[useMetalHoldings] Error observing metal assets:", err);
+        logger.error("metalHoldings.assets.observe.failed", err);
         setDataLoading(false);
       },
     });
@@ -162,8 +162,7 @@ export function useMetalHoldings(): UseMetalHoldingsResult {
         setDataLoading(false);
       },
       error: (err: unknown) => {
-        // TODO: Replace with structured logging when logging infrastructure is added
-        console.error("[useMetalHoldings] Error observing asset metals:", err);
+        logger.error("metalHoldings.assetMetals.observe.failed", err);
         setDataLoading(false);
       },
     });

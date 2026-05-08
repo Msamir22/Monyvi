@@ -53,7 +53,7 @@ interface MockCollection<T> {
 interface MockAccount {
   readonly id: string;
   readonly name: string;
-  readonly userId?: string;
+  readonly userId: string;
 }
 
 interface MockBankDetails {

@@ -32,6 +32,7 @@ import {
 } from "./ai-sms-parser-service";
 import { getCurrentUserDataScope } from "./user-data-access";
 import { readSmsInbox } from "./sms-reader-service";
+import { logger } from "@/utils/logger";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -230,7 +231,7 @@ export async function cleanupStaleScanState(): Promise<boolean> {
   const inProgress = await AsyncStorage.getItem(SCAN_IN_PROGRESS_KEY);
   if (inProgress === "true") {
     await AsyncStorage.removeItem(SCAN_IN_PROGRESS_KEY);
-    console.log("[sms-sync] Cleaned up stale scan-in-progress flag");
+    logger.info("smsSync.staleScanState.cleaned");
     return true;
   }
   return false;
@@ -249,7 +250,8 @@ async function executeScanPipeline(
   const maxCount = options?.maxCount ?? DEFAULT_MAX_COUNT;
   const batchSize = options?.batchSize ?? DEFAULT_BATCH_SIZE;
   const yieldInterval = options?.yieldInterval ?? DEFAULT_YIELD_INTERVAL;
-  const existingHashes = options?.existingHashes ?? new Set<string>();
+  const existingHashes =
+    options?.existingHashes ?? (await loadExistingSmsHashes());
   // Default to 3 months ago when no minDate is provided
   const effectiveMinDate = options?.minDate ?? Date.now() - THREE_MONTHS_MS;
 
@@ -380,9 +382,11 @@ async function executeScanPipeline(
     scanStartedAt: startTime,
   });
 
-  console.log(
-    `[sms-sync] AI parsing: ${aiResult.transactions.length} transactions from ${candidates.length} candidates in ${durationMs}ms`
-  );
+  logger.info("smsSync.aiParsing.complete", {
+    transactionCount: aiResult.transactions.length,
+    candidateCount: candidates.length,
+    durationMs,
+  });
 
   return {
     transactions: aiResult.transactions,

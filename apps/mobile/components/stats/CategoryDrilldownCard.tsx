@@ -19,7 +19,7 @@ import { usePreferredCurrency } from "@/hooks/usePreferredCurrency";
 import { useTheme } from "@/context/ThemeContext";
 import { formatCurrency } from "@monyvi/logic";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Text, View } from "react-native";
 import { PieChart } from "react-native-gifted-charts";
 import { useTranslation } from "react-i18next";
@@ -40,11 +40,19 @@ export function CategoryDrilldownCard(): React.JSX.Element {
   const { transactions, isLoading: transactionsLoading } =
     useCategoryDrilldownTransactions(currentYear, currentMonth);
   const [currentParentId, setCurrentParentId] = useState<string | null>(null);
+  const rootBreadcrumb = useMemo<BreadcrumbItem>(
+    () => ({ id: null, name: t("all_categories"), level: 0 }),
+    [t]
+  );
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([
-    { id: null, name: "All Categories", level: 0 },
+    rootBreadcrumb,
   ]);
 
   const isLoading = transactionsLoading || categoriesLoading;
+
+  useEffect(() => {
+    setBreadcrumbs((prev) => [rootBreadcrumb, ...prev.slice(1)]);
+  }, [rootBreadcrumb]);
 
   // Build category map with children info
   const categoryMap = useMemo(() => {

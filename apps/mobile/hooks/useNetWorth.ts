@@ -19,7 +19,7 @@ import {
   NetWorthData,
 } from "@monyvi/logic";
 import { Q } from "@nozbe/watermelondb";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   queryChildrenOfOwnedParents,
   queryOwned,
@@ -53,6 +53,7 @@ interface UseNetWorthResult {
 export function useNetWorth(): UseNetWorthResult {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
+  const assetsRef = useRef<readonly Asset[]>([]);
   const [assetMetals, setAssetMetals] = useState<AssetMetal[]>([]);
   const [isAccountsLoading, setIsAccountsLoading] = useState(true);
   const [isAssetMetalsLoading, setIsAssetMetalsLoading] = useState(true);
@@ -131,7 +132,7 @@ export function useNetWorth(): UseNetWorthResult {
           Q.where("deleted", false)
         );
 
-        const subscription = query.observe().subscribe({
+        const subscription = query.observeWithColumns(["id"]).subscribe({
           next: (result) => {
             setAssets(result);
             if (result.length === 0) {
@@ -160,6 +161,10 @@ export function useNetWorth(): UseNetWorthResult {
   const assetIdsKey = useMemo((): string => assetIds.join(","), [assetIds]);
 
   useEffect(() => {
+    assetsRef.current = assets;
+  }, [assets]);
+
+  useEffect(() => {
     return runUserScopedEffect({
       userId,
       isResolvingUser,
@@ -184,7 +189,7 @@ export function useNetWorth(): UseNetWorthResult {
         setAssetMetals([]);
         setIsAssetMetalsLoading(true);
 
-        const currentAssets = assets.filter((asset) =>
+        const currentAssets = assetsRef.current.filter((asset) =>
           currentAssetIds.includes(asset.id)
         );
         const query = queryChildrenOfOwnedParents(
@@ -211,7 +216,7 @@ export function useNetWorth(): UseNetWorthResult {
         return () => subscription.unsubscribe();
       },
     });
-  }, [assets, assetIdsKey, userId, isResolvingUser]);
+  }, [assetIdsKey, userId, isResolvingUser]);
 
   /** Convert a USD amount to the user's preferred currency. */
   const toPreferred = useMemo(

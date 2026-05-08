@@ -197,7 +197,7 @@ function findRedirectHref(
 // Tests
 // =============================================================================
 
-describe("index.tsx routing gate", () => {
+describe("(private)/startup.tsx routing gate", () => {
   // Use fake timers for the whole suite. The gate schedules a setTimeout
   // (PROFILE_OBSERVATION_GRACE_MS) inside its useEffect whenever sync has
   // settled but profile is still null; on real timers, that callback fires
@@ -302,7 +302,7 @@ describe("index.tsx routing gate", () => {
     // window) — NOT a redirect to /onboarding, and NOT null/blank
     // (AppReadyGate has already released the native splash by this point,
     // so a `null` here would surface a blank screen — see
-    // StartupLoadingView in app/index.tsx).
+    // StartupLoadingView in app/(private)/startup.tsx).
     expect(findRedirectHref(renderer)).toBeUndefined();
     expect(
       renderer.root.findAllByProps({ testID: "retry-screen" })
@@ -353,7 +353,7 @@ describe("index.tsx routing gate", () => {
   // NOTE: RetrySyncScreen is a temporary stand-in for this branch — sync
   // technically succeeded, so "Couldn't load your account" + Retry isn't
   // a perfect fit. The intended replacement is a dedicated
-  // ContactSupportScreen (see TODO in app/index.tsx). When that lands,
+  // ContactSupportScreen (see TODO in app/(private)/startup.tsx). When that lands,
   // update this test's expectation accordingly.
   it("escapes to retry screen after the grace period elapses when sync=success but profile stays null (data inconsistency — RetrySyncScreen is a temporary stand-in until ContactSupportScreen exists)", () => {
     setState({ syncState: "success", profileNull: true });

@@ -462,6 +462,28 @@ describe("transaction-service", () => {
         })
       ).rejects.toThrow(USER_DATA_ACCESS_ERROR_CODES.USER_REQUIRED);
     });
+
+    it("rejects a foreign-owned transaction without mutating balances", async () => {
+      const from = seedAccount("acc-from", 800);
+      const to = seedAccount("acc-to", 500);
+      const tx = seedTx("tx-1", {
+        accountId: "acc-from",
+        amount: 200,
+        type: "EXPENSE",
+        userId: "foreign-user-id",
+      });
+
+      await expect(
+        convertTransactionToTransfer({
+          transactionId: "tx-1",
+          toAccountId: "acc-to",
+        })
+      ).rejects.toThrow(USER_DATA_ACCESS_ERROR_CODES.OWNERSHIP_FAILED);
+
+      expect(tx.deleted).toBe(false);
+      expect(from.balance).toBe(800);
+      expect(to.balance).toBe(500);
+    });
   });
 
   // =========================================================================
@@ -532,6 +554,50 @@ describe("transaction-service", () => {
       expect(txI.deleted).toBe(true);
       expect(tfI.deleted).toBe(true);
       expect(mockDb.batch).toHaveBeenCalledTimes(1);
+    });
+
+    it("should not delete a transfer when a balance reversal account is missing", async () => {
+      seedAccount("acc-1", 900);
+      const tfI = mockModel("tf-1", {
+        _type: "transfer",
+        userId: "test-user-id",
+        fromAccountId: "acc-1",
+        toAccountId: "acc-missing",
+        amount: 200,
+        convertedAmount: undefined,
+        deleted: false,
+      });
+
+      await expect(
+        batchDeleteDisplayTransactions([
+          tfI,
+        ] as unknown as readonly DisplayTransaction[])
+      ).rejects.toThrow("BALANCE_REVERSAL_ACCOUNT_NOT_FOUND");
+
+      expect(tfI.deleted).toBe(false);
+      expect(mockDb.batch).not.toHaveBeenCalled();
+    });
+
+    it("rejects foreign-owned display items before deleting anything", async () => {
+      seedAccount("acc-1", 900);
+      const foreignItem = mockModel("tx-foreign", {
+        _type: "transaction",
+        userId: "foreign-user-id",
+        accountId: "acc-1",
+        amount: 100,
+        isExpense: true,
+        isIncome: false,
+        deleted: false,
+      });
+
+      await expect(
+        batchDeleteDisplayTransactions([
+          foreignItem,
+        ] as unknown as readonly DisplayTransaction[])
+      ).rejects.toThrow(USER_DATA_ACCESS_ERROR_CODES.OWNERSHIP_FAILED);
+
+      expect(foreignItem.deleted).toBe(false);
+      expect(mockDb.batch).not.toHaveBeenCalled();
     });
   });
 });
