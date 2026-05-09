@@ -15,6 +15,12 @@ const { execFileSync, execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
+const ESLINT_BIN = path.join(
+  path.dirname(require.resolve("eslint/package.json")),
+  "bin",
+  "eslint.js"
+);
+
 // =============================================================================
 // CONFIGURATION
 // =============================================================================
@@ -702,9 +708,9 @@ function main() {
   try {
     const eslintRulesDir = path.join(__dirname, "eslint-rules");
     execFileSync(
-      "npx",
+      process.execPath,
       [
-        "eslint",
+        ESLINT_BIN,
         BASE_MODELS_DIR,
         "--rulesdir",
         eslintRulesDir,
