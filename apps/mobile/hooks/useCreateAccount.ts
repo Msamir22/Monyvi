@@ -6,9 +6,9 @@ import {
   CREATE_ACCOUNT_ERROR_CODES,
   createAccountForUser,
 } from "../services/account-service";
-import { getCurrentUserId } from "../services/supabase";
 import { logger } from "../utils/logger";
 import { AccountFormData } from "../validation/account-validation";
+import { useCurrentUser } from "./useCurrentUser";
 
 interface UseCreateAccountResult {
   createAccount: (data: AccountFormData) => Promise<void>;
@@ -27,6 +27,7 @@ export function useCreateAccount(): UseCreateAccountResult {
   const router = useRouter();
   const { t } = useTranslation("accounts");
   const { t: tCommon } = useTranslation("common");
+  const { userId } = useCurrentUser();
 
   /**
    * Performs the database write operation to create an account and optional bank details.
@@ -39,8 +40,6 @@ export function useCreateAccount(): UseCreateAccountResult {
       setError(null);
 
       try {
-        const userId = await getCurrentUserId();
-
         if (!userId) {
           showToast({
             type: "error",
@@ -79,7 +78,7 @@ export function useCreateAccount(): UseCreateAccountResult {
           return;
         }
 
-        router.replace("/(tabs)/accounts");
+        router.replace("/(private)/(tabs)/accounts");
       } catch (err) {
         const error = err instanceof Error ? err : new Error("Unknown error");
         logger.error("createAccount_flow_failed", error);
@@ -95,7 +94,7 @@ export function useCreateAccount(): UseCreateAccountResult {
         setIsSubmitting(false);
       }
     },
-    [showToast, router, t, tCommon]
+    [showToast, router, t, tCommon, userId]
   );
 
   return {

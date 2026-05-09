@@ -153,6 +153,7 @@ export function AuthProvider({
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, newSession) => {
       applySession(newSession, true);
+      setIsLoading(false);
     });
 
     return () => subscription.unsubscribe();

@@ -25,9 +25,9 @@ import {
   type UpdateAccountData,
   type ServiceResult,
 } from "../services/edit-account-service";
-import { getCurrentUserId } from "../services/supabase";
 import { safeNotificationHaptic } from "../utils/haptics";
 import { logger } from "../utils/logger";
+import { useCurrentUser } from "./useCurrentUser";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -77,6 +77,7 @@ export function useUpdateAccount(): UseUpdateAccountResult {
   const router = useRouter();
   const { t } = useTranslation("accounts");
   const { t: tCommon } = useTranslation("common");
+  const { userId } = useCurrentUser();
 
   const performUpdate = useCallback(
     async (
@@ -89,7 +90,6 @@ export function useUpdateAccount(): UseUpdateAccountResult {
       setIsSubmitting(true);
 
       try {
-        const userId = await getCurrentUserId();
         if (!userId) {
           showToast({
             type: "error",
@@ -154,7 +154,7 @@ export function useUpdateAccount(): UseUpdateAccountResult {
         setIsSubmitting(false);
       }
     },
-    [showToast, router, t, tCommon]
+    [showToast, router, t, tCommon, userId]
   );
 
   return {

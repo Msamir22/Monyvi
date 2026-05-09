@@ -1,13 +1,13 @@
 import { t } from "i18next";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { checkAccountNameUniqueness } from "../services/edit-account-service";
-import { getCurrentUserId } from "../services/supabase";
 import { logger } from "../utils/logger";
 import {
   AccountFormData,
   validateAccountForm,
   ValidationErrors,
 } from "../validation/account-validation";
+import { useCurrentUser } from "./useCurrentUser";
 import { usePreferredCurrency } from "./usePreferredCurrency";
 
 const UNIQUENESS_DEBOUNCE_MS = 300;
@@ -30,7 +30,6 @@ interface UseAccountFormResult {
     value: AccountFormData[K]
   ) => void;
   validate: () => boolean;
-  resetForm: () => void;
   isValid: boolean;
   isTouched: Partial<Record<keyof AccountFormData, boolean>>;
   isCheckingUniqueness: boolean;
@@ -49,7 +48,6 @@ interface UseAccountFormResult {
  * - `errors` — current field-level validation errors
  * - `updateField` — function to update a single field; performs partial validation for that field and marks it as touched
  * - `validate` — function that runs full form validation, updates `errors`, and returns `true` if the form is valid
- * - `resetForm` — function that resets the form to initial values
  * - `isValid` — `true` if the current `formData` passes validation, `false` otherwise
  * - `isTouched` — mapping of form fields to a boolean indicating whether each field has been interacted with
  * - `isCheckingUniqueness` — `true` while a debounced uniqueness query is in flight
@@ -58,6 +56,7 @@ export function useAccountForm(
   options: UseAccountFormOptions = {}
 ): UseAccountFormResult {
   const { preferredCurrency } = usePreferredCurrency();
+  const { userId, isResolvingUser } = useCurrentUser();
   const { initialAccountType } = options;
 
   const [formData, setFormData] = useState<AccountFormData>({
@@ -77,26 +76,6 @@ export function useAccountForm(
   >({});
   const [isCheckingUniqueness, setIsCheckingUniqueness] = useState(false);
   const [hasNameUniquenessError, setHasNameUniquenessError] = useState(false);
-
-  // Resolve the current userId once on mount. Used to scope the uniqueness
-  // check; if it stays null we silently skip the check (screen will block
-  // submit anyway when getCurrentUserId returns null).
-  const userIdRef = useRef<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    getCurrentUserId()
-      .then((id) => {
-        if (!cancelled) userIdRef.current = id;
-      })
-      .catch((err: unknown) => {
-        logger.warn("useAccountForm_user_id_resolve_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   // Debounce timer for uniqueness check — mirrors useEditAccountForm.
   const uniquenessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -127,8 +106,7 @@ export function useAccountForm(
         return;
       }
 
-      const userId = userIdRef.current;
-      if (!userId) {
+      if (isResolvingUser || !userId) {
         // Not signed in yet — don't surface a uniqueness error; the create
         // flow will block submit on the missing session.
         setHasNameUniquenessError(false);
@@ -203,7 +181,7 @@ export function useAccountForm(
         })();
       }, UNIQUENESS_DEBOUNCE_MS);
     },
-    []
+    [isResolvingUser, userId]
   );
 
   // Sync currency when preferredCurrency loads (async profile fetch).
@@ -265,39 +243,6 @@ export function useAccountForm(
     return isValid;
   }, [formData]);
 
-  /**
-   * Resets the form to initial values.
-   */
-  const resetForm = useCallback((): void => {
-    activeUniquenessRequestRef.current += 1;
-    setFormData({
-      name: "",
-      accountType: initialAccountType ?? "CASH",
-      currency: preferredCurrency,
-      balance: DEFAULT_INITIAL_BALANCE,
-      bankName: "",
-      cardLast4: "",
-      smsSenderName: "",
-    });
-    latestFormDataRef.current = {
-      name: "",
-      accountType: initialAccountType ?? "CASH",
-      currency: preferredCurrency,
-      balance: DEFAULT_INITIAL_BALANCE,
-      bankName: "",
-      cardLast4: "",
-      smsSenderName: "",
-    };
-    setErrors({});
-    setIsTouched({});
-    setIsCheckingUniqueness(false);
-    setHasNameUniquenessError(false);
-    if (uniquenessTimerRef.current) {
-      clearTimeout(uniquenessTimerRef.current);
-      uniquenessTimerRef.current = null;
-    }
-  }, [preferredCurrency, initialAccountType]);
-
   const isValid = useMemo((): boolean => {
     const { isValid: schemaValid } = validateAccountForm(formData);
     return schemaValid && !isCheckingUniqueness && !hasNameUniquenessError;
@@ -308,7 +253,6 @@ export function useAccountForm(
     errors,
     updateField,
     validate,
-    resetForm,
     isValid,
     isTouched,
     isCheckingUniqueness,

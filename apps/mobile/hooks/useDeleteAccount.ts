@@ -24,9 +24,9 @@ import {
   type LinkedRecordsCounts,
   type ServiceResult,
 } from "../services/edit-account-service";
-import { getCurrentUserId } from "../services/supabase";
 import { safeNotificationHaptic } from "../utils/haptics";
 import { logger } from "../utils/logger";
+import { useCurrentUser } from "./useCurrentUser";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -68,6 +68,7 @@ export function useDeleteAccount(accountId: string): UseDeleteAccountResult {
   const router = useRouter();
   const { t } = useTranslation("accounts");
   const { t: tCommon } = useTranslation("common");
+  const { userId } = useCurrentUser();
 
   useEffect(() => {
     return () => {
@@ -113,7 +114,6 @@ export function useDeleteAccount(accountId: string): UseDeleteAccountResult {
     async (id: string): Promise<void> => {
       if (isDeleting) return;
 
-      const userId = await getCurrentUserId();
       if (!userId) {
         showToast({
           type: "error",
@@ -164,7 +164,7 @@ export function useDeleteAccount(accountId: string): UseDeleteAccountResult {
         setIsDeleting(false);
       }
     },
-    [isDeleting, showToast, router, t, tCommon]
+    [isDeleting, showToast, router, t, tCommon, userId]
   );
 
   return {

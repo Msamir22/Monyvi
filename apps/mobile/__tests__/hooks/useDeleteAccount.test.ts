@@ -6,9 +6,8 @@ const mockDeleteAccountWithCascade = jest.fn(
 const mockGetAccountLinkedRecordCounts = jest.fn(
   (..._args: readonly unknown[]): Promise<unknown> => Promise.resolve()
 );
-const mockGetCurrentUserId = jest.fn(
-  (): Promise<string | null> => Promise.resolve("user-1")
-);
+let mockCurrentUserId: string | null = "user-1";
+let mockIsResolvingUser = false;
 const mockShowToast = jest.fn();
 const mockRouterBack = jest.fn();
 const mockSafeNotificationHaptic = jest.fn(
@@ -29,8 +28,14 @@ jest.mock("../../services/edit-account-service", () => ({
   ): Promise<unknown> => mockGetAccountLinkedRecordCounts(...args),
 }));
 
-jest.mock("../../services/supabase", () => ({
-  getCurrentUserId: (): Promise<string | null> => mockGetCurrentUserId(),
+jest.mock("../../hooks/useCurrentUser", () => ({
+  useCurrentUser: (): {
+    readonly userId: string | null;
+    readonly isResolvingUser: boolean;
+  } => ({
+    userId: mockCurrentUserId,
+    isResolvingUser: mockIsResolvingUser,
+  }),
 }));
 
 jest.mock("../../components/ui/Toast", () => ({
@@ -66,13 +71,14 @@ import { useDeleteAccount } from "../../hooks/useDeleteAccount";
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockCurrentUserId = "user-1";
+  mockIsResolvingUser = false;
   mockGetAccountLinkedRecordCounts.mockResolvedValue({
     transactions: 2,
     transfers: 3,
     debts: 5,
     recurringPayments: 7,
   });
-  mockGetCurrentUserId.mockResolvedValue("user-1");
   mockDeleteAccountWithCascade.mockResolvedValue({ success: true });
 });
 
@@ -119,7 +125,7 @@ describe("useDeleteAccount", () => {
   });
 
   it("uses localized session-required toast text", async () => {
-    mockGetCurrentUserId.mockResolvedValueOnce(null);
+    mockCurrentUserId = null;
     const { result } = renderHook(() => useDeleteAccount("acc-1"));
 
     await act(async () => {

@@ -7,7 +7,8 @@ interface UniquenessResult {
   readonly error: string | null;
 }
 
-const mockGetCurrentUserId = jest.fn<Promise<string>, []>();
+let mockCurrentUserId: string | null = "user-1";
+let mockIsResolvingUser = false;
 const mockCheckAccountNameUniqueness = jest.fn<
   Promise<UniquenessResult>,
   [string, string, TestCurrency]
@@ -22,8 +23,14 @@ jest.mock("../../hooks/usePreferredCurrency", () => ({
   }),
 }));
 
-jest.mock("../../services/supabase", () => ({
-  getCurrentUserId: (): Promise<string> => mockGetCurrentUserId(),
+jest.mock("../../hooks/useCurrentUser", () => ({
+  useCurrentUser: (): {
+    readonly userId: string | null;
+    readonly isResolvingUser: boolean;
+  } => ({
+    userId: mockCurrentUserId,
+    isResolvingUser: mockIsResolvingUser,
+  }),
 }));
 
 jest.mock("../../services/edit-account-service", () => ({
@@ -60,7 +67,8 @@ beforeEach(() => {
   jest.clearAllMocks();
   jest.useRealTimers();
   mockPreferredCurrency = "EGP";
-  mockGetCurrentUserId.mockResolvedValue("user-1");
+  mockCurrentUserId = "user-1";
+  mockIsResolvingUser = false;
   mockCheckAccountNameUniqueness.mockResolvedValue({
     isUnique: true,
     error: null,
@@ -70,20 +78,6 @@ beforeEach(() => {
 describe("useAccountForm", () => {
   it("initializes account balance to the visible default of zero", () => {
     const { result } = renderHook(() => useAccountForm());
-
-    expect(result.current.formData.balance).toBe("0");
-  });
-
-  it("resets account balance back to zero", () => {
-    const { result } = renderHook(() => useAccountForm());
-
-    act(() => {
-      result.current.updateField("balance", "125");
-    });
-
-    act(() => {
-      result.current.resetForm();
-    });
 
     expect(result.current.formData.balance).toBe("0");
   });

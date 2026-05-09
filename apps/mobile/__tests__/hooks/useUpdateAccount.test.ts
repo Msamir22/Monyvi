@@ -37,7 +37,8 @@ const RTR: ReactTestRendererModule = require("react-test-renderer");
 // ---------------------------------------------------------------------------
 
 const mockUpdateAccountWithBalanceAdjustment = jest.fn();
-const mockGetCurrentUserId = jest.fn();
+let mockCurrentUserId: string | null = "user-1";
+let mockIsResolvingUser = false;
 const mockShowToast = jest.fn();
 const mockRouterBack = jest.fn();
 const mockHapticsNotification = jest.fn(() => Promise.resolve());
@@ -49,9 +50,14 @@ jest.mock("../../services/edit-account-service", () => ({
     mockUpdateAccountWithBalanceAdjustment(...args) as Promise<unknown>,
 }));
 
-jest.mock("../../services/supabase", () => ({
-  getCurrentUserId: (): Promise<string | null> =>
-    mockGetCurrentUserId() as Promise<string | null>,
+jest.mock("../../hooks/useCurrentUser", () => ({
+  useCurrentUser: (): {
+    readonly userId: string | null;
+    readonly isResolvingUser: boolean;
+  } => ({
+    userId: mockCurrentUserId,
+    isResolvingUser: mockIsResolvingUser,
+  }),
 }));
 
 jest.mock("../../components/ui/Toast", () => ({
@@ -130,7 +136,8 @@ function renderHook(): {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockGetCurrentUserId.mockResolvedValue("user-1");
+  mockCurrentUserId = "user-1";
+  mockIsResolvingUser = false;
 });
 
 describe("useUpdateAccount", () => {
@@ -170,8 +177,6 @@ describe("useUpdateAccount", () => {
     mockUpdateAccountWithBalanceAdjustment.mockResolvedValueOnce({
       success: true,
     });
-    mockGetCurrentUserId.mockResolvedValueOnce("user-1");
-
     const { result } = renderHook();
 
     await RTR.act(async () => {
@@ -192,7 +197,7 @@ describe("useUpdateAccount", () => {
   });
 
   it("fails the whole update (no row mutation) when userId is missing and tracking is on", async () => {
-    mockGetCurrentUserId.mockResolvedValueOnce(null);
+    mockCurrentUserId = null;
 
     const { result } = renderHook();
 
@@ -234,8 +239,6 @@ describe("useUpdateAccount", () => {
       });
     });
 
-    // userId resolution must be skipped entirely — no auth call when
-    expect(mockGetCurrentUserId).toHaveBeenCalledTimes(1);
     expect(mockUpdateAccountWithBalanceAdjustment).toHaveBeenCalledWith(
       "acc-1",
       "user-1",

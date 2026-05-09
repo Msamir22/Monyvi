@@ -15,7 +15,7 @@
 import { Account, BankDetails, database } from "@monyvi/db";
 import { useEffect, useRef, useState } from "react";
 import { observeOwnedById } from "@/services/user-data-access";
-import { useCurrentUserId } from "./useCurrentUserId";
+import { useCurrentUser } from "./useCurrentUser";
 import { logger } from "../utils/logger";
 
 // ---------------------------------------------------------------------------
@@ -55,7 +55,7 @@ export function useAccountById(id: string | null): UseAccountByIdResult {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const bankDetailsRequestIdRef = useRef(0);
   const bankDetailsKeyRef = useRef<string | null>(null);
-  const { userId, isResolvingUser } = useCurrentUserId();
+  const { userId, isResolvingUser } = useCurrentUser();
 
   useEffect(() => {
     if (!id) {

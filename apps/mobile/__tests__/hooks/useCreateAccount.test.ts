@@ -27,7 +27,8 @@ interface ReactTestRendererModule {
 const RTR: ReactTestRendererModule = require("react-test-renderer");
 
 const mockCreateAccountForUser = jest.fn();
-const mockGetCurrentUserId = jest.fn();
+let mockCurrentUserId: string | null = "user-1";
+let mockIsResolvingUser = false;
 const mockShowToast = jest.fn();
 const mockRouterBack = jest.fn();
 const mockRouterReplace = jest.fn();
@@ -43,9 +44,14 @@ jest.mock("../../services/account-service", () => ({
     mockCreateAccountForUser(...args) as Promise<unknown>,
 }));
 
-jest.mock("../../services/supabase", () => ({
-  getCurrentUserId: (): Promise<string | null> =>
-    mockGetCurrentUserId() as Promise<string | null>,
+jest.mock("../../hooks/useCurrentUser", () => ({
+  useCurrentUser: (): {
+    readonly userId: string | null;
+    readonly isResolvingUser: boolean;
+  } => ({
+    userId: mockCurrentUserId,
+    isResolvingUser: mockIsResolvingUser,
+  }),
 }));
 
 jest.mock("../../components/ui/Toast", () => ({
@@ -117,7 +123,8 @@ const accountFormData: AccountFormData = {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockGetCurrentUserId.mockResolvedValue("user-1");
+  mockCurrentUserId = "user-1";
+  mockIsResolvingUser = false;
   mockCreateAccountForUser.mockResolvedValue({
     success: true,
     accountId: "account-1",
@@ -151,7 +158,6 @@ describe("useCreateAccount", () => {
 
     await Promise.resolve();
 
-    expect(mockGetCurrentUserId).toHaveBeenCalledTimes(1);
     expect(mockCreateAccountForUser).toHaveBeenCalledTimes(1);
 
     releaseCreate();
@@ -173,7 +179,9 @@ describe("useCreateAccount", () => {
     });
 
     expect(mockRouterBack).not.toHaveBeenCalled();
-    expect(mockRouterReplace).toHaveBeenCalledWith("/(tabs)/accounts");
+    expect(mockRouterReplace).toHaveBeenCalledWith(
+      "/(private)/(tabs)/accounts"
+    );
   });
 
   it("uses localized success toast text without emojis", async () => {
@@ -193,7 +201,7 @@ describe("useCreateAccount", () => {
   });
 
   it("uses localized session-required toast text", async () => {
-    mockGetCurrentUserId.mockResolvedValueOnce(null);
+    mockCurrentUserId = null;
     const { result } = renderHook();
 
     await RTR.act(async () => {

@@ -17,7 +17,7 @@ import {
   matchTransactionsBatched,
 } from "@/services/sms-account-matcher";
 import { prepareSavePayload } from "@/services/sms-review-save-service";
-import { getCurrentUserId } from "@/services/supabase";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { ReviewableTransaction } from "@monyvi/logic";
 import type { TransactionEdits } from "@/services/sms-edit-modal-service";
 
@@ -206,6 +206,7 @@ export function useTransactionReviewState({
   const [editModalIndex, setEditModalIndex] = useState<number | null>(null);
   const { expenseCategories, incomeCategories } = useCategories();
   const categoryMap = useCategoryLookup();
+  const { userId, isResolvingUser } = useCurrentUser();
 
   const batchSize = 20;
 
@@ -213,8 +214,7 @@ export function useTransactionReviewState({
     let cancelled = false;
     const run = async (): Promise<void> => {
       try {
-        const userId = await getCurrentUserId();
-        if (!userId || cancelled) return;
+        if (isResolvingUser || !userId || cancelled) return;
 
         const accounts = await fetchAccountsWithDetails(userId);
         if (!cancelled) {
@@ -253,7 +253,7 @@ export function useTransactionReviewState({
     return () => {
       cancelled = true;
     };
-  }, [transactions, showToast]);
+  }, [transactions, showToast, userId, isResolvingUser]);
 
   const effectiveTransactions =
     useMemo((): readonly ReviewableTransaction[] => {
@@ -349,7 +349,6 @@ export function useTransactionReviewState({
   );
 
   const handleSave = useCallback(async (): Promise<void> => {
-    const userId = await getCurrentUserId();
     if (!userId) {
       showToast({
         type: "error",
@@ -402,6 +401,7 @@ export function useTransactionReviewState({
     pendingAccounts,
     onSave,
     showToast,
+    userId,
   ]);
 
   const handleTypeToggle = useCallback((type: TransactionTypeFilter) => {

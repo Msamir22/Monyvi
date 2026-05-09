@@ -8,6 +8,11 @@ const mockOnAuthStateChange = jest.fn();
 const mockSignOut = jest.fn();
 const mockUnsubscribe = jest.fn();
 
+type AuthStateChangeCallback = (
+  event: string,
+  session: { readonly user: { readonly id: string } } | null
+) => void;
+
 jest.mock("@/services/supabase", () => ({
   supabase: {
     auth: {
@@ -84,6 +89,43 @@ describe("AuthProvider", () => {
         <AuthProbe />
       </AuthProvider>
     );
+
+    await waitFor(() => {
+      expect(screen.getByText("authenticated")).toBeTruthy();
+    });
+  });
+
+  it("releases auth loading when the auth listener receives the initial session first", async () => {
+    mockGetSession.mockReturnValue(new Promise(() => {}));
+    let authCallback: AuthStateChangeCallback | null = null;
+    mockOnAuthStateChange.mockImplementationOnce(
+      (callback: AuthStateChangeCallback) => {
+        authCallback = callback;
+        return {
+          data: {
+            subscription: {
+              unsubscribe: mockUnsubscribe,
+            },
+          },
+        };
+      }
+    );
+
+    const screen = render(
+      <AuthProvider>
+        <AuthProbe />
+      </AuthProvider>
+    );
+
+    expect(screen.getByText("loading")).toBeTruthy();
+
+    act(() => {
+      authCallback?.("INITIAL_SESSION", {
+        user: {
+          id: "user-1",
+        },
+      });
+    });
 
     await waitFor(() => {
       expect(screen.getByText("authenticated")).toBeTruthy();
