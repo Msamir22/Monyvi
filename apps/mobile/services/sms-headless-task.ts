@@ -9,7 +9,7 @@
  */
 
 import { AppRegistry } from "react-native";
-import HeadlessJsTaskRetryError from "react-native/Libraries/ReactNative/HeadlessJsTaskError";
+import HeadlessJsTaskError from "react-native/Libraries/ReactNative/HeadlessJsTaskError";
 import { handleDetectedSms } from "./sms-live-detection-handler";
 import { processLiveSmsEvent } from "./sms-live-processor";
 
@@ -37,7 +37,7 @@ async function smsDetectionTask(taskData: SmsTaskData): Promise<void> {
   });
 
   if (result.status === "ai_failed" && result.isRetryable !== false) {
-    throw new HeadlessJsTaskRetryError();
+    throw new HeadlessJsTaskError();
   }
 
   if (result.status !== "parsed") {

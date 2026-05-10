@@ -241,53 +241,54 @@ describe("notification-service", () => {
     expect(mockScheduleNotificationAsync).not.toHaveBeenCalled();
   });
 
-  it("uses the SMS notification channel for immediate Android notifications", async () => {
-    Object.defineProperty(Platform, "OS", {
-      configurable: true,
-      value: "android",
+  describe("on Android", () => {
+    beforeEach(() => {
+      Object.defineProperty(Platform, "OS", {
+        configurable: true,
+        value: "android",
+      });
     });
-    mockGetPermissionsAsync.mockResolvedValueOnce(
-      createPermissionStatus({ granted: true })
-    );
 
-    await showTransactionNotification(
-      createParsedSmsTransaction(),
-      "account-1",
-      "MainCIBAccount"
-    );
+    it("uses the SMS notification channel for immediate Android notifications", async () => {
+      mockGetPermissionsAsync.mockResolvedValueOnce(
+        createPermissionStatus({ granted: true })
+      );
 
-    expect(mockScheduleNotificationAsync).toHaveBeenCalledWith(
-      expect.objectContaining({
-        identifier: "sms-transaction-hash-1",
-        trigger: { channelId: "sms-transactions" },
-      })
-    );
-  });
+      await showTransactionNotification(
+        createParsedSmsTransaction(),
+        "account-1",
+        "MainCIBAccount"
+      );
 
-  it("schedules an info-only notification for auto-confirmed SMS transactions", async () => {
-    Object.defineProperty(Platform, "OS", {
-      configurable: true,
-      value: "android",
+      expect(mockScheduleNotificationAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          identifier: "sms-transaction-hash-1",
+          trigger: { channelId: "sms-transactions" },
+        })
+      );
     });
-    mockGetPermissionsAsync.mockResolvedValueOnce(
-      createPermissionStatus({ granted: true })
-    );
 
-    await showTransactionCreatedNotification(
-      createParsedSmsTransaction(),
-      "MainCIBAccount"
-    );
+    it("schedules an info-only notification for auto-confirmed SMS transactions", async () => {
+      mockGetPermissionsAsync.mockResolvedValueOnce(
+        createPermissionStatus({ granted: true })
+      );
 
-    const scheduledNotification = getScheduledNotificationInput();
-    expect(scheduledNotification.identifier).toBe(
-      "sms-transaction-created-hash-1"
-    );
-    expect(scheduledNotification.content.categoryIdentifier).toBeUndefined();
-    expect(scheduledNotification.content.data).toMatchObject({
-      type: "sms_transaction_created",
-    });
-    expect(scheduledNotification.trigger).toEqual({
-      channelId: "sms-transactions",
+      await showTransactionCreatedNotification(
+        createParsedSmsTransaction(),
+        "MainCIBAccount"
+      );
+
+      const scheduledNotification = getScheduledNotificationInput();
+      expect(scheduledNotification.identifier).toBe(
+        "sms-transaction-created-hash-1"
+      );
+      expect(scheduledNotification.content.categoryIdentifier).toBeUndefined();
+      expect(scheduledNotification.content.data).toMatchObject({
+        type: "sms_transaction_created",
+      });
+      expect(scheduledNotification.trigger).toEqual({
+        channelId: "sms-transactions",
+      });
     });
   });
 
