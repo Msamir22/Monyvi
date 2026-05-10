@@ -153,6 +153,20 @@ describe("sms-live-processor", () => {
     expect(result.status).toBe("ai_failed");
   });
 
+  it("returns infrastructure_error when local deduplication fails", async () => {
+    mockHasExistingSmsBodyHash.mockRejectedValue(new Error("database failed"));
+
+    const result = await processLiveSmsEvent({
+      sender: "QNB",
+      body: "Purchase EGP 850 at Hyper Market using card ending 1234",
+      timestamp: 1778414400000,
+      deliveryMode: "headless",
+    });
+
+    expect(result.status).toBe("infrastructure_error");
+    expect(mockParseSmsWithAi).not.toHaveBeenCalled();
+  });
+
   it("does not parse when live detection is no longer enabled", async () => {
     mockReconcileLiveDetectionPreference.mockResolvedValue(false);
 

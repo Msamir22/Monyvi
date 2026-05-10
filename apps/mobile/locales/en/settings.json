@@ -29,7 +29,7 @@
   "no_network_logout": "No internet connection. Please check your network and try again.",
   "logout_error": "Something went wrong while logging out. Please try again.",
   "auto_detect_description": "Automatically detect transactions from new SMS",
-  "notification_permission_required": "Please Enable notifications in device settings to use live SMS detection.",
+  "notification_permission_required": "Please enable notifications in device settings to use live SMS detection.",
   "permission_open_settings": "Open Settings",
   "permission_not_now": "Not now",
   "sms_permission_allow": "Allow SMS access",

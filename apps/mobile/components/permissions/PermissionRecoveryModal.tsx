@@ -13,7 +13,6 @@ type PermissionRecoveryMode = "request" | "blocked";
 
 interface PermissionRecoveryModalProps {
   readonly visible: boolean;
-  readonly mode: PermissionRecoveryMode;
   readonly icon: keyof typeof Ionicons.glyphMap;
   readonly onPrimaryPress: () => void;
   readonly onCancel: () => void;

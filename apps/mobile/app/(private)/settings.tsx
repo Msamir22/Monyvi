@@ -52,6 +52,7 @@ import {
   openNotificationSettings,
   requestNotificationPermissionStatus,
 } from "@/services/notification-service";
+import { logger } from "@/utils/logger";
 
 type PermissionRecoveryKind = "sms-sync" | "sms-live" | "notification";
 
@@ -60,10 +61,80 @@ interface PermissionRecoveryState {
   readonly mode: PermissionRecoveryMode;
 }
 
+interface PermissionRecoveryContent {
+  readonly icon: keyof typeof Ionicons.glyphMap;
+  readonly title: string;
+  readonly message: string;
+  readonly primaryLabel: string;
+}
+
 function getRecoveryModeForPermissionStatus(
   status: "undetermined" | "granted" | "denied" | "blocked"
 ): PermissionRecoveryMode {
   return status === "blocked" ? "blocked" : "request";
+}
+
+function getPermissionRecoveryContent(
+  recovery: PermissionRecoveryState,
+  translate: (key: string) => string
+): PermissionRecoveryContent {
+  if (recovery.kind === "notification") {
+    return {
+      icon: "notifications-outline",
+      title:
+        recovery.mode === "blocked"
+          ? translate("notification_permission_blocked_title")
+          : translate("notification_permission_request_title"),
+      message:
+        recovery.mode === "blocked"
+          ? translate("notification_permission_blocked_message")
+          : translate("notification_permission_request_message"),
+      primaryLabel:
+        recovery.mode === "blocked"
+          ? translate("permission_open_settings")
+          : translate("notification_permission_allow"),
+    };
+  }
+
+  if (recovery.kind === "sms-sync") {
+    return {
+      icon:
+        recovery.mode === "blocked"
+          ? "settings-outline"
+          : "chatbubble-ellipses-outline",
+      title:
+        recovery.mode === "blocked"
+          ? translate("sms_sync_permission_blocked_title")
+          : translate("sms_sync_permission_request_title"),
+      message:
+        recovery.mode === "blocked"
+          ? translate("sms_sync_permission_blocked_message")
+          : translate("sms_sync_permission_request_message"),
+      primaryLabel:
+        recovery.mode === "blocked"
+          ? translate("permission_open_settings")
+          : translate("sms_permission_allow"),
+    };
+  }
+
+  return {
+    icon:
+      recovery.mode === "blocked"
+        ? "settings-outline"
+        : "chatbubble-ellipses-outline",
+    title:
+      recovery.mode === "blocked"
+        ? translate("sms_permission_blocked_title")
+        : translate("sms_permission_request_title"),
+    message:
+      recovery.mode === "blocked"
+        ? translate("sms_permission_blocked_message")
+        : translate("sms_permission_request_message"),
+    primaryLabel:
+      recovery.mode === "blocked"
+        ? translate("permission_open_settings")
+        : translate("sms_permission_allow"),
+  };
 }
 
 /**
@@ -143,7 +214,9 @@ export default function SettingsScreen(): React.JSX.Element {
     if (!isAndroid) {
       return;
     }
-    reconcileStoredLiveDetection().catch(console.error);
+    reconcileStoredLiveDetection().catch((error: unknown) => {
+      logger.error("settings.reconcileLiveDetection.failed", error);
+    });
   }, [isAndroid, reconcileStoredLiveDetection]);
 
   useEffect(() => {
@@ -158,7 +231,9 @@ export default function SettingsScreen(): React.JSX.Element {
           previousSettingsAppState.current.match(/inactive|background/) &&
           nextState === "active"
         ) {
-          reconcileStoredLiveDetection().catch(console.error);
+          reconcileStoredLiveDetection().catch((error: unknown) => {
+            logger.error("settings.reconcileLiveDetection.failed", error);
+          });
         }
 
         previousSettingsAppState.current = nextState;
@@ -365,6 +440,11 @@ export default function SettingsScreen(): React.JSX.Element {
           getNotificationPermissionStatus()
             .then((notificationStatus) => {
               if (notificationStatus !== "granted") {
+                setHasPendingNotificationEnable(false);
+                setPermissionRecovery({
+                  kind: "notification",
+                  mode: getRecoveryModeForPermissionStatus(notificationStatus),
+                });
                 return;
               }
 
@@ -402,6 +482,10 @@ export default function SettingsScreen(): React.JSX.Element {
   );
 
   const currencyInfo = CURRENCY_INFO_MAP[preferredCurrency];
+  const permissionRecoveryContent =
+    permissionRecovery === null
+      ? null
+      : getPermissionRecoveryContent(permissionRecovery, t);
 
   /**
    * Navigate to the scan page, showing permission recovery if needed.
@@ -924,14 +1008,7 @@ export default function SettingsScreen(): React.JSX.Element {
       />
       <PermissionRecoveryModal
         visible={permissionRecovery !== null}
-        mode={permissionRecovery?.mode ?? "request"}
-        icon={
-          permissionRecovery?.kind === "notification"
-            ? "notifications-outline"
-            : permissionRecovery?.mode === "blocked"
-              ? "settings-outline"
-              : "chatbubble-ellipses-outline"
-        }
+        icon={permissionRecoveryContent?.icon ?? "chatbubble-ellipses-outline"}
         onPrimaryPress={() => {
           handlePermissionModalPrimaryPress().catch(() => {
             showToast({
@@ -941,39 +1018,9 @@ export default function SettingsScreen(): React.JSX.Element {
           });
         }}
         onCancel={handlePermissionModalCancel}
-        title={
-          permissionRecovery?.kind === "notification"
-            ? permissionRecovery.mode === "blocked"
-              ? t("notification_permission_blocked_title")
-              : t("notification_permission_request_title")
-            : permissionRecovery?.kind === "sms-sync"
-              ? permissionRecovery.mode === "blocked"
-                ? t("sms_sync_permission_blocked_title")
-                : t("sms_sync_permission_request_title")
-              : permissionRecovery?.mode === "blocked"
-                ? t("sms_permission_blocked_title")
-                : t("sms_permission_request_title")
-        }
-        message={
-          permissionRecovery?.kind === "notification"
-            ? permissionRecovery.mode === "blocked"
-              ? t("notification_permission_blocked_message")
-              : t("notification_permission_request_message")
-            : permissionRecovery?.kind === "sms-sync"
-              ? permissionRecovery.mode === "blocked"
-                ? t("sms_sync_permission_blocked_message")
-                : t("sms_sync_permission_request_message")
-              : permissionRecovery?.mode === "blocked"
-                ? t("sms_permission_blocked_message")
-                : t("sms_permission_request_message")
-        }
-        primaryLabel={
-          permissionRecovery?.mode === "blocked"
-            ? t("permission_open_settings")
-            : permissionRecovery?.kind === "notification"
-              ? t("notification_permission_allow")
-              : t("sms_permission_allow")
-        }
+        title={permissionRecoveryContent?.title ?? ""}
+        message={permissionRecoveryContent?.message ?? ""}
+        primaryLabel={permissionRecoveryContent?.primaryLabel ?? ""}
         cancelLabel={t("permission_not_now")}
       />
       {/* Currency Picker Modal */}

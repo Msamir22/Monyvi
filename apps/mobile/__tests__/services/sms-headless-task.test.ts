@@ -122,4 +122,21 @@ describe("sms-headless-task", () => {
     ).resolves.toBeUndefined();
     expect(mockHandleDetectedSms).not.toHaveBeenCalled();
   });
+
+  it("does not retry infrastructure failures", async () => {
+    mockProcessLiveSmsEvent.mockResolvedValue({
+      status: "infrastructure_error",
+      transactions: [],
+    });
+    const task = getRegisteredTask();
+
+    await expect(
+      task({
+        sender: "NBE",
+        body: "Purchase EGP 7.25 at DOUBLE CONFIRM TEST using card ending 1234",
+        timestamp: 1778414400000,
+      })
+    ).resolves.toBeUndefined();
+    expect(mockHandleDetectedSms).not.toHaveBeenCalled();
+  });
 });
