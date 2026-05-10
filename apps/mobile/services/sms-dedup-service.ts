@@ -1,5 +1,6 @@
 import { database, type Transaction, type Transfer } from "@monyvi/db";
 import { Q } from "@nozbe/watermelondb";
+import { getCurrentUserDataScope } from "./user-data-access";
 
 /**
  * Check whether an SMS has already produced a transaction or transfer.
@@ -7,17 +8,19 @@ import { Q } from "@nozbe/watermelondb";
 export async function hasExistingSmsBodyHash(
   smsBodyHash: string
 ): Promise<boolean> {
+  const scope = await getCurrentUserDataScope();
+
   const [transactionCount, transferCount] = await Promise.all([
-    database
-      .get<Transaction>("transactions")
-      .query(
+    scope
+      .queryOwned(
+        database.get<Transaction>("transactions"),
         Q.where("sms_body_hash", smsBodyHash),
         Q.where("deleted", Q.notEq(true))
       )
       .fetchCount(),
-    database
-      .get<Transfer>("transfers")
-      .query(
+    scope
+      .queryOwned(
+        database.get<Transfer>("transfers"),
         Q.where("sms_body_hash", smsBodyHash),
         Q.where("deleted", Q.notEq(true))
       )
