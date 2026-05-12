@@ -149,6 +149,26 @@ function combinePermissionStatuses(
   return "undetermined";
 }
 
+async function getLiveSmsPermissionStatuses(): Promise<
+  readonly [SmsPermissionStatus, SmsPermissionStatus]
+> {
+  const [readStatus, receiveStatus] = await Promise.all(
+    LIVE_SMS_PERMISSIONS.map((permission) =>
+      getNativeSmsPermissionStatus(permission)
+    )
+  );
+
+  return [readStatus, receiveStatus];
+}
+
+function getMissingLiveSmsPermissions(
+  statuses: readonly [SmsPermissionStatus, SmsPermissionStatus]
+): Permission[] {
+  return LIVE_SMS_PERMISSIONS.filter(
+    (_, index) => statuses[index] !== "granted"
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
@@ -188,11 +208,7 @@ export function useSmsPermission(): UseSmsPermissionResult {
     }
 
     try {
-      const [readStatus, receiveStatus] = await Promise.all(
-        LIVE_SMS_PERMISSIONS.map((permission) =>
-          getNativeSmsPermissionStatus(permission)
-        )
-      );
+      const [readStatus, receiveStatus] = await getLiveSmsPermissionStatuses();
       setStatus(readStatus);
       setLiveDetectionStatus(
         combinePermissionStatuses([readStatus, receiveStatus])
@@ -248,20 +264,37 @@ export function useSmsPermission(): UseSmsPermissionResult {
       }
 
       try {
+        const currentStatuses = await getLiveSmsPermissionStatuses();
+        const missingPermissions =
+          getMissingLiveSmsPermissions(currentStatuses);
+
+        if (missingPermissions.length === 0) {
+          setStatus("granted");
+          setLiveDetectionStatus("granted");
+          return "granted";
+        }
+
         await Promise.all(
-          LIVE_SMS_PERMISSIONS.map((permission) =>
+          missingPermissions.map((permission) =>
             markNativeSmsPermissionRequested(permission)
           )
         );
-        const results = await PermissionsAndroid.requestMultiple([
-          ...LIVE_SMS_PERMISSIONS,
+        const results =
+          await PermissionsAndroid.requestMultiple(missingPermissions);
+        const requestStatus = statusFromCombinedRequestResults(
+          missingPermissions.map(
+            (permission) =>
+              results[permission] ?? PermissionsAndroid.RESULTS.DENIED
+          )
+        );
+        const [readStatus, receiveStatus] =
+          await getLiveSmsPermissionStatuses();
+        const checkedLiveStatus = combinePermissionStatuses([
+          readStatus,
+          receiveStatus,
         ]);
-        const readStatus = statusFromRequestResult(
-          results[READ_SMS_PERMISSION] ?? PermissionsAndroid.RESULTS.DENIED
-        );
-        const liveStatus = statusFromCombinedRequestResults(
-          Object.values(results)
-        );
+        const liveStatus =
+          checkedLiveStatus === "granted" ? "granted" : requestStatus;
 
         setStatus(readStatus);
         setLiveDetectionStatus(liveStatus);

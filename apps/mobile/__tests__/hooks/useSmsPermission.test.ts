@@ -452,7 +452,15 @@ describe("useSmsPermission", () => {
   // requestLiveDetectionPermission — Android
   // =========================================================================
   describe("requestLiveDetectionPermission", () => {
-    it("should request READ_SMS and RECEIVE_SMS only for live detection", async () => {
+    it("should request READ_SMS and RECEIVE_SMS when both are missing", async () => {
+      mockGetPermissionStatus
+        .mockResolvedValueOnce("requestable")
+        .mockResolvedValueOnce("requestable")
+        .mockResolvedValueOnce("requestable")
+        .mockResolvedValueOnce("requestable")
+        .mockResolvedValueOnce("granted")
+        .mockResolvedValueOnce("granted");
+
       const { result } = renderHook(() => useSmsPermission());
       await flushPromises();
 
@@ -477,9 +485,59 @@ describe("useSmsPermission", () => {
       expect(unwrap(result).liveDetectionStatus).toBe("granted");
     });
 
+    it("should request only RECEIVE_SMS when READ_SMS was already granted", async () => {
+      const { result } = renderHook(() => useSmsPermission());
+      await flushPromises();
+
+      let permResult: string | undefined;
+      await actAsync(async () => {
+        permResult = await unwrap(result).requestLiveDetectionPermission();
+      });
+
+      expect(permResult).toBe("granted");
+      expect(mockRequestMultiple).toHaveBeenCalledWith([
+        "android.permission.RECEIVE_SMS",
+      ]);
+      expect(mockMarkPermissionRequested).not.toHaveBeenCalledWith(
+        "android.permission.READ_SMS"
+      );
+      expect(mockMarkPermissionRequested).toHaveBeenCalledWith(
+        "android.permission.RECEIVE_SMS"
+      );
+      expect(unwrap(result).status).toBe("granted");
+      expect(unwrap(result).liveDetectionStatus).toBe("granted");
+    });
+
+    it("should treat a silently granted RECEIVE_SMS permission as granted after recheck", async () => {
+      mockRequestMultiple.mockResolvedValue({
+        "android.permission.RECEIVE_SMS": "denied",
+      });
+      mockGetPermissionStatus
+        .mockResolvedValueOnce("granted")
+        .mockResolvedValueOnce("requestable")
+        .mockResolvedValueOnce("granted")
+        .mockResolvedValueOnce("requestable")
+        .mockResolvedValueOnce("granted")
+        .mockResolvedValueOnce("granted");
+
+      const { result } = renderHook(() => useSmsPermission());
+      await flushPromises();
+
+      let permResult: string | undefined;
+      await actAsync(async () => {
+        permResult = await unwrap(result).requestLiveDetectionPermission();
+      });
+
+      expect(permResult).toBe("granted");
+      expect(mockRequestMultiple).toHaveBeenCalledWith([
+        "android.permission.RECEIVE_SMS",
+      ]);
+      expect(unwrap(result).status).toBe("granted");
+      expect(unwrap(result).liveDetectionStatus).toBe("granted");
+    });
+
     it("should keep read permission granted when live detection receive permission is denied", async () => {
       mockRequestMultiple.mockResolvedValue({
-        "android.permission.READ_SMS": "granted",
         "android.permission.RECEIVE_SMS": "denied",
       });
 
@@ -492,13 +550,15 @@ describe("useSmsPermission", () => {
       });
 
       expect(permResult).toBe("denied");
+      expect(mockRequestMultiple).toHaveBeenCalledWith([
+        "android.permission.RECEIVE_SMS",
+      ]);
       expect(unwrap(result).status).toBe("granted");
       expect(unwrap(result).liveDetectionStatus).toBe("denied");
     });
 
     it("should return blocked when live detection receive permission is blocked", async () => {
       mockRequestMultiple.mockResolvedValue({
-        "android.permission.READ_SMS": "granted",
         "android.permission.RECEIVE_SMS": "never_ask_again",
       });
 
@@ -511,6 +571,9 @@ describe("useSmsPermission", () => {
       });
 
       expect(permResult).toBe("blocked");
+      expect(mockRequestMultiple).toHaveBeenCalledWith([
+        "android.permission.RECEIVE_SMS",
+      ]);
       expect(unwrap(result).status).toBe("granted");
       expect(unwrap(result).liveDetectionStatus).toBe("blocked");
     });

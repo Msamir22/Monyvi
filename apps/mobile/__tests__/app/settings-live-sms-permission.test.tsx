@@ -287,6 +287,9 @@ describe("Settings live SMS permission recovery", () => {
     expect(
       await screen.findByText("sms_sync_permission_request_title")
     ).toBeTruthy();
+    expect(
+      screen.getByText("sms_sync_permission_request_message")
+    ).toBeTruthy();
     expect(screen.getByText("sms_permission_allow")).toBeTruthy();
     expect(mockRequestPermission).not.toHaveBeenCalled();
     expect(mockRouterPush).not.toHaveBeenCalledWith("/sms-scan");
@@ -318,6 +321,9 @@ describe("Settings live SMS permission recovery", () => {
     expect(
       await screen.findByText("sms_sync_permission_request_title")
     ).toBeTruthy();
+    expect(
+      screen.getByText("sms_sync_permission_request_message")
+    ).toBeTruthy();
     expect(screen.getByText("sms_permission_allow")).toBeTruthy();
     expect(mockRouterPush).not.toHaveBeenCalledWith("/sms-scan");
   });
@@ -327,6 +333,15 @@ describe("Settings live SMS permission recovery", () => {
     const screen = renderSettings();
 
     fireEvent.press(screen.getByText("sync_new"));
+
+    expect(
+      await screen.findByText("sms_sync_permission_blocked_title")
+    ).toBeTruthy();
+    expect(
+      screen.getByText("sms_sync_permission_blocked_message")
+    ).toBeTruthy();
+    expect(screen.getByText("permission_open_settings")).toBeTruthy();
+
     fireEvent.press(await screen.findByTestId("permission-modal-primary"));
 
     await waitFor(() => {
@@ -370,6 +385,9 @@ describe("Settings live SMS permission recovery", () => {
     expect(
       await screen.findByText("notification_permission_request_title")
     ).toBeTruthy();
+    expect(
+      screen.getByText("notification_permission_request_message")
+    ).toBeTruthy();
     expect(screen.getByText("notification_permission_allow")).toBeTruthy();
     expect(mockRequestNotificationPermissionStatus).not.toHaveBeenCalled();
     expect(mockSetLiveDetectionEnabled).not.toHaveBeenCalledWith(true);
@@ -390,6 +408,9 @@ describe("Settings live SMS permission recovery", () => {
 
     expect(
       await screen.findByText("notification_permission_request_title")
+    ).toBeTruthy();
+    expect(
+      screen.getByText("notification_permission_request_message")
     ).toBeTruthy();
     expect(screen.getByText("notification_permission_allow")).toBeTruthy();
     expect(mockRequestNotificationPermissionStatus).not.toHaveBeenCalled();
@@ -468,6 +489,9 @@ describe("Settings live SMS permission recovery", () => {
     expect(
       await screen.findByText("notification_permission_blocked_title")
     ).toBeTruthy();
+    expect(
+      screen.getByText("notification_permission_blocked_message")
+    ).toBeTruthy();
     expect(screen.getByText("permission_open_settings")).toBeTruthy();
   });
 
@@ -536,6 +560,7 @@ describe("Settings live SMS permission recovery", () => {
     expect(
       await screen.findByText("sms_permission_request_title")
     ).toBeTruthy();
+    expect(screen.getByText("sms_permission_request_message")).toBeTruthy();
     expect(screen.getByText("sms_permission_allow")).toBeTruthy();
     expect(mockRequestLiveDetectionPermission).toHaveBeenCalledTimes(1);
     expect(mockRequestPermission).not.toHaveBeenCalled();
@@ -557,6 +582,7 @@ describe("Settings live SMS permission recovery", () => {
     expect(
       await screen.findByText("sms_permission_request_title")
     ).toBeTruthy();
+    expect(screen.getByText("sms_permission_request_message")).toBeTruthy();
     expect(screen.getByText("sms_permission_allow")).toBeTruthy();
     expect(mockRequestLiveDetectionPermission).not.toHaveBeenCalled();
     expect(mockSetLiveDetectionEnabled).not.toHaveBeenCalledWith(true);
@@ -577,6 +603,7 @@ describe("Settings live SMS permission recovery", () => {
     expect(
       await screen.findByText("sms_permission_blocked_title")
     ).toBeTruthy();
+    expect(screen.getByText("sms_permission_blocked_message")).toBeTruthy();
     expect(screen.getByText("permission_open_settings")).toBeTruthy();
     expect(mockRequestLiveDetectionPermission).not.toHaveBeenCalled();
     expect(mockSetLiveDetectionEnabled).not.toHaveBeenCalledWith(true);
@@ -597,6 +624,7 @@ describe("Settings live SMS permission recovery", () => {
     expect(
       await screen.findByText("sms_permission_blocked_title")
     ).toBeTruthy();
+    expect(screen.getByText("sms_permission_blocked_message")).toBeTruthy();
     expect(mockRequestLiveDetectionPermission).toHaveBeenCalledTimes(1);
     expect(mockRequestPermission).not.toHaveBeenCalled();
     expect(screen.getByText("permission_open_settings")).toBeTruthy();

@@ -68,73 +68,96 @@ interface PermissionRecoveryContent {
   readonly primaryLabel: string;
 }
 
+interface PermissionRecoveryContentOption {
+  readonly icon: keyof typeof Ionicons.glyphMap;
+  readonly titleKey: string;
+  readonly messageKey: string;
+  readonly primaryLabelKey: string;
+}
+
+interface PermissionRecoveryContentConfig {
+  readonly blocked: PermissionRecoveryContentOption;
+  readonly request: PermissionRecoveryContentOption;
+}
+
+const PERMISSION_RECOVERY_CONTENT_CONFIG: Record<
+  PermissionRecoveryKind,
+  PermissionRecoveryContentConfig
+> = {
+  notification: {
+    blocked: {
+      icon: "notifications-outline",
+      titleKey: "notification_permission_blocked_title",
+      messageKey: "notification_permission_blocked_message",
+      primaryLabelKey: "permission_open_settings",
+    },
+    request: {
+      icon: "notifications-outline",
+      titleKey: "notification_permission_request_title",
+      messageKey: "notification_permission_request_message",
+      primaryLabelKey: "notification_permission_allow",
+    },
+  },
+  "sms-sync": {
+    blocked: {
+      icon: "settings-outline",
+      titleKey: "sms_sync_permission_blocked_title",
+      messageKey: "sms_sync_permission_blocked_message",
+      primaryLabelKey: "permission_open_settings",
+    },
+    request: {
+      icon: "chatbubble-ellipses-outline",
+      titleKey: "sms_sync_permission_request_title",
+      messageKey: "sms_sync_permission_request_message",
+      primaryLabelKey: "sms_permission_allow",
+    },
+  },
+  "sms-live": {
+    blocked: {
+      icon: "settings-outline",
+      titleKey: "sms_permission_blocked_title",
+      messageKey: "sms_permission_blocked_message",
+      primaryLabelKey: "permission_open_settings",
+    },
+    request: {
+      icon: "chatbubble-ellipses-outline",
+      titleKey: "sms_permission_request_title",
+      messageKey: "sms_permission_request_message",
+      primaryLabelKey: "sms_permission_allow",
+    },
+  },
+};
+
 function getRecoveryModeForPermissionStatus(
   status: "undetermined" | "granted" | "denied" | "blocked"
 ): PermissionRecoveryMode {
   return status === "blocked" ? "blocked" : "request";
 }
 
+function buildPermissionRecoveryContent(
+  mode: PermissionRecoveryMode,
+  translate: (key: string) => string,
+  config: PermissionRecoveryContentConfig
+): PermissionRecoveryContent {
+  const option = mode === "blocked" ? config.blocked : config.request;
+
+  return {
+    icon: option.icon,
+    title: translate(option.titleKey),
+    message: translate(option.messageKey),
+    primaryLabel: translate(option.primaryLabelKey),
+  };
+}
+
 function getPermissionRecoveryContent(
   recovery: PermissionRecoveryState,
   translate: (key: string) => string
 ): PermissionRecoveryContent {
-  if (recovery.kind === "notification") {
-    return {
-      icon: "notifications-outline",
-      title:
-        recovery.mode === "blocked"
-          ? translate("notification_permission_blocked_title")
-          : translate("notification_permission_request_title"),
-      message:
-        recovery.mode === "blocked"
-          ? translate("notification_permission_blocked_message")
-          : translate("notification_permission_request_message"),
-      primaryLabel:
-        recovery.mode === "blocked"
-          ? translate("permission_open_settings")
-          : translate("notification_permission_allow"),
-    };
-  }
-
-  if (recovery.kind === "sms-sync") {
-    return {
-      icon:
-        recovery.mode === "blocked"
-          ? "settings-outline"
-          : "chatbubble-ellipses-outline",
-      title:
-        recovery.mode === "blocked"
-          ? translate("sms_sync_permission_blocked_title")
-          : translate("sms_sync_permission_request_title"),
-      message:
-        recovery.mode === "blocked"
-          ? translate("sms_sync_permission_blocked_message")
-          : translate("sms_sync_permission_request_message"),
-      primaryLabel:
-        recovery.mode === "blocked"
-          ? translate("permission_open_settings")
-          : translate("sms_permission_allow"),
-    };
-  }
-
-  return {
-    icon:
-      recovery.mode === "blocked"
-        ? "settings-outline"
-        : "chatbubble-ellipses-outline",
-    title:
-      recovery.mode === "blocked"
-        ? translate("sms_permission_blocked_title")
-        : translate("sms_permission_request_title"),
-    message:
-      recovery.mode === "blocked"
-        ? translate("sms_permission_blocked_message")
-        : translate("sms_permission_request_message"),
-    primaryLabel:
-      recovery.mode === "blocked"
-        ? translate("permission_open_settings")
-        : translate("sms_permission_allow"),
-  };
+  return buildPermissionRecoveryContent(
+    recovery.mode,
+    translate,
+    PERMISSION_RECOVERY_CONTENT_CONFIG[recovery.kind]
+  );
 }
 
 /**
