@@ -290,6 +290,7 @@ async function handleNotificationActionResponse(
       notificationId,
       smsFingerprint: data.transactionData.smsFingerprint,
     });
+    return false;
   }
   return true;
 }
