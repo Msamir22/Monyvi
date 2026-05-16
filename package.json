@@ -2,7 +2,7 @@
   "name": "monyvi-monorepo",
   "version": "1.0.0",
   "private": true,
-  "description": "Monyvi - The Invisible Money Tracker for Egypt",
+  "description": "Monyvi - Offline-first money tracking, live rates, and inflation guidance for Egypt",
   "workspaces": [
     "apps/*",
     "packages/*"

@@ -278,7 +278,10 @@ All schema changes MUST go through local SQL migration files in
 
 - Workflow: Write SQL migration → `npm run db:migrate` → commit both migration
   and generated schema.
-- Naming: `supabase/migrations/023_descriptive_name.sql`
+- Naming: follow the existing sequential numeric prefix used by this repo:
+  `supabase/migrations/023_descriptive_name.sql`. If the Supabase CLI creates a
+  timestamp-prefixed file, rename it to the next available numeric prefix before
+  running or committing the migration.
 - When bringing existing Supabase tables into WatermelonDB: manually add
   `createTable` to `packages/db/src/migrations.ts` and bump schema version
   (auto-gen can't detect this).
