@@ -33,7 +33,7 @@ import type { CategoryMapSource } from "./ai-parser-utils";
 export interface CategoryTreeSource extends CategoryMapSource {
   readonly level: Category["level"];
   readonly parentId?: Category["parentId"];
-  readonly type?: Category["type"];
+  readonly type: Category["type"];
 }
 
 /**

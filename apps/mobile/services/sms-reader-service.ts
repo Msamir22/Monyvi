@@ -77,7 +77,6 @@ const E2E_SMS_INBOX_FIXTURE_IDS = [
 ] as const;
 
 const E2E_DUPLICATE_SECOND_OFFSET_MS = 60_000;
-const E2E_FIXTURE_SCAN_WINDOW_OFFSET_MS = 1_000;
 
 interface FixtureInboxMessage {
   readonly id: string;
@@ -99,27 +98,6 @@ function resolveFixtureTimestamp(
   }
 
   return timestamp;
-}
-
-function getFixtureInboxDateOffset(
-  messages: readonly FixtureInboxMessage[],
-  minDate: number | undefined
-): number {
-  if (minDate === undefined) {
-    return 0;
-  }
-
-  const latestFixtureDate = Math.max(
-    ...messages.map((message) => message.date)
-  );
-  if (latestFixtureDate >= minDate) {
-    return 0;
-  }
-
-  const earliestFixtureDate = Math.min(
-    ...messages.map((message) => message.date)
-  );
-  return minDate - earliestFixtureDate + E2E_FIXTURE_SCAN_WINDOW_OFFSET_MS;
 }
 
 function readFixtureSmsInbox(
@@ -151,19 +129,13 @@ function readFixtureSmsInbox(
     return message;
   });
 
-  const dateOffset = getFixtureInboxDateOffset(
-    fixtureMessages,
-    options?.minDate
-  );
-  const messages = fixtureMessages.map((message) => ({
-    ...message,
-    date: message.date + dateOffset,
-  }));
   const minDate = options?.minDate;
   const filteredByAddress =
     options?.address === undefined
-      ? messages
-      : messages.filter((message) => message.address === options.address);
+      ? fixtureMessages
+      : fixtureMessages.filter(
+          (message) => message.address === options.address
+        );
   const filtered =
     minDate === undefined
       ? filteredByAddress

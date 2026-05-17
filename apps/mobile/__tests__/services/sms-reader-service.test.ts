@@ -9,6 +9,7 @@ jest.mock("react-native-get-sms-android", () => ({
 import { readSmsInbox } from "@/services/sms-reader-service";
 
 const originalPlatformOS = Platform.OS;
+const APRIL_8_2026_16_10 = 1775664600000;
 
 describe("sms-reader-service", (): void => {
   beforeEach((): void => {
@@ -109,15 +110,31 @@ describe("sms-reader-service", (): void => {
 
     const messages = await readSmsInbox({
       address: "NBE",
-      minDate: Date.parse("2026-08-01T00:00:00.000Z"),
+      minDate: APRIL_8_2026_16_10,
     });
 
     expect(messages).toHaveLength(2);
     expect(messages.every((message) => message.address === "NBE")).toBe(true);
     expect(
-      messages.every(
-        (message) => message.date >= Date.parse("2026-08-01T00:00:00.000Z")
-      )
+      messages.every((message) => message.date >= APRIL_8_2026_16_10)
     ).toBe(true);
+  });
+
+  it("keeps fixture timestamps stable when scans use minDate filters", async (): Promise<void> => {
+    process.env.EXPO_PUBLIC_MONYVI_TEST_MODE = "e2e";
+    process.env.EXPO_PUBLIC_AI_SMS_PARSER_MODE = "fixture";
+
+    const firstScan = await readSmsInbox();
+    const filteredScan = await readSmsInbox({
+      minDate: APRIL_8_2026_16_10,
+    });
+    const firstDuplicate = firstScan.find(
+      (message) => message.id === "e2e-pr622_batch_duplicate_shop-1"
+    );
+    const filteredDuplicate = filteredScan.find(
+      (message) => message.id === "e2e-pr622_batch_duplicate_shop-1"
+    );
+
+    expect(filteredDuplicate?.date).toBe(firstDuplicate?.date);
   });
 });

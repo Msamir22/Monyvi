@@ -21,6 +21,10 @@ const preflightAttemptTimeoutMs = parsePositiveInt(
   process.env.E2E_PREFLIGHT_ATTEMPT_TIMEOUT_MS,
   120000
 );
+const preflightBundleTimeoutMs = parsePositiveInt(
+  process.env.E2E_PREFLIGHT_BUNDLE_TIMEOUT_MS,
+  900000
+);
 const devClientUrl = `exp+monyvi://expo-development-client/?url=${encodeURIComponent(
   metroUrl
 )}`;
@@ -553,7 +557,7 @@ async function ensureE2eAppReady() {
       "/index.bundle?platform=android&dev=true&minify=false",
       hostMetroUrl
     );
-    await waitForHttpComplete(bundleUrl.toString(), 300000);
+    await waitForHttpComplete(bundleUrl.toString(), preflightBundleTimeoutMs);
   }
 
   let lastError = null;
