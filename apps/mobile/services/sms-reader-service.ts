@@ -170,7 +170,12 @@ function mapNativeSms(raw: RawNativeSms): SmsMessage {
     id: String(raw._id),
     address: raw.address,
     body: raw.body,
-    date: parseInt(raw.date, 10) || Date.now(),
+    date: parseNativeSmsDate(raw.date),
     read: raw.read === 1,
   };
+}
+
+function parseNativeSmsDate(date: string): number {
+  const parsedDate = Number.parseInt(date, 10);
+  return Number.isFinite(parsedDate) ? parsedDate : 0;
 }

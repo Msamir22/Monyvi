@@ -25,8 +25,8 @@ CREATE INDEX IF NOT EXISTS idx_transfers_sms_fingerprint
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_unique_sms_fingerprint
   ON public.transactions (user_id, sms_fingerprint)
-  WHERE sms_fingerprint IS NOT NULL;
+  WHERE sms_fingerprint IS NOT NULL AND deleted = false;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_transfers_unique_sms_fingerprint
   ON public.transfers (user_id, sms_fingerprint)
-  WHERE sms_fingerprint IS NOT NULL;
+  WHERE sms_fingerprint IS NOT NULL AND deleted = false;

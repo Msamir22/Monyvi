@@ -65,27 +65,6 @@ function accumulateBalanceDelta(
   deltas.set(accountId, existing + delta);
 }
 
-async function shouldSkipSmsTransaction(
-  tx: ReviewableTransaction,
-  seenSmsFingerprints: Set<string>
-): Promise<boolean> {
-  if (tx.source !== "SMS" || !tx.deduplicationHash) {
-    return false;
-  }
-
-  if (seenSmsFingerprints.has(tx.deduplicationHash)) {
-    return true;
-  }
-
-  if (await hasExistingSmsFingerprint(tx.deduplicationHash)) {
-    seenSmsFingerprints.add(tx.deduplicationHash);
-    return true;
-  }
-
-  seenSmsFingerprints.add(tx.deduplicationHash);
-  return false;
-}
-
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -172,8 +151,21 @@ export async function batchCreateTransactions<T extends ReviewableTransaction>(
 
   for (let i = 0; i < transactions.length; i++) {
     const tx = transactions[i];
+    const smsFingerprint =
+      tx.source === "SMS" ? tx.deduplicationHash : undefined;
 
-    if (await shouldSkipSmsTransaction(tx, seenSmsFingerprints)) {
+    if (tx.source === "SMS" && !smsFingerprint) {
+      errors.push(`Missing SMS fingerprint for transaction index ${i}`);
+      failedCount++;
+      continue;
+    }
+
+    if (smsFingerprint && seenSmsFingerprints.has(smsFingerprint)) {
+      continue;
+    }
+
+    if (smsFingerprint && (await hasExistingSmsFingerprint(smsFingerprint))) {
+      seenSmsFingerprints.add(smsFingerprint);
       continue;
     }
 
@@ -210,7 +202,7 @@ export async function batchCreateTransactions<T extends ReviewableTransaction>(
           t.currency = tx.currency;
           t.date = new Date(tx.date);
           t.notes = `ATM Withdrawal`;
-          t.smsFingerprint = tx.deduplicationHash;
+          t.smsFingerprint = smsFingerprint;
           t.deleted = false;
         })
       );
@@ -221,6 +213,9 @@ export async function batchCreateTransactions<T extends ReviewableTransaction>(
       accumulateBalanceDelta(balanceDeltas, cashAccountId, amount);
 
       savedCount++;
+      if (smsFingerprint) {
+        seenSmsFingerprints.add(smsFingerprint);
+      }
       continue;
     }
 
@@ -237,7 +232,7 @@ export async function batchCreateTransactions<T extends ReviewableTransaction>(
         record.note = "";
         record.date = tx.date;
         record.source = tx.source;
-        record.smsFingerprint = tx.deduplicationHash;
+        record.smsFingerprint = smsFingerprint;
         record.isDraft = false;
         record.deleted = false;
       })
@@ -252,6 +247,9 @@ export async function batchCreateTransactions<T extends ReviewableTransaction>(
     }
 
     savedCount++;
+    if (smsFingerprint) {
+      seenSmsFingerprints.add(smsFingerprint);
+    }
   }
 
   // ── Batch-fetch all affected accounts and prepare balance updates ────

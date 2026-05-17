@@ -1,15 +1,17 @@
 import { BaseRecurringPayment } from "./base/base-recurring-payment";
 
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
 function calculateDaysUntilDue(dueDate: Date): number {
   const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const due = new Date(
+  const todayUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const dueUtc = Date.UTC(
     dueDate.getFullYear(),
     dueDate.getMonth(),
     dueDate.getDate()
   );
-  const diffTime = due.getTime() - today.getTime();
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const diffTime = dueUtc - todayUtc;
+  return Math.ceil(diffTime / MS_PER_DAY);
 }
 
 export class RecurringPayment extends BaseRecurringPayment {

@@ -154,6 +154,41 @@ describe("batchCreateTransactions", () => {
     expect(account.balance).toBe(900);
   });
 
+  it("does not mark a fingerprint as seen until the SMS transaction is valid", async () => {
+    const account = createAccount("acc-1", 1000);
+    mockQueryOwned.mockReturnValue({
+      fetch: jest.fn<Promise<readonly MockAccount[]>, []>(() =>
+        Promise.resolve([account])
+      ),
+    });
+
+    const result = await batchCreateTransactions(
+      [
+        createReviewableTransaction({ counterparty: "Missing account" }),
+        createReviewableTransaction({ counterparty: "Valid duplicate" }),
+      ],
+      new Map([[1, "acc-1"]])
+    );
+
+    expect(result.savedCount).toBe(1);
+    expect(result.failedCount).toBe(1);
+    expect(mockPrepareTransactionCreate).toHaveBeenCalledTimes(1);
+    expect(account.balance).toBe(900);
+  });
+
+  it("rejects SMS transactions without a deduplication hash", async () => {
+    const result = await batchCreateTransactions(
+      [createReviewableTransaction({ deduplicationHash: undefined })],
+      new Map([[0, "acc-1"]])
+    );
+
+    expect(result.savedCount).toBe(0);
+    expect(result.failedCount).toBe(1);
+    expect(result.errors[0]).toContain("Missing SMS fingerprint");
+    expect(mockPrepareTransactionCreate).not.toHaveBeenCalled();
+    expect(mockDatabaseBatch).not.toHaveBeenCalled();
+  });
+
   it("silently skips SMS fingerprints that already exist locally", async () => {
     mockHasExistingSmsFingerprint.mockResolvedValue(true);
 

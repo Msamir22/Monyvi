@@ -68,6 +68,10 @@ const mockClearLastNotificationResponseAsync =
   Notifications.clearLastNotificationResponseAsync as jest.MockedFunction<
     typeof Notifications.clearLastNotificationResponseAsync
   >;
+const mockSetNotificationCategoryAsync =
+  Notifications.setNotificationCategoryAsync as jest.MockedFunction<
+    typeof Notifications.setNotificationCategoryAsync
+  >;
 
 function getScheduledNotificationInput(): Parameters<
   typeof Notifications.scheduleNotificationAsync
@@ -290,19 +294,20 @@ describe("notification-service", () => {
         "MainCIBAccount"
       );
 
-      expect(Notifications.setNotificationCategoryAsync).toHaveBeenCalledWith(
-        "SMS_TRANSACTION",
-        [
-          expect.objectContaining({
-            identifier: ACTION_CONFIRM,
-            options: expect.objectContaining({ opensAppToForeground: true }),
-          }),
-          expect.objectContaining({
-            identifier: ACTION_DISCARD,
-            options: expect.objectContaining({ opensAppToForeground: true }),
-          }),
-        ]
+      const actions = mockSetNotificationCategoryAsync.mock.calls[0]?.[1];
+      const confirmAction = actions?.find(
+        (action) => action.identifier === ACTION_CONFIRM
       );
+      const discardAction = actions?.find(
+        (action) => action.identifier === ACTION_DISCARD
+      );
+
+      expect(mockSetNotificationCategoryAsync).toHaveBeenCalledWith(
+        "SMS_TRANSACTION",
+        expect.any(Array)
+      );
+      expect(confirmAction?.options?.opensAppToForeground).toBe(true);
+      expect(discardAction?.options?.opensAppToForeground).toBe(true);
     });
 
     it("schedules an info-only notification for auto-confirmed SMS transactions", async () => {
@@ -349,7 +354,11 @@ describe("notification-service", () => {
 
   it("handles the last notification response when the app opens from a killed state", async () => {
     mockGetLastNotificationResponseAsync.mockResolvedValueOnce(
-      createNotificationResponse(ACTION_CONFIRM, "notification-cold", "hash-cold")
+      createNotificationResponse(
+        ACTION_CONFIRM,
+        "notification-cold",
+        "hash-cold"
+      )
     );
     const handler = jest.fn(() => Promise.resolve());
 

@@ -156,27 +156,43 @@ function collectFingerprints(
 }
 
 /**
- * Remove duplicate parsed SMS transactions from the same scan result.
- * The first transaction for a fingerprint wins, matching the review list order.
+ * Remove exact duplicate parsed SMS transactions from the same scan result.
+ * Different transactions can legitimately come from the same SMS.
  *
  * This protects the save path from duplicate AI entries for one SMS.
  */
 function deduplicateParsedSmsTransactions(
   transactions: readonly ParsedSmsTransaction[]
 ): readonly ParsedSmsTransaction[] {
-  const seenFingerprints = new Set<string>();
+  const seenTransactions = new Set<string>();
   const deduplicated: ParsedSmsTransaction[] = [];
 
   for (const transaction of transactions) {
-    if (seenFingerprints.has(transaction.smsFingerprint)) {
+    const transactionKey = getParsedSmsTransactionKey(transaction);
+    if (seenTransactions.has(transactionKey)) {
       continue;
     }
 
-    seenFingerprints.add(transaction.smsFingerprint);
+    seenTransactions.add(transactionKey);
     deduplicated.push(transaction);
   }
 
   return deduplicated;
+}
+
+function getParsedSmsTransactionKey(transaction: ParsedSmsTransaction): string {
+  return JSON.stringify({
+    smsFingerprint: transaction.smsFingerprint,
+    amount: transaction.amount,
+    currency: transaction.currency,
+    type: transaction.type,
+    counterparty: transaction.counterparty ?? null,
+    date: transaction.date.getTime(),
+    categoryId: transaction.categoryId,
+    categoryDisplayName: transaction.categoryDisplayName,
+    isAtmWithdrawal: transaction.isAtmWithdrawal === true,
+    cardLast4: transaction.cardLast4 ?? null,
+  });
 }
 
 /**

@@ -412,7 +412,7 @@ describe("sms-sync-service", () => {
       expect(candidates?.[0]?.smsFingerprint).toBe("same-sms-hash");
     });
 
-    it("should deduplicate duplicate AI results with the same SMS fingerprint before review", async () => {
+    it("should deduplicate exact duplicate AI results before review", async () => {
       const sms = createSmsMessage({
         id: "sms-1",
         body: "Debit EGP 100 at Shop",
@@ -426,13 +426,7 @@ describe("sms-sync-service", () => {
         deduplicationHash: "same-sms-hash",
       });
       mockParseSmsWithAi.mockResolvedValue({
-        transactions: [
-          parsed,
-          {
-            ...parsed,
-            counterparty: "Duplicate Shop",
-          },
-        ],
+        transactions: [parsed, parsed],
       });
 
       const result = await scanAndParseSms(defaultOptions());
@@ -440,6 +434,39 @@ describe("sms-sync-service", () => {
       expect(result.transactions).toHaveLength(1);
       expect(result.totalFound).toBe(1);
       expect(result.transactions[0]?.counterparty).toBe("TestShop");
+    });
+
+    it("should keep distinct AI results from the same SMS fingerprint", async () => {
+      const sms = createSmsMessage({
+        id: "sms-1",
+        body: "Debit EGP 100 at Shop plus EGP 5 fee",
+      });
+      mockReadSmsInbox.mockResolvedValue([sms]);
+      mockComputeSmsFingerprint.mockResolvedValue("same-sms-hash");
+
+      const purchase = createParsedTransaction({
+        amount: 100,
+        counterparty: "Shop",
+        smsFingerprint: "same-sms-hash",
+        deduplicationHash: "same-sms-hash",
+      });
+      const fee = createParsedTransaction({
+        amount: 5,
+        counterparty: "Card fee",
+        smsFingerprint: "same-sms-hash",
+        deduplicationHash: "same-sms-hash",
+      });
+      mockParseSmsWithAi.mockResolvedValue({
+        transactions: [purchase, fee],
+      });
+
+      const result = await scanAndParseSms(defaultOptions());
+
+      expect(result.transactions).toHaveLength(2);
+      expect(result.totalFound).toBe(2);
+      expect(
+        result.transactions.map((transaction) => transaction.amount)
+      ).toEqual([100, 5]);
     });
 
     it("loads current-user fingerprints when existing fingerprints are not supplied", async () => {
