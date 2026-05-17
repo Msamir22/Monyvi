@@ -71,6 +71,22 @@ describe("sms-reader-service", (): void => {
       "QNB Alahli: ATM cash withdrawal EGP 2,000.00 from card **** 5566 on 08/04/2026 15:02. Avail bal EGP 8,000.00",
     ]);
     expect(messages[0]?.date).not.toBe(messages[1]?.date);
+    expect(messages[0]?.date).toBeGreaterThan(messages[1]?.date ?? 0);
+    expect(messages[1]?.date).toBeGreaterThan(messages[2]?.date ?? 0);
+  });
+
+  it("applies fixture inbox maxCount after native-like newest-first ordering", async (): Promise<void> => {
+    process.env.EXPO_PUBLIC_MONYVI_TEST_MODE = "e2e";
+    process.env.EXPO_PUBLIC_AI_SMS_PARSER_MODE = "fixture";
+
+    const messages = await readSmsInbox({ maxCount: 1 });
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatchObject({
+      id: "e2e-pr622_batch_duplicate_shop-1",
+      address: "NBE",
+      body: "Purchase EGP 33.33 on card **** 4321 at PR622 BATCH DUPLICATE SHOP on 08/04 17:01. Avail bal EGP 12,397.22",
+    });
   });
 
   it("keeps the fixture inbox disabled on iOS", async (): Promise<void> => {

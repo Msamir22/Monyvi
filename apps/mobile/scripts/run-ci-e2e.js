@@ -113,6 +113,24 @@ function maybeSeedE2eData() {
   runNodeScript("scripts/e2e-seed.js", ["seed"]);
 }
 
+function isFixtureE2eMode() {
+  return (
+    process.env.EXPO_PUBLIC_MONYVI_TEST_MODE === "e2e" &&
+    process.env.EXPO_PUBLIC_AI_SMS_PARSER_MODE === "fixture"
+  );
+}
+
+function maybeRunSmsSyncJourneys() {
+  if (!isFixtureE2eMode()) {
+    console.warn(
+      "Skipping fixture SMS sync journeys because E2E fixture parser mode is not enabled."
+    );
+    return;
+  }
+
+  runNodeScript("scripts/run-sms-sync-journeys.js", []);
+}
+
 function getLiveSmsJourneys() {
   const value = process.env.E2E_CI_LIVE_SMS_JOURNEYS;
   if (!value) return defaultLiveSmsJourneys;
@@ -135,7 +153,7 @@ function main() {
     ]);
   }
 
-  runNodeScript("scripts/run-sms-sync-journeys.js", []);
+  maybeRunSmsSyncJourneys();
   runNodeScript("scripts/run-live-sms-journeys.js", getLiveSmsJourneys());
 }
 

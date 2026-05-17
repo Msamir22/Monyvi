@@ -24,13 +24,45 @@ const preflightAttemptTimeoutMs = parsePositiveInt(
 const devClientUrl = `exp+monyvi://expo-development-client/?url=${encodeURIComponent(
   metroUrl
 )}`;
-const privateReadyMarkers = ["Good Evening", "Good Afternoon", "Good Morning"];
+const privateShellMarkers = [
+  "fab-button",
+  "search-input",
+  "sms-sync-button",
+  "live-sms-detection-switch",
+  "sms-simulator-log-count",
+  "transaction-card-",
+  "card-amount-",
+];
+// Arabic fallback strings are escaped to keep this script ASCII-only.
+const arabicPrivateTextFallbackMarkers = {
+  settings: "\u0627\u0644\u0625\u0639\u062f\u0627\u062f\u0627\u062a",
+  accounts: "\u0627\u0644\u062d\u0633\u0627\u0628\u0627\u062a",
+  transactions: "\u0627\u0644\u0645\u0639\u0627\u0645\u0644\u0627\u062a",
+};
+const arabicAuthReadyMarkers = {
+  welcomeToMonyvi:
+    "\u0645\u0631\u062d\u0628\u064b\u0627 \u0628\u0643 \u0641\u064a Monyvi",
+  emailAddress:
+    "\u0627\u0644\u0628\u0631\u064a\u062f \u0627\u0644\u0625\u0644\u0643\u062a\u0631\u0648\u0646\u064a",
+  signIn: "\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062f\u062e\u0648\u0644",
+};
+const privateTextFallbackMarkers = [
+  "Home",
+  "Accounts",
+  "Transactions",
+  "Metals",
+  "Settings",
+  "Good Evening",
+  "Good Afternoon",
+  "Good Morning",
+  ...Object.values(arabicPrivateTextFallbackMarkers),
+];
 const authReadyMarkers = [
+  "emailAddress",
   "Welcome to Monyvi",
   "Email address",
   "Sign In",
-  "Your bank texts. We listen.",
-  "Skip",
+  ...Object.values(arabicAuthReadyMarkers),
 ];
 
 function appendAndroidPlatform(url) {
@@ -393,15 +425,18 @@ function isAppReady(uiXml) {
   }
 
   const isSettingsReady =
-    uiXml.includes("LANGUAGE") &&
-    uiXml.includes("SMS SYNC") &&
-    uiXml.includes("LIVE SMS DETECTION");
-  const isPrivateHomeReady =
-    uiXml.includes("Open menu") &&
-    privateReadyMarkers.some((marker) => uiXml.includes(marker));
+    uiXml.includes("sms-sync-button") ||
+    uiXml.includes("live-sms-detection-switch") ||
+    (uiXml.includes("LANGUAGE") &&
+      uiXml.includes("SMS SYNC") &&
+      uiXml.includes("LIVE SMS DETECTION"));
+  const isPrivateShellReady =
+    privateShellMarkers.some((marker) => uiXml.includes(marker)) ||
+    (uiXml.includes("Open menu") &&
+      privateTextFallbackMarkers.some((marker) => uiXml.includes(marker)));
   const isAuthReady = authReadyMarkers.some((marker) => uiXml.includes(marker));
 
-  return isSettingsReady || isPrivateHomeReady || isAuthReady;
+  return isSettingsReady || isPrivateShellReady || isAuthReady;
 }
 
 function assertNotWrongShell(currentFocus) {

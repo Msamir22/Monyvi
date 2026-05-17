@@ -168,8 +168,9 @@ function readFixtureSmsInbox(
     minDate === undefined
       ? filteredByAddress
       : filteredByAddress.filter((message) => message.date >= minDate);
+  const newestFirst = [...filtered].sort((a, b) => b.date - a.date);
 
-  return filtered.slice(0, options?.maxCount ?? 1000);
+  return newestFirst.slice(0, options?.maxCount ?? 1000);
 }
 
 // ---------------------------------------------------------------------------
