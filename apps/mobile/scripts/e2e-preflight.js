@@ -10,9 +10,7 @@ const hostMetroUrl =
   process.env.E2E_METRO_URL ||
   "http://127.0.0.1:8081";
 const metroUrl = appendAndroidPlatform(
-  process.env.E2E_DEVICE_METRO_URL ||
-    process.env.E2E_METRO_URL ||
-    hostMetroUrl
+  process.env.E2E_DEVICE_METRO_URL || process.env.E2E_METRO_URL || hostMetroUrl
 );
 const isReleaseBuild = process.env.E2E_RELEASE_BUILD === "1";
 const preflightLaunchAttempts = parsePositiveInt(
@@ -26,20 +24,55 @@ const preflightAttemptTimeoutMs = parsePositiveInt(
 const devClientUrl = `exp+monyvi://expo-development-client/?url=${encodeURIComponent(
   metroUrl
 )}`;
-const privateReadyMarkers = ["Good Evening", "Good Afternoon", "Good Morning"];
+const privateShellMarkers = [
+  "fab-button",
+  "search-input",
+  "sms-sync-button",
+  "live-sms-detection-switch",
+  "sms-simulator-log-count",
+  "transaction-card-",
+  "card-amount-",
+];
+// Arabic fallback strings are escaped to keep this script ASCII-only.
+const arabicPrivateTextFallbackMarkers = {
+  settings: "\u0627\u0644\u0625\u0639\u062f\u0627\u062f\u0627\u062a",
+  accounts: "\u0627\u0644\u062d\u0633\u0627\u0628\u0627\u062a",
+  transactions: "\u0627\u0644\u0645\u0639\u0627\u0645\u0644\u0627\u062a",
+};
+const arabicAuthReadyMarkers = {
+  welcomeToMonyvi:
+    "\u0645\u0631\u062d\u0628\u064b\u0627 \u0628\u0643 \u0641\u064a Monyvi",
+  emailAddress:
+    "\u0627\u0644\u0628\u0631\u064a\u062f \u0627\u0644\u0625\u0644\u0643\u062a\u0631\u0648\u0646\u064a",
+  signIn: "\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062f\u062e\u0648\u0644",
+};
+const privateTextFallbackMarkers = [
+  "Home",
+  "Accounts",
+  "Transactions",
+  "Metals",
+  "Settings",
+  "Good Evening",
+  "Good Afternoon",
+  "Good Morning",
+  ...Object.values(arabicPrivateTextFallbackMarkers),
+];
 const authReadyMarkers = [
+  "emailAddress",
   "Welcome to Monyvi",
   "Email address",
   "Sign In",
-  "Your bank texts. We listen.",
   "Skip",
+  "Get Started",
+  "Track with your voice.",
+  "Your bank texts. We listen.",
+  "Live rates. Real gold.",
+  ...Object.values(arabicAuthReadyMarkers),
 ];
 
 function appendAndroidPlatform(url) {
   const parsedUrl = new URL(url);
-  if (!parsedUrl.searchParams.has("platform")) {
-    parsedUrl.searchParams.set("platform", "android");
-  }
+  parsedUrl.searchParams.set("platform", "android");
   return parsedUrl.toString();
 }
 
@@ -117,7 +150,11 @@ function waitForHttpOk(url, timeoutMs) {
     function attempt() {
       const request = http.get(url, (response) => {
         response.resume();
-        if (response.statusCode && response.statusCode >= 200) {
+        if (
+          response.statusCode &&
+          response.statusCode >= 200 &&
+          response.statusCode < 300
+        ) {
           resolve();
           return;
         }
@@ -136,46 +173,6 @@ function waitForHttpOk(url, timeoutMs) {
         reject(
           new Error(
             `Metro is not reachable at ${url}. Start it with npm run start:android.`
-          )
-        );
-        return;
-      }
-      setTimeout(attempt, 1000);
-    }
-
-    attempt();
-  });
-}
-
-function waitForHttpComplete(url, timeoutMs) {
-  return new Promise((resolve, reject) => {
-    const startedAt = Date.now();
-
-    function attempt() {
-      const request = http.get(url, (response) => {
-        if (!response.statusCode || response.statusCode < 200) {
-          response.resume();
-          retry();
-          return;
-        }
-
-        response.on("data", () => {});
-        response.on("end", resolve);
-        response.on("error", retry);
-      });
-
-      request.on("error", retry);
-      request.setTimeout(60000, () => {
-        request.destroy();
-        retry();
-      });
-    }
-
-    function retry() {
-      if (Date.now() - startedAt >= timeoutMs) {
-        reject(
-          new Error(
-            `Metro did not finish serving the Android bundle at ${url}.`
           )
         );
         return;
@@ -314,8 +311,6 @@ function dismissDevMenuIfVisible(uiXml) {
   if (uiXml.includes("This is the developer menu")) {
     tapByVisibleLabel(uiXml, "Continue");
     wait(2000);
-    adb(["shell", "input", "keyevent", "4"], { allowFailure: true });
-    wait(2000);
     return true;
   }
 
@@ -387,15 +382,18 @@ function isAppReady(uiXml) {
   }
 
   const isSettingsReady =
-    uiXml.includes("LANGUAGE") &&
-    uiXml.includes("SMS SYNC") &&
-    uiXml.includes("LIVE SMS DETECTION");
-  const isPrivateHomeReady =
-    uiXml.includes("Open menu") &&
-    privateReadyMarkers.some((marker) => uiXml.includes(marker));
+    uiXml.includes("sms-sync-button") ||
+    uiXml.includes("live-sms-detection-switch") ||
+    (uiXml.includes("LANGUAGE") &&
+      uiXml.includes("SMS SYNC") &&
+      uiXml.includes("LIVE SMS DETECTION"));
+  const isPrivateShellReady =
+    privateShellMarkers.some((marker) => uiXml.includes(marker)) ||
+    (uiXml.includes("Open menu") &&
+      privateTextFallbackMarkers.some((marker) => uiXml.includes(marker)));
   const isAuthReady = authReadyMarkers.some((marker) => uiXml.includes(marker));
 
-  return isSettingsReady || isPrivateHomeReady || isAuthReady;
+  return isSettingsReady || isPrivateShellReady || isAuthReady;
 }
 
 function assertNotWrongShell(currentFocus) {
@@ -431,10 +429,7 @@ function waitForProductUi(timeoutMs = 240000) {
     }
 
     if (
-      restoreAppFromDevLauncherIfFocused(
-        lastFocus,
-        devLauncherRestoreAttempts
-      )
+      restoreAppFromDevLauncherIfFocused(lastFocus, devLauncherRestoreAttempts)
     ) {
       devLauncherRestoreAttempts += 1;
       continue;
@@ -457,6 +452,7 @@ function waitForProductUi(timeoutMs = 240000) {
     }
 
     if (lastFocus.includes(appId) && isAppReady(lastUiXml)) {
+      wait(3000);
       const finalFocus = getCurrentFocus();
       const finalUiXml = dumpVisibleText();
       if (
@@ -511,11 +507,6 @@ function visibleTextShowsDevMenu(uiXml) {
 async function ensureE2eAppReady() {
   if (!isReleaseBuild) {
     await waitForHttpOk(new URL("/status", hostMetroUrl).toString(), 120000);
-    const bundleUrl = new URL(
-      "/index.bundle?platform=android&dev=true&minify=false",
-      hostMetroUrl
-    );
-    await waitForHttpComplete(bundleUrl.toString(), 300000);
   }
 
   let lastError = null;
@@ -554,6 +545,8 @@ module.exports = {
   dumpVisibleText,
   ensureE2eAppReady,
   forceStopApp,
+  appendAndroidPlatform,
+  isAppReady,
   isReleaseBuild,
   hostMetroUrl,
   metroUrl,

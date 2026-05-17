@@ -303,11 +303,10 @@ export default function SettingsScreen(): React.JSX.Element {
   }, [isAndroid, reconcileStoredLiveDetection]);
 
   const persistLiveDetectionEnabled = useCallback(async (): Promise<void> => {
-    setLiveDetection(true);
-    setIsLiveDetectionPreferenceReady(true);
-
     try {
       await setLiveDetectionEnabled(true);
+      setIsLiveDetectionPreferenceReady(true);
+      setLiveDetection(true);
       startSmsListener();
       hasActiveLiveDetectionEnableFlowRef.current = false;
     } catch (error: unknown) {
@@ -595,12 +594,7 @@ export default function SettingsScreen(): React.JSX.Element {
     return () => {
       subscription.remove();
     };
-  }, [
-    hasPendingLiveDetectionEnable,
-    recheckPermission,
-    showToast,
-    tCommon,
-  ]);
+  }, [hasPendingLiveDetectionEnable, recheckPermission, showToast, tCommon]);
 
   const handleToggleAutoConfirm = useCallback(
     async (value: boolean): Promise<void> => {

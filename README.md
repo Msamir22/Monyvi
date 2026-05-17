@@ -59,6 +59,24 @@ npm test -w @monyvi/mobile
 npm run lint
 ```
 
+## Local Supabase Mobile App
+
+For normal local development against the local Supabase stack:
+
+```bash
+# 1. Start Supabase from the repo root
+npx supabase start
+
+# 2. Start the Expo dev client in normal app mode
+npm run mobile:local-supabase
+```
+
+`mobile:local-supabase` reads the local anon key from
+`npx supabase status -o env`, points Android emulators at
+`http://10.0.2.2:54321`, and keeps test-only fixture behavior off. Use
+`mobile:e2e-fixture` only when you want the deterministic E2E fixture parser and
+seeded test flow.
+
 ## Tech Stack
 
 - **Mobile:** React Native + Expo

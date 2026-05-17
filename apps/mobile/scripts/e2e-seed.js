@@ -1,26 +1,11 @@
-const { createHmac } = require("node:crypto");
+const { createHash, createHmac } = require("node:crypto");
 const { createClient } = require("@supabase/supabase-js");
 
 const LOCAL_SUPABASE_URL = "http://127.0.0.1:54321";
 const LOCAL_ANDROID_SUPABASE_URL = "http://10.0.2.2:54321";
-const LOCAL_JWT_SECRET =
-  "super-secret-jwt-token-with-at-least-32-characters-long";
-const LOCAL_E2E_EMAIL = "e2e@monyvi.test";
-const LOCAL_E2E_PASSWORD = "Password123!";
 
 const E2E_USER_FULL_NAME = "Monyvi E2E";
 const FIXED_NOW = "2026-04-08T12:00:00.000Z";
-
-const ACCOUNT_IDS = {
-  cash: "00000000-0000-0000-0002-000000000001",
-  bank: "00000000-0000-0000-0002-000000000002",
-  wallet: "00000000-0000-0000-0002-000000000003",
-};
-
-const BANK_DETAIL_IDS = {
-  nbe: "00000000-0000-0000-0003-000000000001",
-  qnb: "00000000-0000-0000-0003-000000000002",
-};
 
 const CATEGORY_IDS = {
   shopping: "00000000-0000-0000-0001-000000000004",
@@ -44,12 +29,52 @@ const E2E_TABLE_DELETE_ORDER = [
   "categories",
   "profiles",
 ];
+const AUTH_USER_PAGE_SIZE = 1000;
+
+function deterministicUuid(namespace, label) {
+  const hex = createHash("sha256")
+    .update(`monyvi:e2e:${namespace}:${label}`)
+    .digest("hex")
+    .slice(0, 32);
+  const chars = hex.split("");
+  chars[12] = "5";
+  chars[16] = ((Number.parseInt(chars[16], 16) & 0x3) | 0x8).toString(16);
+  const uuidHex = chars.join("");
+  return [
+    uuidHex.slice(0, 8),
+    uuidHex.slice(8, 12),
+    uuidHex.slice(12, 16),
+    uuidHex.slice(16, 20),
+    uuidHex.slice(20, 32),
+  ].join("-");
+}
+
+function buildSeedIds(userId) {
+  return {
+    accounts: {
+      cash: deterministicUuid(userId, "account:cash"),
+      bank: deterministicUuid(userId, "account:bank"),
+      wallet: deterministicUuid(userId, "account:wallet"),
+    },
+    bankDetails: {
+      nbe: deterministicUuid(userId, "bank-detail:nbe"),
+      qnb: deterministicUuid(userId, "bank-detail:qnb"),
+    },
+    transactions: {
+      expense: deterministicUuid(userId, "transaction:expense"),
+      income: deterministicUuid(userId, "transaction:income"),
+    },
+    transfers: {
+      atm: deterministicUuid(userId, "transfer:atm"),
+    },
+  };
+}
 
 function base64Url(value) {
   return Buffer.from(JSON.stringify(value)).toString("base64url");
 }
 
-function createLocalSupabaseJwt(role) {
+function createLocalSupabaseJwt(jwtSecret, role) {
   const header = { alg: "HS256", typ: "JWT" };
   const payload = {
     iss: "supabase",
@@ -59,15 +84,12 @@ function createLocalSupabaseJwt(role) {
     exp: 4102444800,
   };
   const signingInput = `${base64Url(header)}.${base64Url(payload)}`;
-  const signature = createHmac("sha256", LOCAL_JWT_SECRET)
+  const signature = createHmac("sha256", jwtSecret)
     .update(signingInput)
     .digest("base64url");
 
   return `${signingInput}.${signature}`;
 }
-
-const LOCAL_SUPABASE_ANON_KEY = createLocalSupabaseJwt("anon");
-const LOCAL_SUPABASE_SERVICE_ROLE_KEY = createLocalSupabaseJwt("service_role");
 
 function requiredRemoteEnv(env, name) {
   const value = env[name];
@@ -75,9 +97,23 @@ function requiredRemoteEnv(env, name) {
   throw new Error(`${name} is required when E2E_SUPABASE_MODE=remote`);
 }
 
+function requiredLocalEnv(env, name) {
+  const value = env[name];
+  if (value) return value;
+  throw new Error(`${name} is required when E2E_SUPABASE_MODE=local`);
+}
+
 function getE2eSeedConfig(env = process.env) {
   const mode = env.E2E_SUPABASE_MODE === "remote" ? "remote" : "local";
   const isLocal = mode === "local";
+  const localJwtSecret = isLocal ? env.E2E_LOCAL_JWT_SECRET : null;
+
+  function getLocalJwt(role) {
+    return createLocalSupabaseJwt(
+      localJwtSecret ?? requiredLocalEnv(env, "E2E_LOCAL_JWT_SECRET"),
+      role
+    );
+  }
 
   return {
     mode,
@@ -93,20 +129,22 @@ function getE2eSeedConfig(env = process.env) {
     serviceRoleKey:
       env.SUPABASE_SERVICE_ROLE_KEY ??
       (isLocal
-        ? LOCAL_SUPABASE_SERVICE_ROLE_KEY
+        ? getLocalJwt("service_role")
         : requiredRemoteEnv(env, "SUPABASE_SERVICE_ROLE_KEY")),
     anonKey:
       env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??
       (isLocal
-        ? LOCAL_SUPABASE_ANON_KEY
+        ? getLocalJwt("anon")
         : requiredRemoteEnv(env, "EXPO_PUBLIC_SUPABASE_ANON_KEY")),
     email:
       env.MAESTRO_E2E_EMAIL ??
-      (isLocal ? LOCAL_E2E_EMAIL : requiredRemoteEnv(env, "MAESTRO_E2E_EMAIL")),
+      (isLocal
+        ? requiredLocalEnv(env, "MAESTRO_E2E_EMAIL")
+        : requiredRemoteEnv(env, "MAESTRO_E2E_EMAIL")),
     password:
       env.MAESTRO_E2E_PASSWORD ??
       (isLocal
-        ? LOCAL_E2E_PASSWORD
+        ? requiredLocalEnv(env, "MAESTRO_E2E_PASSWORD")
         : requiredRemoteEnv(env, "MAESTRO_E2E_PASSWORD")),
   };
 }
@@ -119,14 +157,18 @@ async function assertNoError(result, label) {
 }
 
 async function ensureE2eUser(client, config) {
-  const usersResult = await assertNoError(
-    await client.auth.admin.listUsers(),
-    "list E2E users"
-  );
-  const existingUser = usersResult.data.users.find(
-    (user) => user.email === config.email
-  );
-  if (existingUser) return existingUser.id;
+  const existingUser = await findE2eUser(client, config.email);
+  if (existingUser) {
+    await assertNoError(
+      await client.auth.admin.updateUserById(existingUser.id, {
+        password: config.password,
+        email_confirm: true,
+        user_metadata: { full_name: E2E_USER_FULL_NAME },
+      }),
+      "sync E2E user credentials"
+    );
+    return existingUser.id;
+  }
 
   const createResult = await assertNoError(
     await client.auth.admin.createUser({
@@ -141,18 +183,43 @@ async function ensureE2eUser(client, config) {
   return createResult.data.user.id;
 }
 
-async function deleteScopedRows(client, table, userId) {
+async function findE2eUser(client, email) {
+  let page = 1;
+
+  while (true) {
+    const usersResult = await assertNoError(
+      await client.auth.admin.listUsers({
+        page,
+        perPage: AUTH_USER_PAGE_SIZE,
+      }),
+      "list E2E users"
+    );
+    const users = usersResult.data.users;
+    const existingUser = users.find((user) => user.email === email);
+    if (existingUser) {
+      return existingUser;
+    }
+
+    if (users.length < AUTH_USER_PAGE_SIZE) {
+      return null;
+    }
+
+    page += 1;
+  }
+}
+
+async function deleteScopedRows(client, table, userId, seedIds) {
   if (table === "bank_details") {
     const deleteBuilder = client.from(table).delete();
     if (typeof deleteBuilder.in !== "function") {
       return assertNoError(
-        await deleteBuilder.eq("account_id", ACCOUNT_IDS.bank),
+        await deleteBuilder.eq("account_id", seedIds.accounts.bank),
         `delete ${table}`
       );
     }
 
     return assertNoError(
-      await deleteBuilder.in("account_id", Object.values(ACCOUNT_IDS)),
+      await deleteBuilder.in("account_id", Object.values(seedIds.accounts)),
       `delete ${table}`
     );
   }
@@ -169,6 +236,8 @@ async function upsertRows(client, table, rows, options) {
 }
 
 function buildSeedRows(userId) {
+  const seedIds = buildSeedIds(userId);
+
   return {
     profile: {
       user_id: userId,
@@ -192,7 +261,7 @@ function buildSeedRows(userId) {
     },
     accounts: [
       {
-        id: ACCOUNT_IDS.cash,
+        id: seedIds.accounts.cash,
         user_id: userId,
         name: "E2E Cash",
         type: "CASH",
@@ -204,7 +273,7 @@ function buildSeedRows(userId) {
         updated_at: FIXED_NOW,
       },
       {
-        id: ACCOUNT_IDS.bank,
+        id: seedIds.accounts.bank,
         user_id: userId,
         name: "E2E NBE Bank",
         type: "BANK",
@@ -216,7 +285,7 @@ function buildSeedRows(userId) {
         updated_at: FIXED_NOW,
       },
       {
-        id: ACCOUNT_IDS.wallet,
+        id: seedIds.accounts.wallet,
         user_id: userId,
         name: "E2E Wallet",
         type: "DIGITAL_WALLET",
@@ -230,8 +299,8 @@ function buildSeedRows(userId) {
     ],
     bankDetails: [
       {
-        id: BANK_DETAIL_IDS.nbe,
-        account_id: ACCOUNT_IDS.bank,
+        id: seedIds.bankDetails.nbe,
+        account_id: seedIds.accounts.bank,
         bank_name: "NBE",
         card_last_4: "4321",
         sms_sender_name: "NBE",
@@ -241,8 +310,8 @@ function buildSeedRows(userId) {
         updated_at: FIXED_NOW,
       },
       {
-        id: BANK_DETAIL_IDS.qnb,
-        account_id: ACCOUNT_IDS.bank,
+        id: seedIds.bankDetails.qnb,
+        account_id: seedIds.accounts.bank,
         bank_name: "QNB",
         card_last_4: "5566",
         sms_sender_name: "QNB",
@@ -254,9 +323,9 @@ function buildSeedRows(userId) {
     ],
     transactions: [
       {
-        id: "00000000-0000-0000-0004-000000000001",
+        id: seedIds.transactions.expense,
         user_id: userId,
-        account_id: ACCOUNT_IDS.cash,
+        account_id: seedIds.accounts.cash,
         amount: 125,
         currency: "EGP",
         type: "EXPENSE",
@@ -271,9 +340,9 @@ function buildSeedRows(userId) {
         updated_at: FIXED_NOW,
       },
       {
-        id: "00000000-0000-0000-0004-000000000002",
+        id: seedIds.transactions.income,
         user_id: userId,
-        account_id: ACCOUNT_IDS.bank,
+        account_id: seedIds.accounts.bank,
         amount: 3000,
         currency: "EGP",
         type: "INCOME",
@@ -290,10 +359,10 @@ function buildSeedRows(userId) {
     ],
     transfers: [
       {
-        id: "00000000-0000-0000-0005-000000000001",
+        id: seedIds.transfers.atm,
         user_id: userId,
-        from_account_id: ACCOUNT_IDS.bank,
-        to_account_id: ACCOUNT_IDS.cash,
+        from_account_id: seedIds.accounts.bank,
+        to_account_id: seedIds.accounts.cash,
         amount: 500,
         currency: "EGP",
         exchange_rate: null,
@@ -310,10 +379,11 @@ function buildSeedRows(userId) {
 
 async function seedE2eData(client, config) {
   const userId = config.userId ?? (await ensureE2eUser(client, config));
+  const seedIds = buildSeedIds(userId);
   const rows = buildSeedRows(userId);
 
   for (const table of E2E_TABLE_DELETE_ORDER) {
-    await deleteScopedRows(client, table, userId);
+    await deleteScopedRows(client, table, userId, seedIds);
   }
 
   await upsertRows(client, "profiles", rows.profile, {
@@ -331,6 +401,17 @@ async function seedE2eData(client, config) {
   return { userId };
 }
 
+async function resetE2eData(client, config) {
+  const userId = config.userId ?? (await ensureE2eUser(client, config));
+  const seedIds = buildSeedIds(userId);
+
+  for (const table of E2E_TABLE_DELETE_ORDER) {
+    await deleteScopedRows(client, table, userId, seedIds);
+  }
+
+  return { userId };
+}
+
 async function main() {
   const config = getE2eSeedConfig();
   const client = createClient(config.supabaseUrl, config.serviceRoleKey, {
@@ -340,6 +421,14 @@ async function main() {
   const action = process.argv[2] ?? "seed";
   if (action !== "seed" && action !== "reset") {
     throw new Error(`Unknown e2e seed action: ${action}`);
+  }
+
+  if (action === "reset") {
+    const result = await resetE2eData(client, config);
+    console.log(
+      `Reset E2E data for ${config.email} (${result.userId}) on ${config.mode} Supabase`
+    );
+    return;
   }
 
   const result = await seedE2eData(client, config);
@@ -357,6 +446,8 @@ if (require.main === module) {
 
 module.exports = {
   E2E_TABLE_DELETE_ORDER,
+  createLocalSupabaseJwt,
   getE2eSeedConfig,
+  resetE2eData,
   seedE2eData,
 };
