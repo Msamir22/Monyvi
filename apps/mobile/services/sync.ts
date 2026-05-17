@@ -35,6 +35,9 @@ const TIMESTAMP_COLUMNS = ["created_at", "updated_at"] as const;
 // Combined for transformFromSupabase (all date-like columns)
 const ALL_DATE_COLUMNS = [...DATE_ONLY_COLUMNS, ...TIMESTAMP_COLUMNS] as const;
 
+const PROFILE_NOTIFICATION_SETTINGS_COLUMN = "notification_settings";
+const PROFILE_ONBOARDING_FLAGS_COLUMN = "onboarding_flags";
+
 export const EXCLUDED_TABLES = ["__InternalSupabase"] as const;
 
 /**
@@ -140,7 +143,9 @@ async function pullMarketRates(
     }
 
     // Transform records
-    const activeRecords = data.map((record) => transformFromSupabase(record));
+    const activeRecords = data.map((record) =>
+      transformFromSupabase("market_rates", record)
+    );
 
     return {
       created: [],
@@ -192,7 +197,9 @@ async function pullSnapshotTable(
     }
 
     // Transform records — snapshot tables have no `deleted` column
-    const activeRecords = data.map((record) => transformFromSupabase(record));
+    const activeRecords = data.map((record) =>
+      transformFromSupabase(table, record)
+    );
 
     return {
       created: [],
@@ -235,7 +242,7 @@ async function pullUserTable(
 
   const activeRecords = data
     .filter((record) => record.deleted !== true)
-    .map((record) => transformFromSupabase(record));
+    .map((record) => transformFromSupabase(table, record));
 
   return {
     created: [],
@@ -297,7 +304,7 @@ async function pullChildTable(
 
   const activeRecords = data
     .filter((record) => record.deleted !== true)
-    .map((record) => transformFromSupabase(record));
+    .map((record) => transformFromSupabase(table, record));
 
   return {
     created: [],
@@ -338,7 +345,7 @@ async function pullCategories(
 
   const activeRecords = data
     .filter((record) => record.deleted !== true)
-    .map((record) => transformFromSupabase(record));
+    .map((record) => transformFromSupabase("categories", record));
 
   return {
     created: [],
@@ -467,7 +474,7 @@ async function pushChanges(
             childConfig,
             activeParentIds
           );
-          return transformToSupabase(record, userId, isChildTable);
+          return transformToSupabase(table, record, userId, isChildTable);
         });
 
         const { error } = await supabase.from(table).insert(records);
@@ -486,7 +493,12 @@ async function pushChanges(
             childConfig,
             activeParentIds
           );
-          const transformed = transformToSupabase(record, userId, isChildTable);
+          const transformed = transformToSupabase(
+            table,
+            record,
+            userId,
+            isChildTable
+          );
 
           const { error } = await supabase
             .from(table)
@@ -574,10 +586,77 @@ function assertPushRecordBelongsToCurrentUser(
 /**
  * Transform Supabase record to WatermelonDB format
  */
-function transformFromSupabase(
+function stringifyJsonForWatermelon(value: unknown): string | null | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null) {
+    return null;
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  return JSON.stringify(value);
+}
+
+function parseJsonForSupabase(
+  value: unknown,
+  fallback: Record<string, never> | null
+): unknown {
+  if (value === undefined || value === null) {
+    return fallback;
+  }
+
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return fallback;
+  }
+}
+
+function normalizeProfileFromSupabase(
   record: Record<string, unknown>
 ): Record<string, unknown> {
-  const transformed: Record<string, unknown> = { ...record };
+  return {
+    ...record,
+    [PROFILE_NOTIFICATION_SETTINGS_COLUMN]: stringifyJsonForWatermelon(
+      record[PROFILE_NOTIFICATION_SETTINGS_COLUMN]
+    ),
+    [PROFILE_ONBOARDING_FLAGS_COLUMN]:
+      stringifyJsonForWatermelon(record[PROFILE_ONBOARDING_FLAGS_COLUMN]) ??
+      "{}",
+  };
+}
+
+function normalizeProfileToSupabase(
+  record: Record<string, unknown>
+): Record<string, unknown> {
+  return {
+    ...record,
+    [PROFILE_NOTIFICATION_SETTINGS_COLUMN]: parseJsonForSupabase(
+      record[PROFILE_NOTIFICATION_SETTINGS_COLUMN],
+      null
+    ),
+    [PROFILE_ONBOARDING_FLAGS_COLUMN]: parseJsonForSupabase(
+      record[PROFILE_ONBOARDING_FLAGS_COLUMN],
+      {}
+    ),
+  };
+}
+
+function transformFromSupabase(
+  table: SupabaseTablesNames,
+  record: Record<string, unknown>
+): Record<string, unknown> {
+  const transformed: Record<string, unknown> =
+    table === "profiles" ? normalizeProfileFromSupabase(record) : { ...record };
 
   for (const col of ALL_DATE_COLUMNS) {
     if (typeof record[col] === "string") {
@@ -599,12 +678,16 @@ type SupabaseInsert<T extends WritableSupabaseTablesNames> =
  * Transform WatermelonDB record to Supabase format
  */
 function transformToSupabase<T extends WritableSupabaseTablesNames>(
+  table: T,
   record: unknown,
   userId: string,
   isChildTable: boolean = false
 ): SupabaseInsert<T> {
   const wmRecord = record as Record<string, unknown>;
-  const transformed: Record<string, unknown> = { ...wmRecord };
+  const transformed: Record<string, unknown> =
+    table === "profiles"
+      ? normalizeProfileToSupabase(wmRecord)
+      : { ...wmRecord };
 
   // Remove WatermelonDB internal fields - these don't exist in Supabase schema
   // _status tracks sync state (synced, created, updated, deleted)

@@ -198,6 +198,98 @@ describe("syncDatabase", () => {
     await expect(syncDatabase(mockDatabase)).rejects.toThrow("upsert failed");
   });
 
+  it("pushes profile onboarding flags as JSON instead of null", async () => {
+    mockUpsert.mockResolvedValue({ error: null });
+    mockSynchronize.mockImplementation(
+      async (args: {
+        pushChanges: (input: {
+          changes: Record<string, unknown>;
+          lastPulledAt: number | null;
+        }) => Promise<unknown>;
+      }) => {
+        await args.pushChanges({
+          changes: {
+            profiles: {
+              created: [],
+              updated: [
+                {
+                  id: "profile-1",
+                  user_id: "current-user",
+                  onboarding_flags: null,
+                  notification_settings:
+                    '{"sms_transaction_confirmation":true}',
+                },
+              ],
+              deleted: [],
+            },
+          },
+          lastPulledAt: null,
+        });
+      }
+    );
+
+    await expect(syncDatabase(mockDatabase)).resolves.toBeUndefined();
+
+    expect(mockUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "profile-1",
+        user_id: "current-user",
+        onboarding_flags: {},
+        notification_settings: {
+          sms_transaction_confirmation: true,
+        },
+      }),
+      { onConflict: "id" }
+    );
+  });
+
+  it("pulls profile JSON fields as WatermelonDB string fields", async () => {
+    selectResult = {
+      data: [
+        {
+          id: "profile-1",
+          user_id: "current-user",
+          deleted: false,
+          created_at: "2026-05-18T08:00:00.000Z",
+          updated_at: "2026-05-18T08:00:00.000Z",
+          onboarding_flags: { cash_account_tooltip_dismissed: true },
+          notification_settings: {
+            sms_transaction_confirmation: true,
+          },
+        },
+      ],
+      error: null,
+    };
+
+    let pulledChanges: Record<string, unknown> | undefined;
+    mockSynchronize.mockImplementation(
+      async (args: {
+        pullChanges: (input: {
+          lastPulledAt: number | null;
+        }) => Promise<{ changes: Record<string, unknown> }>;
+      }) => {
+        const result = await args.pullChanges({ lastPulledAt: null });
+        pulledChanges = result.changes;
+      }
+    );
+
+    await expect(syncDatabase(mockDatabase, true)).resolves.toBeUndefined();
+
+    const changes = pulledChanges as {
+      readonly profiles: {
+        readonly updated: ReadonlyArray<Record<string, unknown>>;
+      };
+    };
+    expect(changes.profiles.updated[0]).toEqual(
+      expect.objectContaining({
+        onboarding_flags: '{"cash_account_tooltip_dismissed":true}',
+        notification_settings: '{"sms_transaction_confirmation":true}',
+        created_at: Date.UTC(2026, 4, 18, 8),
+        updated_at: Date.UTC(2026, 4, 18, 8),
+      })
+    );
+  });
+
   it("rejects push soft-delete errors so WatermelonDB keeps the delete dirty", async () => {
     mockUpdateIn.mockResolvedValue({ error: { message: "delete failed" } });
     mockSynchronize.mockImplementation(
