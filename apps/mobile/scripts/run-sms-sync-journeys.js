@@ -134,6 +134,8 @@ function verifyBatchSmsSaved() {
   );
 }
 
+let hasSavedSmsSyncBaseline = false;
+
 async function runBatchDuplicatesAndAtm() {
   grantReadSmsPermission();
   clearSmsSyncProbeRows();
@@ -141,9 +143,14 @@ async function runBatchDuplicatesAndAtm() {
   await ensureE2eAppReady();
   runFlow("sms-sync-batch-duplicates-atm.yaml");
   verifyBatchSmsSaved();
+  hasSavedSmsSyncBaseline = true;
 }
 
 async function runRescanSkipsSaved() {
+  if (!hasSavedSmsSyncBaseline) {
+    await runBatchDuplicatesAndAtm();
+  }
+
   grantReadSmsPermission();
   forceStopApp();
   await ensureE2eAppReady();
@@ -165,9 +172,7 @@ async function main() {
       ? requested.map((id) => id.padStart(2, "0"))
       : Object.keys(journeys);
 
-  if (selected.includes("01")) {
-    await bootstrapCleanAuthenticatedSession();
-  }
+  await bootstrapCleanAuthenticatedSession();
 
   for (const id of selected) {
     const journey = journeys[id];

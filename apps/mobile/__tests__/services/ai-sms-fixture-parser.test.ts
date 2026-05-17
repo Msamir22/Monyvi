@@ -1,4 +1,4 @@
-import type { Category } from "@monyvi/db";
+import type { CategoryTreeSource } from "@monyvi/logic";
 import type { SmsCandidate } from "@/services/ai-sms-parser-service";
 import { parseSmsWithFixtureAi } from "@/services/testing/ai-sms-fixture-parser";
 import { getFixtureById } from "@/services/dev/sms-fixtures";
@@ -7,8 +7,15 @@ function category(
   systemName: string,
   displayName: string,
   id = `cat-${systemName}`
-): Category {
-  const value: Category = { id, systemName, displayName };
+): CategoryTreeSource {
+  const value: CategoryTreeSource = {
+    id,
+    systemName,
+    displayName,
+    level: 1,
+    parentId: undefined,
+    type: systemName === "salary" ? "INCOME" : "EXPENSE",
+  };
   return value;
 }
 

@@ -10,9 +10,7 @@ const hostMetroUrl =
   process.env.E2E_METRO_URL ||
   "http://127.0.0.1:8081";
 const metroUrl = appendAndroidPlatform(
-  process.env.E2E_DEVICE_METRO_URL ||
-    process.env.E2E_METRO_URL ||
-    hostMetroUrl
+  process.env.E2E_DEVICE_METRO_URL || process.env.E2E_METRO_URL || hostMetroUrl
 );
 const isReleaseBuild = process.env.E2E_RELEASE_BUILD === "1";
 const preflightLaunchAttempts = parsePositiveInt(
@@ -117,7 +115,11 @@ function waitForHttpOk(url, timeoutMs) {
     function attempt() {
       const request = http.get(url, (response) => {
         response.resume();
-        if (response.statusCode && response.statusCode >= 200) {
+        if (
+          response.statusCode &&
+          response.statusCode >= 200 &&
+          response.statusCode < 300
+        ) {
           resolve();
           return;
         }
@@ -153,7 +155,11 @@ function waitForHttpComplete(url, timeoutMs) {
 
     function attempt() {
       const request = http.get(url, (response) => {
-        if (!response.statusCode || response.statusCode < 200) {
+        if (
+          !response.statusCode ||
+          response.statusCode < 200 ||
+          response.statusCode >= 300
+        ) {
           response.resume();
           retry();
           return;
@@ -431,10 +437,7 @@ function waitForProductUi(timeoutMs = 240000) {
     }
 
     if (
-      restoreAppFromDevLauncherIfFocused(
-        lastFocus,
-        devLauncherRestoreAttempts
-      )
+      restoreAppFromDevLauncherIfFocused(lastFocus, devLauncherRestoreAttempts)
     ) {
       devLauncherRestoreAttempts += 1;
       continue;

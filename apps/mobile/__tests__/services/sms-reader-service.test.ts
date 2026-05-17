@@ -10,8 +10,8 @@ import { readSmsInbox } from "@/services/sms-reader-service";
 
 const originalPlatformOS = Platform.OS;
 
-describe("sms-reader-service", () => {
-  beforeEach(() => {
+describe("sms-reader-service", (): void => {
+  beforeEach((): void => {
     jest.clearAllMocks();
     delete process.env.EXPO_PUBLIC_MONYVI_TEST_MODE;
     delete process.env.EXPO_PUBLIC_AI_SMS_PARSER_MODE;
@@ -21,14 +21,14 @@ describe("sms-reader-service", () => {
     });
   });
 
-  afterEach(() => {
+  afterEach((): void => {
     Object.defineProperty(Platform, "OS", {
       configurable: true,
       value: originalPlatformOS,
     });
   });
 
-  it("uses a stable timestamp fallback for invalid native SMS dates", async () => {
+  it("uses a stable timestamp fallback for invalid native SMS dates", async (): Promise<void> => {
     mockNativeSmsList.mockImplementation(
       (
         _filter: string,
@@ -57,7 +57,7 @@ describe("sms-reader-service", () => {
     expect(secondRead[0]?.date).toBe(0);
   });
 
-  it("uses deterministic fixture inbox messages in E2E fixture mode", async () => {
+  it("uses deterministic fixture inbox messages in E2E fixture mode", async (): Promise<void> => {
     process.env.EXPO_PUBLIC_MONYVI_TEST_MODE = "e2e";
     process.env.EXPO_PUBLIC_AI_SMS_PARSER_MODE = "fixture";
 
@@ -71,5 +71,37 @@ describe("sms-reader-service", () => {
       "QNB Alahli: ATM cash withdrawal EGP 2,000.00 from card **** 5566 on 08/04/2026 15:02. Avail bal EGP 8,000.00",
     ]);
     expect(messages[0]?.date).not.toBe(messages[1]?.date);
+  });
+
+  it("keeps the fixture inbox disabled on iOS", async (): Promise<void> => {
+    process.env.EXPO_PUBLIC_MONYVI_TEST_MODE = "e2e";
+    process.env.EXPO_PUBLIC_AI_SMS_PARSER_MODE = "fixture";
+    Object.defineProperty(Platform, "OS", {
+      configurable: true,
+      value: "ios",
+    });
+
+    const messages = await readSmsInbox();
+
+    expect(mockNativeSmsList).not.toHaveBeenCalled();
+    expect(messages).toEqual([]);
+  });
+
+  it("applies fixture inbox sender and scan-window filters", async (): Promise<void> => {
+    process.env.EXPO_PUBLIC_MONYVI_TEST_MODE = "e2e";
+    process.env.EXPO_PUBLIC_AI_SMS_PARSER_MODE = "fixture";
+
+    const messages = await readSmsInbox({
+      address: "NBE",
+      minDate: Date.parse("2026-08-01T00:00:00.000Z"),
+    });
+
+    expect(messages).toHaveLength(2);
+    expect(messages.every((message) => message.address === "NBE")).toBe(true);
+    expect(
+      messages.every(
+        (message) => message.date >= Date.parse("2026-08-01T00:00:00.000Z")
+      )
+    ).toBe(true);
   });
 });

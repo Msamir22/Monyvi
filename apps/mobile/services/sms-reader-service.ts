@@ -77,36 +77,97 @@ const E2E_SMS_INBOX_FIXTURE_IDS = [
 ] as const;
 
 const E2E_DUPLICATE_SECOND_OFFSET_MS = 60_000;
+const E2E_FIXTURE_SCAN_WINDOW_OFFSET_MS = 1_000;
+
+interface FixtureInboxMessage {
+  readonly id: string;
+  readonly address: string;
+  readonly body: string;
+  readonly date: number;
+  readonly read: true;
+}
+
+function resolveFixtureTimestamp(
+  fixtureId: string,
+  index: number,
+  timestamp: number | undefined
+): number {
+  if (timestamp === undefined) {
+    throw new Error(
+      `Fixture ${fixtureId} at index ${index} must define timestamp in E2E fixture mode`
+    );
+  }
+
+  return timestamp;
+}
+
+function getFixtureInboxDateOffset(
+  messages: readonly FixtureInboxMessage[],
+  minDate: number | undefined
+): number {
+  if (minDate === undefined) {
+    return 0;
+  }
+
+  const latestFixtureDate = Math.max(
+    ...messages.map((message) => message.date)
+  );
+  if (latestFixtureDate >= minDate) {
+    return 0;
+  }
+
+  const earliestFixtureDate = Math.min(
+    ...messages.map((message) => message.date)
+  );
+  return minDate - earliestFixtureDate + E2E_FIXTURE_SCAN_WINDOW_OFFSET_MS;
+}
 
 function readFixtureSmsInbox(
   options?: SmsReaderOptions
 ): readonly SmsMessage[] {
-  const messages = E2E_SMS_INBOX_FIXTURE_IDS.map((fixtureId, index) => {
+  const fixtureMessages = E2E_SMS_INBOX_FIXTURE_IDS.map((fixtureId, index) => {
     const fixture = getFixtureById(fixtureId);
     if (!fixture) {
       throw new Error(`Missing E2E SMS inbox fixture: ${fixtureId}`);
     }
 
-    const baseDate = fixture.timestamp ?? Date.now();
+    const baseDate = resolveFixtureTimestamp(
+      fixtureId,
+      index,
+      fixture.timestamp
+    );
     const duplicateOffset =
       fixtureId === "pr622_batch_duplicate_shop" && index === 1
         ? E2E_DUPLICATE_SECOND_OFFSET_MS
         : 0;
 
-    return {
+    const message: FixtureInboxMessage = {
       id: `e2e-${fixtureId}-${index}`,
       address: fixture.sender,
       body: fixture.body,
       date: baseDate + duplicateOffset,
       read: true,
     };
+    return message;
   });
 
+  const dateOffset = getFixtureInboxDateOffset(
+    fixtureMessages,
+    options?.minDate
+  );
+  const messages = fixtureMessages.map((message) => ({
+    ...message,
+    date: message.date + dateOffset,
+  }));
   const minDate = options?.minDate;
+  const filteredByAddress =
+    options?.address === undefined
+      ? messages
+      : messages.filter((message) => message.address === options.address);
   const filtered =
     minDate === undefined
-      ? messages
-      : messages.filter((message) => message.date >= minDate);
+      ? filteredByAddress
+      : filteredByAddress.filter((message) => message.date >= minDate);
 
   return filtered.slice(0, options?.maxCount ?? 1000);
 }
@@ -124,12 +185,12 @@ function readFixtureSmsInbox(
 export async function readSmsInbox(
   options?: SmsReaderOptions
 ): Promise<readonly SmsMessage[]> {
-  if (shouldUseFixtureSmsParser()) {
-    return readFixtureSmsInbox(options);
-  }
-
   if (Platform.OS !== "android") {
     return [];
+  }
+
+  if (shouldUseFixtureSmsParser()) {
+    return readFixtureSmsInbox(options);
   }
 
   try {
