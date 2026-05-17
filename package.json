@@ -12,6 +12,7 @@
     "api:dev": "npm run dev -w @monyvi/api",
     "api:build": "npm run build -w @monyvi/api",
     "mobile": "npm run start -w @monyvi/mobile",
+    "mobile:local-supabase": "npm run start:local-supabase -w @monyvi/mobile --",
     "mobile:e2e-fixture": "npm run start:e2e-fixture -w @monyvi/mobile",
     "mobile:ios": "npm run ios -w @monyvi/mobile",
     "mobile:android": "npm run android -w @monyvi/mobile",

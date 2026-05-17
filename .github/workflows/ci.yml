@@ -188,13 +188,26 @@ jobs:
             sleep 1
           done
 
-          curl \
-            --fail \
-            --silent \
-            --show-error \
-            --max-time 900 \
-            "http://127.0.0.1:8081/index.bundle?platform=android&dev=true&minify=false" \
-            > /tmp/monyvi-index.android.bundle
+          bundle_deadline=$((SECONDS + 900))
+          while [ "$SECONDS" -lt "$bundle_deadline" ]; do
+            if curl \
+              --fail \
+              --silent \
+              --show-error \
+              --max-time 60 \
+              "http://127.0.0.1:8081/index.bundle?platform=android&dev=true&minify=false" \
+              > /tmp/monyvi-index.android.bundle; then
+              break
+            fi
+
+            sleep 1
+          done
+
+          if [ ! -s /tmp/monyvi-index.android.bundle ]; then
+            echo "Metro did not finish serving the Android bundle."
+            cat metro.log || true
+            exit 1
+          fi
 
       - name: Run Maestro E2E on Android emulator
         uses: reactivecircus/android-emulator-runner@v2
