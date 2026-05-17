@@ -12,6 +12,7 @@
     "android-local-build": "npm run prebuild && npx expo run:android --device",
     "prebuild": "npx expo prebuild",
     "start:local-supabase": "node scripts/start-local-supabase.js",
+    "start:local-supabase:google": "cross-env MONYVI_LOCAL_GOOGLE_AUTH=1 node scripts/start-local-supabase.js",
     "start:e2e-fixture": "node scripts/start-e2e-fixture.js",
     "eas-android-dev": "npx expo eas-build:android --profile development",
     "eas-android-prod": "npx expo eas-build:android --profile production",

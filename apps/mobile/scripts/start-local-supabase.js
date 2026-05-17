@@ -1,7 +1,17 @@
+/**
+ * Starts the Expo dev client in normal app mode against local Supabase.
+ *
+ * The script reads the local anon key from `npx supabase status -o env`, points
+ * Android emulators to the local Supabase API, and keeps E2E fixture behavior
+ * disabled. When `MONYVI_LOCAL_GOOGLE_AUTH=1`, it uses the loopback Supabase URL
+ * plus `adb reverse tcp:54321 tcp:54321` so browser-based Google OAuth can
+ * return to the local Supabase callback from the Android emulator.
+ */
 const { join, resolve } = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const LOCAL_ANDROID_SUPABASE_URL = "http://10.0.2.2:54321";
+const LOCAL_LOOPBACK_SUPABASE_URL = "http://127.0.0.1:54321";
 const repoRoot = resolve(__dirname, "..", "..", "..");
 
 function resolveNpxCommand() {
@@ -62,12 +72,87 @@ function getLocalSupabaseEnv() {
   return { anonKey };
 }
 
+function listConnectedDevices() {
+  const result = spawnSync("adb", ["devices"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    shell: process.platform === "win32",
+    timeout: 10_000,
+  });
+
+  if (result.status !== 0) return [];
+
+  return result.stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.endsWith("\tdevice"))
+    .map((line) => line.split(/\s+/)[0])
+    .filter(Boolean);
+}
+
+function resolveAdbDeviceArgs() {
+  if (process.env.DEVICE) return ["-s", process.env.DEVICE];
+
+  const devices = listConnectedDevices();
+  if (devices.length === 1) return ["-s", devices[0]];
+
+  if (devices.length > 1) {
+    console.warn(
+      [
+        "Multiple Android devices are connected.",
+        "Set DEVICE=<serial> before running this script so local Supabase port 54321 can be reversed.",
+        `Connected devices: ${devices.join(", ")}`,
+      ].join(" ")
+    );
+  }
+
+  return [];
+}
+
+function reverseLocalSupabasePort() {
+  const deviceArgs = resolveAdbDeviceArgs();
+  const result = spawnSync(
+    "adb",
+    [...deviceArgs, "reverse", "tcp:54321", "tcp:54321"],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+      shell: process.platform === "win32",
+      timeout: 10_000,
+    }
+  );
+
+  if (result.status !== 0) {
+    console.warn(
+      [
+        "Could not reverse local Supabase port 54321 to the Android emulator.",
+        "Google sign-in may not complete until an emulator is running and",
+        "`adb reverse tcp:54321 tcp:54321` succeeds.",
+        result.stderr || result.stdout,
+      ]
+        .filter(Boolean)
+        .join("\n")
+    );
+  }
+}
+
 function main() {
   const { anonKey } = getLocalSupabaseEnv();
+  const useLoopbackSupabase =
+    process.env.MONYVI_LOCAL_GOOGLE_AUTH === "1" ||
+    process.env.MONYVI_LOCAL_SUPABASE_LOOPBACK === "1";
+
+  if (useLoopbackSupabase) {
+    reverseLocalSupabasePort();
+  }
+
   const env = {
     ...process.env,
     EXPO_PUBLIC_SUPABASE_URL:
-      process.env.EXPO_PUBLIC_SUPABASE_URL ?? LOCAL_ANDROID_SUPABASE_URL,
+      process.env.EXPO_PUBLIC_SUPABASE_URL ??
+      (useLoopbackSupabase
+        ? LOCAL_LOOPBACK_SUPABASE_URL
+        : LOCAL_ANDROID_SUPABASE_URL),
     EXPO_PUBLIC_SUPABASE_ANON_KEY:
       process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? anonKey,
     EXPO_PUBLIC_MONYVI_TEST_MODE: "off",
@@ -88,7 +173,6 @@ function main() {
     env,
     stdio: "inherit",
     shell: process.platform === "win32",
-    timeout: 5 * 60_000,
   });
 
   process.exit(result.status ?? 1);
