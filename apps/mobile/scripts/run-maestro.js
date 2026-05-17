@@ -29,7 +29,12 @@ function applyLocalE2eDefaults() {
 }
 
 async function main() {
-  applyLocalE2eDefaults();
+  const args = process.argv.slice(2);
+  const hasPreflight = shouldRunPreflight(args);
+
+  if (hasPreflight) {
+    applyLocalE2eDefaults();
+  }
 
   const maestroBin = resolveMaestroBin();
 
@@ -40,8 +45,7 @@ async function main() {
     process.exit(1);
   }
 
-  const args = process.argv.slice(2);
-  if (shouldRunPreflight(args)) {
+  if (hasPreflight) {
     if (process.env.E2E_CLEAR_APP_STATE === "1") {
       adb(["shell", "pm", "clear", appId]);
     }
