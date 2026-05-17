@@ -21,10 +21,6 @@ const preflightAttemptTimeoutMs = parsePositiveInt(
   process.env.E2E_PREFLIGHT_ATTEMPT_TIMEOUT_MS,
   120000
 );
-const preflightBundleTimeoutMs = parsePositiveInt(
-  process.env.E2E_PREFLIGHT_BUNDLE_TIMEOUT_MS,
-  900000
-);
 const devClientUrl = `exp+monyvi://expo-development-client/?url=${encodeURIComponent(
   metroUrl
 )}`;
@@ -172,54 +168,6 @@ function waitForHttpOk(url, timeoutMs) {
         reject(
           new Error(
             `Metro is not reachable at ${url}. Start it with npm run start:android.`
-          )
-        );
-        return;
-      }
-      setTimeout(attempt, 1000);
-    }
-
-    attempt();
-  });
-}
-
-function waitForHttpComplete(url, timeoutMs) {
-  return new Promise((resolve, reject) => {
-    const startedAt = Date.now();
-
-    function attempt() {
-      const request = http.get(url, (response) => {
-        if (
-          !response.statusCode ||
-          response.statusCode < 200 ||
-          response.statusCode >= 300
-        ) {
-          response.resume();
-          retry();
-          return;
-        }
-
-        response.on("data", () => {});
-        response.on("end", resolve);
-        response.on("error", retry);
-      });
-
-      request.on("error", retry);
-      const remainingTimeoutMs = Math.max(
-        1000,
-        timeoutMs - (Date.now() - startedAt)
-      );
-      request.setTimeout(remainingTimeoutMs, () => {
-        request.destroy();
-        retry();
-      });
-    }
-
-    function retry() {
-      if (Date.now() - startedAt >= timeoutMs) {
-        reject(
-          new Error(
-            `Metro did not finish serving the Android bundle at ${url}.`
           )
         );
         return;
@@ -555,11 +503,6 @@ function visibleTextShowsDevMenu(uiXml) {
 async function ensureE2eAppReady() {
   if (!isReleaseBuild) {
     await waitForHttpOk(new URL("/status", hostMetroUrl).toString(), 120000);
-    const bundleUrl = new URL(
-      "/index.bundle?platform=android&dev=true&minify=false",
-      hostMetroUrl
-    );
-    await waitForHttpComplete(bundleUrl.toString(), preflightBundleTimeoutMs);
   }
 
   let lastError = null;
