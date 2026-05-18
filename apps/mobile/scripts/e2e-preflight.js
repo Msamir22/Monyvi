@@ -333,14 +333,24 @@ function dismissDevMenuIfFocused(currentFocus) {
   return true;
 }
 
-function waitThroughAnrDialogIfVisible(uiXml, waitAttempts) {
+function waitThroughAnrDialogIfVisible(uiXml, currentFocus, waitAttempts) {
   if (!uiXml.includes("isn't responding")) {
     return false;
   }
 
   const isMonyviAnr = uiXml.includes("Monyvi isn't responding");
+  const isLauncherAnr = currentFocusShowsLauncher(currentFocus);
   if (isMonyviAnr && waitAttempts >= 3) {
     throw new Error("Monyvi showed the Android ANR dialog repeatedly.");
+  }
+
+  if (isLauncherAnr) {
+    if (!tapByVisibleLabel(uiXml, "Close app")) {
+      tapByVisibleLabel(uiXml, "Wait");
+    }
+    startAppWithoutChangingPermissions();
+    wait(5000);
+    return true;
   }
 
   tapByVisibleLabel(uiXml, "Wait");
@@ -434,7 +444,9 @@ function waitForProductUi(timeoutMs = 240000) {
       continue;
     }
 
-    if (waitThroughAnrDialogIfVisible(lastUiXml, anrWaitAttempts)) {
+    if (
+      waitThroughAnrDialogIfVisible(lastUiXml, lastFocus, anrWaitAttempts)
+    ) {
       if (lastUiXml.includes("Monyvi isn't responding")) {
         anrWaitAttempts += 1;
       }
