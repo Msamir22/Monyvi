@@ -1,4 +1,3 @@
-import { QuickActionFab } from "@/components/fab";
 import { CustomBottomTabBar } from "@/components/tab-bar/CustomBottomTabBar";
 import { VoiceRecordingOverlay } from "@/components/voice/VoiceRecordingOverlay";
 import { darkTheme, lightTheme } from "@/constants/colors";
@@ -121,14 +120,18 @@ function TabLayoutInner(): React.ReactElement {
           }}
         />
         <Tabs.Screen
+          name="stats"
+          options={{
+            title: "Stats",
+          }}
+        />
+        <Tabs.Screen
           name="metals"
           options={{
             title: "Metals",
           }}
         />
       </Tabs>
-
-      <QuickActionFab isRecordingActive={voiceFlow.flowStatus !== "idle"} />
 
       {/* Voice Recording Overlay — renders above tab bar */}
       <VoiceRecordingOverlay

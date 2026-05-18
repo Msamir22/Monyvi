@@ -1,70 +1,39 @@
-/**
- * UpcomingPayments Section — Dashboard upcoming bills preview.
- *
- * Design: Featured payment card + side mini-items list + Pay Now modal.
- * Shows the next N upcoming expense payments sorted by due date.
- * The section does not render when there are no upcoming payments.
- */
-
+import { UpcomingPaymentsSkeleton } from "@/components/dashboard/skeletons/UpcomingPaymentsSkeleton";
 import { useToast } from "@/components/ui/Toast";
 import { palette } from "@/constants/colors";
-import { UpcomingPaymentsSkeleton } from "@/components/dashboard/skeletons/UpcomingPaymentsSkeleton";
 import {
-  useRecurringPayments,
   getBillsPeriodDateRange,
-  BILLS_PERIOD_LABELS,
+  useRecurringPayments,
   type BillsPeriodFilter,
 } from "@/hooks/useRecurringPayments";
+import { usePreferredCurrency } from "@/hooks/usePreferredCurrency";
+import { formatDate, getDueText } from "@/utils/dateHelpers";
 import type { CurrencyType, RecurringPayment } from "@monyvi/db";
 import { formatCurrency } from "@monyvi/logic";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
-import { ScrollView, Text, TouchableOpacity, View } from "react-native";
-
-import { usePreferredCurrency } from "@/hooks/usePreferredCurrency";
+import { Text, TouchableOpacity, View } from "react-native";
 import { useTranslation } from "react-i18next";
-import {
-  FeaturedPaymentCard,
-  MiniPaymentItem,
-  PayNowModal,
-} from "./upcoming-payments";
-
-// Constants
+import { PayNowModal } from "./upcoming-payments";
 
 const PAYMENT_LIMIT = 5;
-const SIDE_PAYMENTS_COUNT = 3;
 const TOAST_DURATION_MS = 3500;
 const DEFAULT_PERIOD: BillsPeriodFilter = "this_month";
-const PERIOD_OPTIONS: readonly BillsPeriodFilter[] = [
-  "this_week",
-  "this_month",
-  "six_months",
-  "one_year",
-];
 
-/**
- * Render the "Upcoming Bills" section with a featured payment, side mini items, a total due row, and a Pay Now modal.
- *
- * Displays a loading indicator while payments are loading and renders nothing when there are no upcoming payments. When a payment is completed via the modal, a success toast is shown containing the payment name and formatted amount using the user's preferred currency.
- *
- * @returns The JSX element for the Upcoming Bills UI, or an empty fragment when there are no upcoming payments.
- */
+function BillIcon(): React.JSX.Element {
+  return (
+    <View className="me-3 h-11 w-11 items-center justify-center rounded-full bg-violet-500">
+      <Ionicons name="wifi" size={22} color={palette.paper[25]} />
+    </View>
+  );
+}
 
 function UpcomingPaymentsComponent(): React.JSX.Element {
   const { showToast } = useToast();
   const { preferredCurrency } = usePreferredCurrency();
   const { t } = useTranslation("common");
-
-  // Period filter state (FR-007: default is "This Month")
-  const [selectedPeriod, setSelectedPeriod] =
-    useState<BillsPeriodFilter>(DEFAULT_PERIOD);
-
-  const dateRange = useMemo(
-    () => getBillsPeriodDateRange(selectedPeriod),
-    [selectedPeriod]
-  );
-
+  const dateRange = useMemo(() => getBillsPeriodDateRange(DEFAULT_PERIOD), []);
   const {
     filteredPayments: payments,
     totalDueFiltered,
@@ -79,7 +48,9 @@ function UpcomingPaymentsComponent(): React.JSX.Element {
     useState<RecurringPayment | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
 
-  const handlePayNow = useCallback((payment: RecurringPayment): void => {
+  const featuredPayment = payments[0];
+
+  const handleBillPress = useCallback((payment: RecurringPayment): void => {
     setSelectedPayment(payment);
     setModalVisible(true);
   }, []);
@@ -103,7 +74,7 @@ function UpcomingPaymentsComponent(): React.JSX.Element {
     [showToast, t]
   );
 
-  const handleSeeAll = useCallback((): void => {
+  const handleViewAll = useCallback((): void => {
     router.push("/recurring-payments");
   }, []);
 
@@ -111,20 +82,7 @@ function UpcomingPaymentsComponent(): React.JSX.Element {
     setModalVisible(false);
   }, []);
 
-  const handlePeriodSelect = useCallback((period: BillsPeriodFilter): void => {
-    setSelectedPeriod(period);
-  }, []);
-
-  // Split payments for display
-  const featuredPayment = payments[0];
-  const sidePayments = payments.slice(1, SIDE_PAYMENTS_COUNT);
-
-  // Don't render section if no payments exist at all (before filter)
-  if (
-    !isLoading &&
-    payments.length === 0 &&
-    selectedPeriod === DEFAULT_PERIOD
-  ) {
+  if (!isLoading && payments.length === 0) {
     return <></>;
   }
 
@@ -133,107 +91,87 @@ function UpcomingPaymentsComponent(): React.JSX.Element {
   }
 
   return (
-    <View className="my-4 rounded-2xl border p-4 overflow-hidden bg-slate-100/50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700">
-      {/* Header */}
-      <View className="flex-row items-center justify-between mb-3">
-        <Text className="text-lg font-bold text-slate-800 dark:text-slate-25">
+    <View className="mb-4">
+      <View className="mb-2 flex-row items-center justify-between">
+        <Text className="text-[19px] font-bold text-text-primary dark:text-text-primary-dark">
           {t("upcoming_bills")}
         </Text>
         <TouchableOpacity
-          onPress={handleSeeAll}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          onPress={handleViewAll}
+          activeOpacity={0.7}
           className="flex-row items-center"
         >
-          <Text className="text-sm font-semibold text-nileGreen-500">
-            {t("see_all")}
+          <Text className="text-[15px] font-semibold text-action dark:text-action-dark">
+            {t("view_all_rates")}
           </Text>
           <Ionicons
-            name="arrow-forward"
-            size={14}
-            color={palette.nileGreen[500]}
-            className="ms-1"
+            name="chevron-forward"
+            size={20}
+            color={palette.brandGreen[500]}
           />
         </TouchableOpacity>
       </View>
 
-      {/* Period filter pills */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        className="mb-3"
-        contentContainerClassName="gap-2"
-      >
-        {PERIOD_OPTIONS.map((period) => (
+      {featuredPayment ? (
+        <View className="overflow-hidden rounded-2xl border border-border-card bg-glass dark:border-border-card-dark dark:bg-glass-dark">
           <TouchableOpacity
-            key={period}
-            onPress={() => handlePeriodSelect(period)}
-            className={`px-3 py-1.5 rounded-full ${
-              selectedPeriod === period
-                ? "bg-nileGreen-500"
-                : "bg-slate-200 dark:bg-slate-700"
-            }`}
+            activeOpacity={0.82}
+            onPress={() => handleBillPress(featuredPayment)}
+            className="flex-row items-center px-4 py-3"
           >
-            <Text
-              className={`text-xs font-semibold ${
-                selectedPeriod === period
-                  ? "text-white"
-                  : "text-slate-600 dark:text-slate-300"
-              }`}
-            >
-              {BILLS_PERIOD_LABELS[period]}
+            <BillIcon />
+            <View className="min-w-0 flex-1">
+              <Text
+                numberOfLines={1}
+                className="text-[16px] font-semibold text-text-primary dark:text-text-primary-dark"
+              >
+                {featuredPayment.name}
+              </Text>
+              <Text className="mt-0.5 text-[13px] text-text-secondary dark:text-text-secondary-dark">
+                {`${getDueText(featuredPayment.nextDueDate)} • ${formatDate(
+                  featuredPayment.nextDueDate,
+                  "MMM d, yyyy"
+                )}`}
+              </Text>
+            </View>
+            <Text className="me-4 text-[16px] font-bold text-text-primary dark:text-text-primary-dark">
+              {formatCurrency({
+                amount: featuredPayment.amount,
+                currency: featuredPayment.currency,
+              })}
             </Text>
+            <Ionicons
+              name="chevron-forward"
+              size={22}
+              color={palette.slate[500]}
+            />
           </TouchableOpacity>
-        ))}
-      </ScrollView>
 
-      {payments.length === 0 ? (
-        /* Empty state (FR-010) */
-        <View className="h-[120px] items-center justify-center">
-          <Ionicons
-            name="receipt-outline"
-            size={32}
-            color={palette.slate[400]}
-          />
-          <Text className="text-sm text-slate-400 dark:text-slate-500 mt-2">
-            {t("no_bills_due")}
-          </Text>
-        </View>
-      ) : (
-        <>
-          {/* Featured + Side layout */}
-          <View className="flex-row gap-3">
-            {/* Featured Card */}
-            {featuredPayment && (
-              <FeaturedPaymentCard
-                payment={featuredPayment}
-                onPayNow={() => handlePayNow(featuredPayment)}
-              />
-            )}
+          <View className="ms-[68px] h-[1px] bg-border-card dark:bg-border-card-dark" />
 
-            {/* Side Mini Items */}
-            {sidePayments.length > 0 && (
-              <View className="flex-1 gap-2 justify-center">
-                {sidePayments.map((payment) => (
-                  <MiniPaymentItem key={payment.id} payment={payment} />
-                ))}
-              </View>
-            )}
-          </View>
-
-          {/* Total Due — uses filtered total */}
-          <View className="flex-row items-center justify-between mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
-            <Text className="stat-label">{t("total_due")}</Text>
-            <Text className="text-base font-bold text-nileGreen-500">
+          <TouchableOpacity
+            activeOpacity={0.82}
+            onPress={handleViewAll}
+            className="flex-row items-center px-4 py-3"
+          >
+            <Text className="flex-1 text-[15px] text-text-secondary dark:text-text-secondary-dark">
+              {t("dashboard_total_due")}
+            </Text>
+            <Text className="me-4 text-[16px] font-bold text-danger dark:text-danger-dark">
               {formatCurrency({
                 amount: totalDueFiltered,
                 currency: preferredCurrency,
               })}
             </Text>
-          </View>
-        </>
-      )}
+            <Ionicons
+              name="chevron-forward"
+              size={22}
+              color={palette.slate[500]}
+            />
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
-      {/* Pay Now Modal */}
       <PayNowModal
         payment={selectedPayment}
         visible={modalVisible}

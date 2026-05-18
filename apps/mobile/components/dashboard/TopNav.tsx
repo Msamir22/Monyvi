@@ -1,127 +1,94 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useTranslation } from "react-i18next";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Text, TouchableOpacity, View } from "react-native";
+import { palette } from "@/constants/colors";
 import { useTheme } from "@/context/ThemeContext";
 import { MonyviLogo } from "../ui/MonyviLogo";
 
 interface TopNavProps {
-  onMenuPress?: () => void;
-  /** Optional: shows a currency chip button when provided */
-  currencyCode?: string;
-  currencyFlag?: string;
-  onCurrencyPress?: () => void;
-  /** When true, the currency chip is disabled (e.g., while the preference loads) */
-  isCurrencyLoading?: boolean;
+  readonly onMenuPress?: () => void;
+  readonly currencyCode?: string;
+  readonly currencyFlag?: string;
+  readonly onCurrencyPress?: () => void;
+  readonly isCurrencyLoading?: boolean;
 }
 
-/**
- * Renders the top navigation bar with branding and action controls.
- *
- * The greeting has been moved to a separate row below TopNav in the dashboard
- * to prevent crowding on narrow screens (<375px).
- *
- * Layout: [☰ Menu] [Monyvi Logo] ─── flex spacer ─── [🇪🇬 EGP ▾] [⚙] [🔔]
- */
 function TopNavComponent({
   onMenuPress,
   currencyCode,
-  currencyFlag,
+  currencyFlag: _currencyFlag,
   onCurrencyPress,
   isCurrencyLoading = false,
 }: TopNavProps): React.ReactElement {
-  const { theme } = useTheme();
+  const { isDark } = useTheme();
   const { t } = useTranslation("common");
+  const iconColor = isDark ? palette.paper[25] : palette.slate[900];
+  const mutedIconColor = isDark ? palette.paper[25] : palette.slate[800];
 
-  // Top inset is handled by the parent StarryBackground, which applies
-  // `paddingTop` sourced directly from `initialWindowMetrics.insets.top` on a
-  // plain View (it does NOT use SafeAreaView). Nesting a SafeAreaView here
-  // would reintroduce the double-inset behavior that caused the cold-start
-  // scroll-jump reported in issue #234.
   return (
-    <View className="pb-2">
-      <View className="flex-row items-center mt-2">
-        {/* Hamburger Menu */}
-        {onMenuPress && (
+    <View className="pb-4">
+      <View className="mt-2 flex-row items-center">
+        {onMenuPress ? (
           <TouchableOpacity
             onPress={onMenuPress}
             accessibilityLabel={t("open_menu")}
             accessibilityRole="button"
-            className="me-3"
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            className="me-4"
           >
-            <Ionicons
-              name="menu-outline"
-              size={26}
-              color={theme.text.primary}
-            />
+            <Ionicons name="menu" size={32} color={iconColor} />
           </TouchableOpacity>
-        )}
+        ) : null}
 
-        {/* Logo */}
-        <MonyviLogo width={100} height={31} />
+        <MonyviLogo width={84} height={25} />
 
-        {/* Spacer */}
         <View className="flex-1" />
 
-        {/* Right Side: Actions */}
         <View className="flex-row items-center gap-2">
-          {/* Currency Chip */}
-          {currencyCode && onCurrencyPress && (
+          {currencyCode && onCurrencyPress ? (
             <TouchableOpacity
               onPress={onCurrencyPress}
               disabled={isCurrencyLoading}
               accessibilityLabel={t("change_currency")}
               accessibilityRole="button"
-              style={{ backgroundColor: theme.surfaceHighlight }}
-              className={`flex-row items-center gap-1 px-2.5 py-1.5 rounded-full ${isCurrencyLoading ? "opacity-50" : ""}`}
+              style={{ opacity: isCurrencyLoading ? 0.5 : 1 }}
+              className="h-10 flex-row items-center gap-1 rounded-xl border border-border-strong bg-glass px-3 dark:border-border-strong-dark dark:bg-glass-dark"
             >
-              <Text className="text-sm">{currencyFlag ?? "💱"}</Text>
-              <Text
-                style={{ color: theme.text.primary }}
-                className="text-xs font-bold"
-              >
+              <Text className="text-[15px] font-semibold text-text-primary dark:text-text-primary-dark">
                 {currencyCode}
               </Text>
-              <Ionicons
-                name="chevron-down"
-                size={12}
-                color={theme.text.secondary}
-              />
+              <Ionicons name="chevron-down" size={16} color={mutedIconColor} />
             </TouchableOpacity>
-          )}
+          ) : null}
 
-          {/* Settings Button */}
           <TouchableOpacity
-            style={{
-              backgroundColor: theme.surfaceHighlight,
-            }}
-            className="w-10 h-10 rounded-full items-center justify-center"
+            className="h-10 w-10 items-center justify-center"
             onPress={() => router.push("/settings")}
             accessibilityLabel={t("settings")}
             accessibilityRole="button"
           >
             <Ionicons
               name="settings-outline"
-              size={22}
-              color={theme.text.secondary}
+              size={28}
+              color={mutedIconColor}
             />
           </TouchableOpacity>
 
-          {/* Notification Button — visually present, disabled until feature ships */}
           <TouchableOpacity
             accessibilityLabel={t("notifications")}
             accessibilityRole="button"
             accessibilityState={{ disabled: true }}
             disabled
-            style={{ backgroundColor: theme.surfaceHighlight }}
-            className="w-10 h-10 rounded-full items-center justify-center relative"
+            className="relative h-10 w-10 items-center justify-center"
           >
             <Ionicons
               name="notifications-outline"
-              size={22}
-              color={theme.text.secondary}
+              size={28}
+              color={mutedIconColor}
             />
+            <View className="absolute end-2 top-1.5 h-2.5 w-2.5 rounded-full bg-action dark:bg-action-dark" />
           </TouchableOpacity>
         </View>
       </View>

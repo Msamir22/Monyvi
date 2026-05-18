@@ -216,7 +216,7 @@ function RootLayoutNav(): React.ReactNode {
     <>
       <StatusBar
         style={colorScheme}
-        backgroundColor={isDark ? lightTheme.background : darkTheme.background}
+        backgroundColor={isDark ? darkTheme.background : lightTheme.background}
       />
       <Stack
         screenOptions={{

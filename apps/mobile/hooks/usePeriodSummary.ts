@@ -27,6 +27,7 @@ export type PeriodFilter =
   | "last_week"
   | "this_month"
   | "last_month"
+  | "three_months"
   | "six_months"
   | "this_year"
   | "all_time";
@@ -56,6 +57,7 @@ export const PERIOD_LABELS: Record<PeriodFilter, string> = {
   last_week: "Last Week",
   this_month: "This Month",
   last_month: "Last Month",
+  three_months: "3 Months",
   six_months: "6 Months",
   this_year: "This Year",
   all_time: "All Time",
@@ -150,6 +152,13 @@ export function getPeriodDateRange(period: PeriodFilter): {
         lastMonth.getMonth() + 1
       );
       return { startDate, endDate };
+    }
+    case "three_months": {
+      const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+      return {
+        startDate: threeMonthsAgo.getTime(),
+        endDate: getEndOfDay(now).getTime(),
+      };
     }
     case "six_months": {
       const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);

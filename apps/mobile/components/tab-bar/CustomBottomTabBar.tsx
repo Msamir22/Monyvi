@@ -35,31 +35,48 @@ interface CustomBottomTabBarProps extends BottomTabBarProps {
  */
 const TAB_ICON_CONFIG: Record<string, IconConfig> = {
   index: { library: "ionicons", name: "home", outlineName: "home-outline" },
-  accounts: { library: "material", name: "account-balance" },
   transactions: {
     library: "ionicons",
     name: "swap-horizontal",
     outlineName: "swap-horizontal-outline",
   },
+  stats: {
+    library: "ionicons",
+    name: "bar-chart",
+    outlineName: "bar-chart-outline",
+  },
   metals: { library: "material-community", name: "gold" },
+  accounts: {
+    library: "ionicons",
+    name: "wallet",
+    outlineName: "wallet-outline",
+  },
 };
 
 /**
  * Tab labels for display
  * Maps route names to their display labels
  */
-const TAB_LABELS: Record<string, string> = {
+export const TAB_LABELS: Record<string, string> = {
   index: "Home",
-  accounts: "Accounts",
   transactions: "Transactions",
+  stats: "Stats",
   metals: "Metals",
+  accounts: "Accounts",
 };
 
 /**
  * Order of tabs in the tab bar (with placeholder for center mic)
  * The center position (index 2) is reserved for the mic button
  */
-const TAB_ORDER = ["index", "accounts", "__mic__", "transactions", "metals"];
+export const TAB_ORDER = [
+  "index",
+  "transactions",
+  "__mic__",
+  "stats",
+  "metals",
+  "accounts",
+] as const;
 
 function CustomBottomTabBarComponent({
   state,
@@ -182,8 +199,8 @@ function CustomBottomTabBarComponent({
           className="flex-1 overflow-hidden rounded-t-3xl dark:hidden"
         >
           <View className="flex-1 flex-row items-center bg-glass">
-            {/* Left tabs: Home, Accounts */}
-            <View className="flex-1 flex-row">
+            {/* Left tabs: Home, Transactions */}
+            <View className="flex-row" style={{ flex: 2 }}>
               {TAB_ORDER.slice(0, 2).map((routeName) =>
                 renderTabItem(routeName)
               )}
@@ -192,8 +209,8 @@ function CustomBottomTabBarComponent({
             {/* Center: Mic button placeholder */}
             <View style={{ width: MIC_BUTTON_SIZE + 16 }} />
 
-            {/* Right tabs: Transactions, Metals */}
-            <View className="flex-1 flex-row">
+            {/* Right tabs: Stats, Metals, Accounts */}
+            <View className="flex-row" style={{ flex: 3 }}>
               {TAB_ORDER.slice(3).map((routeName) => renderTabItem(routeName))}
             </View>
           </View>
@@ -204,8 +221,8 @@ function CustomBottomTabBarComponent({
           className="hidden dark:flex flex-1 overflow-hidden rounded-t-3xl"
         >
           <View className="flex-1 flex-row items-center bg-glass-dark">
-            {/* Left tabs: Home, Accounts */}
-            <View className="flex-1 flex-row">
+            {/* Left tabs: Home, Transactions */}
+            <View className="flex-row" style={{ flex: 2 }}>
               {TAB_ORDER.slice(0, 2).map((routeName) =>
                 renderTabItem(routeName)
               )}
@@ -214,8 +231,8 @@ function CustomBottomTabBarComponent({
             {/* Center: Mic button placeholder */}
             <View style={{ width: MIC_BUTTON_SIZE + 16 }} />
 
-            {/* Right tabs: Transactions, Metals */}
-            <View className="flex-1 flex-row">
+            {/* Right tabs: Stats, Metals, Accounts */}
+            <View className="flex-row" style={{ flex: 3 }}>
               {TAB_ORDER.slice(3).map((routeName) => renderTabItem(routeName))}
             </View>
           </View>

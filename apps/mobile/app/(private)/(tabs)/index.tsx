@@ -1,23 +1,21 @@
 import { CurrencyPicker } from "@/components/currency/CurrencyPicker";
 import { AccountsSection } from "@/components/dashboard/AccountsSection";
 import { CashAccountTooltip } from "@/components/dashboard/CashAccountTooltip";
-import { MicButtonTooltip } from "@/components/dashboard/MicButtonTooltip";
+import { DashboardBackground } from "@/components/dashboard/DashboardBackground";
+import { DashboardSmsInlineBanner } from "@/components/dashboard/DashboardSmsInlineBanner";
 import { LiveRates } from "@/components/dashboard/LiveRates";
-import { OnboardingGuideCard } from "@/components/dashboard/OnboardingGuideCard";
-import { DashboardSkeleton } from "@/components/dashboard/skeletons/DashboardSkeleton";
+import { MicButtonTooltip } from "@/components/dashboard/MicButtonTooltip";
 import { RecentTransactions } from "@/components/dashboard/RecentTransactions";
+import { DashboardSkeleton } from "@/components/dashboard/skeletons/DashboardSkeleton";
 import { ThisMonth } from "@/components/dashboard/ThisMonth";
 import { TopNav } from "@/components/dashboard/TopNav";
 import { TotalNetWorthCard } from "@/components/dashboard/TotalNetWorthCard";
 import { UpcomingPayments } from "@/components/dashboard/UpcomingPayments";
 import { AppDrawer } from "@/components/navigation/AppDrawer";
-import { SmsPermissionPrompt } from "@/components/sms-sync/SmsPermissionPrompt";
 import { SectionErrorBoundary } from "@/components/ui/SectionErrorBoundary";
-import { StarryBackground } from "@/components/ui/StarryBackground";
 import { useToast } from "@/components/ui/Toast";
 import { palette } from "@/constants/colors";
 import { TAB_BAR_HEIGHT } from "@/constants/ui";
-
 import { useTopAccounts } from "@/hooks/useAccounts";
 import { useMarketRates } from "@/hooks/useMarketRates";
 import { useMonthlyPercentageChange, useNetWorth } from "@/hooks/useNetWorth";
@@ -36,45 +34,34 @@ import React, { useCallback, useRef, useState } from "react";
 import { RefreshControl, ScrollView, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
-// Static style objects — extracted to module scope to keep referential
-// stability across re-renders and avoid recreating them on every render.
 const SCROLL_CONTENT_STYLE = {
-  paddingBottom: TAB_BAR_HEIGHT + 20,
+  paddingBottom: TAB_BAR_HEIGHT + 92,
 } as const;
 
 const REFRESH_TINT_COLOR = palette.nileGreen[500];
 const REFRESH_COLORS: string[] = [REFRESH_TINT_COLOR];
 
-/**
- * Returns a time-based greeting key for i18n.
- */
-function getGreetingKey(): "good_morning" | "good_afternoon" | "good_evening" {
+function getGreetingKey():
+  | "dashboard_good_morning"
+  | "dashboard_good_afternoon"
+  | "dashboard_good_evening" {
   const hours = new Date().getHours();
-  if (hours < 12) return "good_morning";
-  if (hours < 18) return "good_afternoon";
-  return "good_evening";
+  if (hours < 12) return "dashboard_good_morning";
+  if (hours < 18) return "dashboard_good_afternoon";
+  return "dashboard_good_evening";
 }
 
-/**
- * Renders the main dashboard screen including total net worth, live market rates, top accounts,
- * recent transactions, upcoming payments, and UI for selecting the preferred currency.
- * Supports pull-to-refresh to trigger a Supabase sync.
- */
 export default function DashboardScreen(): React.JSX.Element {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isCurrencyPickerOpen, setIsCurrencyPickerOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const cashAccountRef = useRef<View>(null);
-  // Forwarded to CashAccountTooltip so it can scroll the cash-account
-  // card into view before showing — otherwise on first-run the user is
-  // at scroll-top and the cash card sits below the fold, which makes
-  // the AnchoredTooltip arrow land off-screen (user-reported 2026-04-26).
   const scrollViewRef = useRef<ScrollView>(null);
   const isDbReady = useDatabaseReady();
   const { t } = useTranslation("common");
   const { profile } = useProfile();
   const { sync } = useSync();
-  const { accounts, isLoading: accountsLoading } = useTopAccounts(3);
+  const { accounts, isLoading: accountsLoading } = useTopAccounts(10);
   const {
     latestRates,
     previousDayRate,
@@ -84,7 +71,6 @@ export default function DashboardScreen(): React.JSX.Element {
   } = useMarketRates();
   const { transactions, isLoading: transactionsLoading } =
     useRecentTransactions(3);
-
   const {
     totalNetWorth,
     totalNetWorthUsd,
@@ -96,15 +82,10 @@ export default function DashboardScreen(): React.JSX.Element {
     setPreferredCurrency,
     isLoading: isCurrencyLoading,
   } = usePreferredCurrency();
-
   const currencyInfo = CURRENCY_INFO_MAP[preferredCurrency];
-
-  // SMS sync prompt
   const router = useRouter();
   const { shouldShowPrompt, dismissPrompt } = useSmsSync();
   const { requestPermission } = useSmsPermission();
-
-  // Greeting row — use first name for a personal touch, fallback to display name
   const greetingName = profile?.firstName || profile?.displayName || "";
   const greetingText = t(getGreetingKey());
 
@@ -142,7 +123,7 @@ export default function DashboardScreen(): React.JSX.Element {
         logger.error("Failed to set preferred currency", error, { currency });
       });
     },
-    [setPreferredCurrency, isCurrencyLoading]
+    [isCurrencyLoading, setPreferredCurrency]
   );
 
   const { showToast } = useToast();
@@ -160,25 +141,20 @@ export default function DashboardScreen(): React.JSX.Element {
     } finally {
       setIsRefreshing(false);
     }
-  }, [sync, showToast, t]);
+  }, [showToast, sync, t]);
 
-  // Overall loading state
   const isLoading = accountsLoading || ratesLoading || netWorthLoading;
 
-  // Show the full dashboard skeleton while WatermelonDB is still initializing
-  // so the user sees the real content layout immediately instead of a blank
-  // spinner. Section-level hooks handle their own loading states once the DB
-  // is ready.
   if (!isDbReady) {
     return (
-      <StarryBackground>
+      <DashboardBackground>
         <DashboardSkeleton />
-      </StarryBackground>
+      </DashboardBackground>
     );
   }
 
   return (
-    <StarryBackground>
+    <DashboardBackground>
       <ScrollView
         ref={scrollViewRef}
         contentContainerStyle={SCROLL_CONTENT_STYLE}
@@ -194,7 +170,7 @@ export default function DashboardScreen(): React.JSX.Element {
           />
         }
       >
-        <View className="px-5 pt-[10px]">
+        <View className="px-7 pt-[2px]">
           <TopNav
             onMenuPress={handleMenuPress}
             currencyCode={preferredCurrency}
@@ -203,18 +179,31 @@ export default function DashboardScreen(): React.JSX.Element {
             isCurrencyLoading={isCurrencyLoading}
           />
 
-          {/* Greeting Row — below TopNav, same horizontal padding */}
-          <Text
-            numberOfLines={1}
-            className="text-base font-semibold mb-4 text-slate-800 dark:text-slate-25"
-          >
-            {greetingText}
-            {greetingName ? `, ${greetingName}` : ""} 👋
-          </Text>
+          <View className="mb-4">
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+              className="text-[24px] font-bold text-text-primary dark:text-text-primary-dark"
+            >
+              {greetingText}
+              {greetingName ? `, ${greetingName}` : ""} 👋
+            </Text>
+            <Text className="mt-1 text-[16px] text-text-secondary dark:text-text-secondary-dark">
+              {t("dashboard_greeting_subtitle")}
+            </Text>
+          </View>
 
-          <SectionErrorBoundary name={t("section_onboarding_guide")}>
-            <OnboardingGuideCard />
-          </SectionErrorBoundary>
+          {shouldShowPrompt ? (
+            <DashboardSmsInlineBanner
+              message={t("dashboard_sms_prompt_message")}
+              actionLabel={t("enable")}
+              requestPermission={requestPermission}
+              onPermissionGranted={handleSmsPermissionGranted}
+              onDismiss={handleSmsDismiss}
+            />
+          ) : null}
+
           <SectionErrorBoundary name={t("section_net_worth")}>
             <TotalNetWorthCard
               totalNetWorth={totalNetWorth}
@@ -255,6 +244,7 @@ export default function DashboardScreen(): React.JSX.Element {
           </SectionErrorBoundary>
         </View>
       </ScrollView>
+
       <AppDrawer visible={isDrawerOpen} onClose={handleDrawerClose} />
       <CurrencyPicker
         visible={!isCurrencyLoading && isCurrencyPickerOpen}
@@ -262,22 +252,12 @@ export default function DashboardScreen(): React.JSX.Element {
         onSelect={handleCurrencySelect}
         onClose={handleCurrencyPickerClose}
       />
-      <SmsPermissionPrompt
-        visible={shouldShowPrompt}
-        onPermissionGranted={handleSmsPermissionGranted}
-        onDismiss={handleSmsDismiss}
-        requestPermission={requestPermission}
-      />
       <CashAccountTooltip
         anchorRef={cashAccountRef}
         isSmsPromptVisible={shouldShowPrompt}
         scrollViewRef={scrollViewRef}
       />
-      {/* Mic-button first-run tooltip — rendered here (not inside the
-          OnboardingGuideCard) so its full-screen overlay isn't clipped by
-          the card's `overflow-hidden`. State + handlers come from
-          `MicTooltipContext`. */}
       <MicButtonTooltip />
-    </StarryBackground>
+    </DashboardBackground>
   );
 }
