@@ -348,8 +348,11 @@ function waitThroughAnrDialogIfVisible(uiXml, waitAttempts) {
   return true;
 }
 
-function restoreAppFromLauncherIfVisible(uiXml, restoreAttempts) {
-  if (!uiXml.includes("com.google.android.apps.nexuslauncher")) {
+function restoreAppFromLauncherIfVisible(uiXml, currentFocus, restoreAttempts) {
+  if (
+    !uiXml.includes("com.google.android.apps.nexuslauncher") &&
+    !currentFocusShowsLauncher(currentFocus)
+  ) {
     return false;
   }
 
@@ -438,7 +441,13 @@ function waitForProductUi(timeoutMs = 240000) {
       continue;
     }
 
-    if (restoreAppFromLauncherIfVisible(lastUiXml, launcherRestoreAttempts)) {
+    if (
+      restoreAppFromLauncherIfVisible(
+        lastUiXml,
+        lastFocus,
+        launcherRestoreAttempts
+      )
+    ) {
       launcherRestoreAttempts += 1;
       continue;
     }
@@ -489,6 +498,12 @@ function currentFocusShowsWrongShell(currentFocus) {
 
 function currentFocusShowsDevMenu(currentFocus) {
   return /(?:mCurrentFocus|currentFocus)=Window\{[^}]*\s(?:u\d+\s)?com\.monyvi\.app\/expo\.modules\.devmenu\.DevMenuActivity/.test(
+    currentFocus
+  );
+}
+
+function currentFocusShowsLauncher(currentFocus) {
+  return /(?:mCurrentFocus|currentFocus)=Window\{[^}]*com\.google\.android\.apps\.nexuslauncher|(?:mFocusedApp|focusedApp)=ActivityRecord\{[^}]*com\.google\.android\.apps\.nexuslauncher/.test(
     currentFocus
   );
 }
@@ -549,6 +564,7 @@ module.exports = {
   forceStopApp,
   appendAndroidPlatform,
   currentFocusShowsDevMenu,
+  currentFocusShowsLauncher,
   isAppReady,
   isReleaseBuild,
   hostMetroUrl,

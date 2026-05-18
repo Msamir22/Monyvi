@@ -1,6 +1,7 @@
 interface E2ePreflightModule {
   appendAndroidPlatform(url: string): string;
   currentFocusShowsDevMenu(currentFocus: string): boolean;
+  currentFocusShowsLauncher(currentFocus: string): boolean;
   isAppReady(uiXml: string): boolean;
 }
 
@@ -47,6 +48,26 @@ describe("e2e-preflight", () => {
       preflight.currentFocusShowsDevMenu(
         "mCurrentFocus=Window{b4ae2b7 u0 com.monyvi.app/expo.modules.devmenu.DevMenuActivity}"
       )
+    ).toBe(true);
+  });
+
+  it("detects launcher focus even when stale dev menu records are present", () => {
+    expect(
+      preflight.currentFocusShowsLauncher(`
+        Display #0 currentFocus=Window{ad25cd0 u0 com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}
+        focusedApp=ActivityRecord{4efef91 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}
+        mFocusedApp=ActivityRecord{e4594ea u0 com.monyvi.app/expo.modules.devmenu.DevMenuActivity t10}
+        Window #9 Window{b4ae2b7 u0 com.monyvi.app/expo.modules.devmenu.DevMenuActivity}
+      `)
+    ).toBe(true);
+  });
+
+  it("detects launcher ANR focus from dumpsys", () => {
+    expect(
+      preflight.currentFocusShowsLauncher(`
+        mCurrentFocus=Window{c343781 u0 Application Not Responding: com.google.android.apps.nexuslauncher}
+        mFocusedApp=ActivityRecord{e4594ea u0 com.monyvi.app/expo.modules.devmenu.DevMenuActivity t10}
+      `)
     ).toBe(true);
   });
 });
