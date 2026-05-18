@@ -210,12 +210,12 @@ function PublicSplashGate(): null {
 }
 
 function RootLayoutNav(): React.ReactNode {
-  const { colorScheme, isDark } = useTheme();
+  const { isDark } = useTheme();
 
   return (
     <>
       <StatusBar
-        style={colorScheme}
+        style={isDark ? "light" : "dark"}
         backgroundColor={isDark ? darkTheme.background : lightTheme.background}
       />
       <Stack

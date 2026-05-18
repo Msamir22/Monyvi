@@ -1,4 +1,5 @@
 import { LinearGradient } from "expo-linear-gradient";
+import { StatusBar } from "expo-status-bar";
 import React from "react";
 import { Image, useWindowDimensions, View } from "react-native";
 import {
@@ -37,6 +38,11 @@ export function DashboardBackground({
     : [`${palette.paper[50]}00`, palette.paper[50]];
   return (
     <View className="flex-1 bg-app dark:bg-app-dark">
+      <StatusBar
+        style={isDark ? "light" : "dark"}
+        backgroundColor="transparent"
+        translucent
+      />
       <View
         style={{
           height: 360,
@@ -52,11 +58,11 @@ export function DashboardBackground({
           source={imageSource}
           resizeMode="stretch"
           style={{
-            height: 390,
+            height: 250,
             left: 0,
             opacity: isDark ? 1 : 0.64,
             position: "absolute",
-            top: -90,
+            top: 0,
             width,
           }}
         />

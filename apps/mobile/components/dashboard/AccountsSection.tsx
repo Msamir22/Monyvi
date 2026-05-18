@@ -39,7 +39,6 @@ interface AccountCardData {
 
 function getAccountIconSource(account: Account): number | null {
   const name = account.name.toLowerCase();
-  if (account.type === "CASH") return dashboardAssets.accountCash;
   if (name.includes("cib")) return dashboardAssets.accountCib;
   if (name.includes("vodafone")) return dashboardAssets.accountVodafoneCash;
   return null;
@@ -56,13 +55,27 @@ function AccountIcon({
 }: {
   readonly data: AccountCardData;
 }): React.JSX.Element {
+  if (data.type === "CASH") {
+    return (
+      <View className="h-11 w-11 items-center justify-center rounded-xl bg-action/10 dark:bg-action-dark/20">
+        <Ionicons
+          name="cash-outline"
+          size={27}
+          color={palette.brandGreen[500]}
+        />
+      </View>
+    );
+  }
+
   if (data.iconSource) {
     return (
-      <Image
-        source={data.iconSource}
-        resizeMode="contain"
-        style={{ width: 44, height: 44 }}
-      />
+      <View className="overflow-hidden" style={{ width: 44, height: 40 }}>
+        <Image
+          source={data.iconSource}
+          resizeMode="contain"
+          style={{ width: 44, height: 44 }}
+        />
+      </View>
     );
   }
 

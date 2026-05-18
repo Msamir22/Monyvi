@@ -127,12 +127,13 @@ function RateColumn({
     <View
       className={`flex-1 flex-row items-center ${isLast ? "" : "border-e border-border-card pe-1 dark:border-border-card-dark"}`}
     >
-      <Image
-        source={getRateIconSource(rate.type)}
-        resizeMode="contain"
-        style={{ width: 42, height: 42 }}
-        className="me-2"
-      />
+      <View className="me-2 overflow-hidden" style={{ width: 42, height: 38 }}>
+        <Image
+          source={getRateIconSource(rate.type)}
+          resizeMode="contain"
+          style={{ width: 42, height: 42 }}
+        />
+      </View>
       <View className="min-w-0 flex-1">
         <Text
           numberOfLines={1}
