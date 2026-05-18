@@ -20,5 +20,5 @@ curl --fail --silent --show-error --location \
 set +e
 npm run e2e:ci -w @monyvi/mobile
 e2e_status=$?
-adb logcat -d > android-e2e-logcat.log || true
+timeout "${E2E_LOGCAT_TIMEOUT_SECONDS:-30}"s adb logcat -d > android-e2e-logcat.log || true
 exit "$e2e_status"
