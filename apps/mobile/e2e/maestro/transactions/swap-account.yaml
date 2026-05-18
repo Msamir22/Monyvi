@@ -25,11 +25,10 @@ appId: com.monyvi.app
 - tapOn: "Account"
 
 - waitForAnimationToEnd
+- assertVisible: "Select Account"
 
-# Step 6: Select a different account from the list (second option)
-- tapOn:
-    index: 1
-    text: ".*"
+# Step 6: Select a seeded bank account from the list
+- tapOn: "E2E NBE Bank"
 
 # Step 7: Tap Save
 - tapOn:
@@ -38,4 +37,7 @@ appId: com.monyvi.app
 - waitForAnimationToEnd
 
 # Step 8: Verify navigation back to transactions list
-- assertVisible: "Transactions"
+- extendedWaitUntil:
+    visible:
+      id: "filter-period"
+    timeout: 30000
