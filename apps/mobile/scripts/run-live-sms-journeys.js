@@ -1,4 +1,5 @@
 const { join } = require("node:path");
+const { createClient } = require("@supabase/supabase-js");
 const {
   adb,
   appId,
@@ -10,7 +11,7 @@ const {
   run,
   wait,
 } = require("./e2e-preflight");
-const { getE2eSeedConfig } = require("./e2e-seed");
+const { getE2eSeedConfig, seedE2eData } = require("./e2e-seed");
 
 const mobileRoot = join(__dirname, "..");
 const flowDir = join("e2e", "maestro", "live-sms-detection");
@@ -26,12 +27,22 @@ const actionProbeMarkers = [
   "BACKGROUND CONFIRM MARKET",
   "CLOSED CONFIRM MARKET",
 ];
-const activeUserFilter =
-  "user_id = (select user_id from profiles where deleted = 0 order by updated_at desc limit 1)";
 const releaseOnlyJourneyIds = new Set(["15"]);
 const isReleaseRun = process.env.E2E_RELEASE_BUILD === "1";
 const killedAppConfirmMarker = createKilledAppConfirmMarker(process.env);
 process.env.MAESTRO_CLOSED_CONFIRM_MARKET = killedAppConfirmMarker;
+
+function sqlString(value) {
+  return `'${value.replaceAll("'", "''")}'`;
+}
+
+function getActiveUserFilter(env = process.env) {
+  if (!env.E2E_USER_ID) {
+    throw new Error("E2E_USER_ID is required for live SMS probe SQL.");
+  }
+
+  return `user_id = ${sqlString(env.E2E_USER_ID)}`;
+}
 
 function createKilledAppConfirmMarker(env = process.env) {
   const runId = env.E2E_PROBE_RUN_ID || `${Date.now()}`;
@@ -177,9 +188,15 @@ async function bootstrapCleanAuthenticatedSession() {
   if (process.env.E2E_SKIP_AUTH_BOOTSTRAP === "1") return;
 
   applyLocalE2eDefaults();
-  run(process.execPath, [join(__dirname, "e2e-seed.js"), "seed"], {
-    cwd: mobileRoot,
+  const config = getE2eSeedConfig({
+    ...process.env,
+    E2E_SUPABASE_MODE: "local",
   });
+  const client = createClient(config.supabaseUrl, config.serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const result = await seedE2eData(client, config);
+  process.env.E2E_USER_ID = result.userId;
   adb(["shell", "pm", "clear", appId]);
   await ensureE2eAppReady();
   runFlow("../helpers/ci-auth-bootstrap.yaml");
@@ -547,6 +564,7 @@ function swipeRecentsCardAway(cardBounds) {
 }
 
 function buildLiveSmsActionProbeCleanupSql() {
+  const activeUserFilter = getActiveUserFilter();
   const transactionMarkerFilters = actionProbeMarkers
     .map(
       (marker) => `counterparty like '%${marker}%' or note like '%${marker}%'`
@@ -908,5 +926,6 @@ if (require.main === module) {
 module.exports = {
   buildLiveSmsActionProbeCleanupSql,
   createKilledAppConfirmMarker,
+  getActiveUserFilter,
   shouldSkipRunAsProbeCleanup,
 };

@@ -5,14 +5,14 @@
  * Strategy: "Last Write Wins" - most recent updated_at timestamp wins conflicts
  */
 
-import { schema, SupabaseDatabase } from "@monyvi/db";
+import { schema, type SupabaseDatabase } from "@monyvi/db";
 import { Q, type Database, type Model } from "@nozbe/watermelondb";
 import {
-  SyncDatabaseChangeSet,
   synchronize,
-  SyncPullResult,
-  SyncPushArgs,
-  SyncPushResult,
+  type SyncDatabaseChangeSet,
+  type SyncPullResult,
+  type SyncPushArgs,
+  type SyncPushResult,
 } from "@nozbe/watermelondb/sync";
 import { getCurrentUserId, supabase } from "./supabase";
 import { logger } from "@/utils/logger";

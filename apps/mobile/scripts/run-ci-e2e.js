@@ -1,9 +1,11 @@
 const { join } = require("node:path");
 const { spawn, spawnSync } = require("node:child_process");
-const { getE2eSeedConfig } = require("./e2e-seed");
+const { createClient } = require("@supabase/supabase-js");
+const { getE2eSeedConfig, seedE2eData } = require("./e2e-seed");
 
 const mobileRoot = join(__dirname, "..");
 const maxCapturedOutputLength = 256 * 1024;
+const defaultChildTimeoutMs = 20 * 60 * 1000;
 
 const shouldBootstrapAuth = process.env.E2E_SKIP_AUTH_BOOTSTRAP !== "1";
 const allCiSuites = ["transactions", "sms-sync", "live-sms"];
@@ -115,6 +117,11 @@ function appendOutputTail(
   return nextOutput.slice(nextOutput.length - maxLength);
 }
 
+function getChildTimeoutMs(env = process.env) {
+  const parsed = Number(env.E2E_CHILD_TIMEOUT_MS);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultChildTimeoutMs;
+}
+
 function getRequestedCiSuites(env = process.env) {
   const value = env.E2E_CI_SUITES;
   if (!value || value === "full") {
@@ -170,6 +177,16 @@ function runNodeScriptOnce(script, args) {
       stdio: ["ignore", "pipe", "pipe"],
     });
     let output = "";
+    let didTimeout = false;
+    const timeoutMs = getChildTimeoutMs();
+    const timeout = setTimeout(() => {
+      didTimeout = true;
+      const label = `${script} ${args.join(" ")}`.trim();
+      const text = `${label} timed out after ${timeoutMs}ms`;
+      process.stderr.write(`${text}\n`);
+      output = appendOutputTail(output, text);
+      child.kill("SIGTERM");
+    }, timeoutMs);
 
     child.stdout.on("data", (chunk) => {
       const text = chunk.toString();
@@ -184,6 +201,7 @@ function runNodeScriptOnce(script, args) {
     });
 
     child.on("error", (error) => {
+      clearTimeout(timeout);
       const text = error.message;
       process.stderr.write(`${text}\n`);
       output = appendOutputTail(output, text);
@@ -191,7 +209,8 @@ function runNodeScriptOnce(script, args) {
     });
 
     child.on("close", (code) => {
-      resolve({ output, status: code ?? 1 });
+      clearTimeout(timeout);
+      resolve({ output, status: didTimeout ? 124 : (code ?? 1) });
     });
   });
 }
@@ -216,7 +235,15 @@ async function runNodeScript(script, args) {
 async function maybeSeedE2eData() {
   if (process.env.E2E_SKIP_SEED === "1") return;
 
-  await runNodeScript("scripts/e2e-seed.js", ["seed"]);
+  const config = getE2eSeedConfig();
+  const client = createClient(config.supabaseUrl, config.serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const result = await seedE2eData(client, config);
+  process.env.E2E_USER_ID = result.userId;
+  console.log(
+    `Seeded E2E data for ${config.email} (${result.userId}) on ${config.mode} Supabase`
+  );
 }
 
 function isFixtureE2eMode() {
@@ -317,6 +344,7 @@ if (require.main === module) {
 
 module.exports = {
   appendOutputTail,
+  getChildTimeoutMs,
   getRequestedCiSuites,
   isDeviceOfflineFailure,
   shouldBootstrapBeforeLiveSms,

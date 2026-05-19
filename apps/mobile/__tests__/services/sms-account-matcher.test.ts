@@ -88,14 +88,14 @@ describe("sms-account-matcher - matchAccountCore", () => {
     expect(result.matchReason).toBe("card_last4");
   });
 
-  it("Step 1b: Matches based on card last 4 alone if sender doesn't match", () => {
+  it("Step 1b: Does not trust card last 4 when sender doesn't match", () => {
     const input: MatchInput = {
       senderDisplayName: "UNKNOWN SENDER xyz",
-      cardLast4: "1234", // Matches accBank1
+      cardLast4: "1234",
     };
     const result = matchAccountCore(input, accounts);
-    expect(result.accountId).toBe("acc_bank1");
-    expect(result.matchReason).toBe("card_last4");
+    expect(result.accountId).toBe("acc_bank2");
+    expect(result.matchReason).toBe("default");
   });
 
   it("Step 2: Matches based on sender alone (bank_details / account name)", () => {

@@ -1,4 +1,5 @@
 const { join } = require("node:path");
+const { createClient } = require("@supabase/supabase-js");
 const {
   adb,
   appId,
@@ -8,14 +9,24 @@ const {
   resolveMaestroBin,
   run,
 } = require("./e2e-preflight");
-const { getE2eSeedConfig } = require("./e2e-seed");
+const { getE2eSeedConfig, seedE2eData } = require("./e2e-seed");
 
 const mobileRoot = join(__dirname, "..");
 const flowDir = join("e2e", "maestro", "sms-sync");
 
 const readSmsPermission = "android.permission.READ_SMS";
-const activeUserFilter =
-  "user_id = (select user_id from profiles where deleted = 0 order by updated_at desc limit 1)";
+
+function sqlString(value) {
+  return `'${value.replaceAll("'", "''")}'`;
+}
+
+function getActiveUserFilter(env = process.env) {
+  if (!env.E2E_USER_ID) {
+    throw new Error("E2E_USER_ID is required for SMS sync probe SQL.");
+  }
+
+  return `user_id = ${sqlString(env.E2E_USER_ID)}`;
+}
 
 function clearPermissionFlags(permission) {
   adb(
@@ -74,9 +85,15 @@ async function bootstrapCleanAuthenticatedSession() {
   if (process.env.E2E_SKIP_AUTH_BOOTSTRAP === "1") return;
 
   applyLocalE2eDefaults();
-  run(process.execPath, [join(__dirname, "e2e-seed.js"), "seed"], {
-    cwd: mobileRoot,
+  const config = getE2eSeedConfig({
+    ...process.env,
+    E2E_SUPABASE_MODE: "local",
   });
+  const client = createClient(config.supabaseUrl, config.serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const result = await seedE2eData(client, config);
+  process.env.E2E_USER_ID = result.userId;
   adb(["shell", "pm", "clear", appId]);
   await ensureE2eAppReady();
   runFlow("../helpers/ci-auth-bootstrap.yaml");
@@ -98,6 +115,8 @@ function expectWatermelonScalar(sql, expected, label) {
 }
 
 function buildSmsSyncProbeCleanupSql() {
+  const activeUserFilter = getActiveUserFilter();
+
   return [
     [
       "delete from transactions",
@@ -149,6 +168,8 @@ function verifyBatchSmsSaved() {
 }
 
 function buildBatchSmsSavedVerificationQueries() {
+  const activeUserFilter = getActiveUserFilter();
+
   return [
     [
       "select count(*) from transactions",
@@ -239,4 +260,5 @@ if (require.main === module) {
 module.exports = {
   buildBatchSmsSavedVerificationQueries,
   buildSmsSyncProbeCleanupSql,
+  getActiveUserFilter,
 };

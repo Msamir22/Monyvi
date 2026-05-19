@@ -1,12 +1,10 @@
 /**
- * Dev-only SMS fixtures for the Live SMS Detection simulator.
+ * Deterministic SMS fixtures for development tools and E2E fixture mode.
  *
- * Each fixture is a realistic financial (or non-financial) SMS body used
- * to drive the same `onSmsReceived` pipeline the native Android
- * SmsBroadcastReceiver drives in production.
- *
- * Used exclusively by `apps/mobile/app/sms-simulator.tsx` and is guarded
- * by `__DEV__` at the call sites so it is tree-shaken in release builds.
+ * Each fixture is a realistic financial (or non-financial) SMS body used by
+ * the SMS simulator and by the guarded E2E fixture parser/reader. Production
+ * behavior must stay on the real SMS reader and Edge parser unless explicit
+ * E2E mode is enabled.
  *
  * @module services/dev/sms-fixtures
  */

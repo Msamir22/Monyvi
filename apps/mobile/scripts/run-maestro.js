@@ -8,6 +8,14 @@ const {
 const { createLocalSupabaseJwt } = require("./e2e-seed");
 
 const LOCAL_ANDROID_SUPABASE_URL = "http://10.0.2.2:54321";
+const defaultMaestroTimeoutMs = 15 * 60 * 1000;
+
+function getMaestroTimeoutMs(env = process.env) {
+  const parsed = Number(env.E2E_MAESTRO_TIMEOUT_MS);
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : defaultMaestroTimeoutMs;
+}
 
 function shouldRunPreflight(args) {
   return args.includes("test");
@@ -79,12 +87,23 @@ async function main() {
   const result = spawnSync(maestroBin, maestroArgs, {
     stdio: "inherit",
     shell: process.platform === "win32",
+    timeout: getMaestroTimeoutMs(),
   });
+
+  if (result.error) {
+    console.error(result.error.message);
+  }
 
   process.exit(result.status ?? 1);
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  getMaestroTimeoutMs,
+};
