@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
-set -u
+set -euo pipefail
+
+timeout "${E2E_ADB_WAIT_TIMEOUT_SECONDS:-120}"s adb wait-for-device
+device_state="$(adb get-state)"
+if [ "$device_state" != "device" ]; then
+  echo "Android device is not ready. Current state: ${device_state}" >&2
+  exit 1
+fi
 
 adb logcat -c
 adb install -r monyvi-android-debug/app-debug.apk

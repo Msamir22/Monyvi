@@ -26,6 +26,8 @@ const actionProbeMarkers = [
   "BACKGROUND CONFIRM MARKET",
   "CLOSED CONFIRM MARKET",
 ];
+const activeUserFilter =
+  "user_id = (select user_id from profiles where deleted = 0 order by updated_at desc limit 1)";
 const releaseOnlyJourneyIds = new Set(["15"]);
 const isReleaseRun = process.env.E2E_RELEASE_BUILD === "1";
 
@@ -547,8 +549,8 @@ function buildLiveSmsActionProbeCleanupSql() {
     .map((marker) => `notes like '%${marker}%'`)
     .join(" or ");
   const sql = [
-    `delete from transactions where ${transactionMarkerFilters};`,
-    `delete from transfers where ${transferMarkerFilters};`,
+    `delete from transactions where (${transactionMarkerFilters}) and ${activeUserFilter};`,
+    `delete from transfers where (${transferMarkerFilters}) and ${activeUserFilter};`,
   ].join(" ");
 
   return sql;

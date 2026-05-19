@@ -1,5 +1,6 @@
 const { existsSync } = require("node:fs");
 const http = require("node:http");
+const https = require("node:https");
 const { delimiter, join } = require("node:path");
 const { spawnSync } = require("node:child_process");
 
@@ -85,6 +86,14 @@ function wait(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
+function getHttpClientNameForUrl(url) {
+  return new URL(url).protocol === "https:" ? "https" : "http";
+}
+
+function getHttpClientForUrl(url) {
+  return getHttpClientNameForUrl(url) === "https" ? https : http;
+}
+
 function findOnPath(command) {
   const pathValue = process.env.PATH || "";
   const extensions =
@@ -150,7 +159,7 @@ function waitForHttpOk(url, timeoutMs) {
     const startedAt = Date.now();
 
     function attempt() {
-      const request = http.get(url, (response) => {
+      const request = getHttpClientForUrl(url).get(url, (response) => {
         response.resume();
         if (
           response.statusCode &&
@@ -607,6 +616,7 @@ module.exports = {
   appendAndroidPlatform,
   currentFocusShowsDevMenu,
   currentFocusShowsLauncher,
+  getHttpClientNameForUrl,
   isAppReady,
   isReleaseBuild,
   hostMetroUrl,

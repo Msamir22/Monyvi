@@ -41,6 +41,7 @@ CREATE OR REPLACE FUNCTION public.run_daily_snapshots()
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path TO 'public', 'auth'
 AS $function$BEGIN
   -- Run all snapshot functions in sequence
   PERFORM public.recalculate_daily_snapshot_balance();
@@ -58,6 +59,7 @@ CREATE OR REPLACE FUNCTION public.update_category_usage_count()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path TO 'public', 'auth'
 AS $function$
 BEGIN
   -- Handle INSERT: increment the new category's usage_count

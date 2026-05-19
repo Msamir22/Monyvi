@@ -14,6 +14,9 @@ const mobileRoot = join(__dirname, "..");
 const flowDir = join("e2e", "maestro", "sms-sync");
 
 const readSmsPermission = "android.permission.READ_SMS";
+const activeUserFilter =
+  "user_id = (select user_id from profiles where deleted = 0 order by updated_at desc limit 1)";
+
 function clearPermissionFlags(permission) {
   adb(
     [
@@ -94,14 +97,28 @@ function expectWatermelonScalar(sql, expected, label) {
   }
 }
 
-function clearSmsSyncProbeRows() {
-  const sql = [
-    "delete from transactions where counterparty = 'PR622 BATCH DUPLICATE SHOP';",
-    "delete from transfers where notes = 'ATM Withdrawal' and amount = 2000;",
+function buildSmsSyncProbeCleanupSql() {
+  return [
+    [
+      "delete from transactions",
+      "where counterparty = 'PR622 BATCH DUPLICATE SHOP'",
+      "and sms_fingerprint is not null",
+      `and ${activeUserFilter};`,
+    ].join(" "),
+    [
+      "delete from transfers",
+      "where notes = 'ATM Withdrawal'",
+      "and amount = 2000",
+      "and sms_fingerprint is not null",
+      `and ${activeUserFilter};`,
+    ].join(" "),
   ].join(" ");
+}
+
+function clearSmsSyncProbeRows() {
+  const sql = buildSmsSyncProbeCleanupSql();
 
   adb(["shell", "run-as", appId, "sqlite3", "watermelon.db"], {
-    allowFailure: true,
     capture: true,
     input: sql,
   });
@@ -195,7 +212,13 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  buildSmsSyncProbeCleanupSql,
+};

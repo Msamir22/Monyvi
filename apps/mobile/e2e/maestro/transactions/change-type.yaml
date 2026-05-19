@@ -15,7 +15,9 @@ appId: com.monyvi.app
 
 - inputText: "E2E Grocery"
 - pressKey: Back
-- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "E2E Grocery"
+    timeout: 30000
 
 # Step 4: Tap on the seeded expense transaction card to open edit screen
 - tapOn:

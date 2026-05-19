@@ -815,7 +815,7 @@ describe("Settings live SMS permission recovery", () => {
     expect(mockStartSmsListener).toHaveBeenCalledTimes(1);
   });
 
-  it("does not reopen SMS settings recovery when permission recheck fails", async () => {
+  it("reopens SMS settings recovery when permission recheck fails", async () => {
     mockSmsPermissionStatus = "granted";
     mockLiveDetectionPermissionStatus = "blocked";
     mockRecheckPermission.mockRejectedValue(new Error("recheck failed"));
@@ -842,7 +842,9 @@ describe("Settings live SMS permission recovery", () => {
       await Promise.resolve();
     });
 
-    expect(screen.queryByText("sms_permission_blocked_title")).toBeNull();
+    expect(
+      await screen.findByText("sms_permission_blocked_title")
+    ).toBeTruthy();
     expect(mockSetLiveDetectionEnabled).not.toHaveBeenCalledWith(true);
   });
 

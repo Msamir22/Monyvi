@@ -584,14 +584,14 @@ export default function SettingsScreen(): React.JSX.Element {
           nextState === "active"
         ) {
           recheckPermission()
-            .then(() => {
-              setHasReturnedFromLiveDetectionSettings(true);
-            })
             .catch(() => {
               showToast({
                 type: "error",
                 title: tCommon("error"),
               });
+            })
+            .finally(() => {
+              setHasReturnedFromLiveDetectionSettings(true);
             });
         }
 

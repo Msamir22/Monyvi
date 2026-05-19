@@ -2,6 +2,7 @@ interface E2ePreflightModule {
   appendAndroidPlatform(url: string): string;
   currentFocusShowsDevMenu(currentFocus: string): boolean;
   currentFocusShowsLauncher(currentFocus: string): boolean;
+  getHttpClientNameForUrl(url: string): "http" | "https";
   isAppReady(uiXml: string): boolean;
 }
 
@@ -16,6 +17,15 @@ describe("e2e-preflight", () => {
         "http://127.0.0.1:8081/status?platform=ios"
       )
     ).toBe("http://127.0.0.1:8081/status?platform=android");
+  });
+
+  it("uses the HTTPS client for HTTPS Metro endpoints", () => {
+    expect(
+      preflight.getHttpClientNameForUrl("https://metro.example/status")
+    ).toBe("https");
+    expect(
+      preflight.getHttpClientNameForUrl("http://127.0.0.1:8081/status")
+    ).toBe("http");
   });
 
   it("treats the pre-auth pitch carousel as loaded product UI", () => {

@@ -141,7 +141,9 @@ Deno.serve(async (req) => {
     const metalsApiKey =
       Deno.env.get("METALS.DEV_API_KEY") ?? Deno.env.get("METALS_DEV_API_KEY");
     if (!metalsApiKey) {
-      throw new Error("METALS.DEV_API_KEY is not configured");
+      throw new Error(
+        "METALS.DEV_API_KEY or METALS_DEV_API_KEY is not configured"
+      );
     }
 
     // Fetch from metals.dev API with currency=USD (universal base)

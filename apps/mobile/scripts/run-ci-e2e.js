@@ -1,14 +1,16 @@
 const { join } = require("node:path");
-const { spawnSync } = require("node:child_process");
+const { spawn, spawnSync } = require("node:child_process");
 const { getE2eSeedConfig } = require("./e2e-seed");
 
 const mobileRoot = join(__dirname, "..");
-const maxScriptOutputBuffer = 50 * 1024 * 1024;
+const maxCapturedOutputLength = 256 * 1024;
 
 const shouldBootstrapAuth = process.env.E2E_SKIP_AUTH_BOOTSTRAP !== "1";
+const allCiSuites = ["transactions", "sms-sync", "live-sms"];
+let hasRunAuthBootstrap = false;
 
-const maestroFlows = [
-  ...(shouldBootstrapAuth ? ["helpers/ci-auth-bootstrap.yaml"] : []),
+const authBootstrapFlow = "helpers/ci-auth-bootstrap.yaml";
+const transactionMaestroFlows = [
   "transactions/create-transaction.yaml",
   "transactions/edit-transaction.yaml",
   "transactions/edit-category-quick.yaml",
@@ -17,9 +19,8 @@ const maestroFlows = [
   "transactions/change-type.yaml",
   "transactions/search-filter.yaml",
   "transactions/delete-transaction.yaml",
-  "sms-sync/sms-sync-permission-requestable.yaml",
 ];
-
+const smsSyncMaestroFlows = ["sms-sync/sms-sync-permission-requestable.yaml"];
 const defaultLiveSmsJourneys = [
   "01",
   "02",
@@ -101,6 +102,42 @@ function isDeviceOfflineFailure(output) {
   );
 }
 
+function appendOutputTail(
+  currentOutput,
+  nextChunk,
+  maxLength = maxCapturedOutputLength
+) {
+  const nextOutput = `${currentOutput}${nextChunk}`;
+  if (nextOutput.length <= maxLength) {
+    return nextOutput;
+  }
+
+  return nextOutput.slice(nextOutput.length - maxLength);
+}
+
+function getRequestedCiSuites(env = process.env) {
+  const value = env.E2E_CI_SUITES;
+  if (!value || value === "full") {
+    return new Set(allCiSuites);
+  }
+
+  const requested = value
+    .split(",")
+    .map((suite) => suite.trim())
+    .filter(Boolean);
+
+  if (requested.includes("skip")) {
+    return new Set();
+  }
+
+  const unknown = requested.filter((suite) => !allCiSuites.includes(suite));
+  if (unknown.length > 0) {
+    throw new Error(`Unknown E2E CI suite(s): ${unknown.join(", ")}`);
+  }
+
+  return new Set(requested);
+}
+
 function runAdb(args, options = {}) {
   return spawnSync("adb", args, {
     cwd: mobileRoot,
@@ -125,26 +162,43 @@ function reconnectAdb() {
 }
 
 function runNodeScriptOnce(script, args) {
-  const result = spawnSync(process.execPath, [script, ...args], {
-    cwd: mobileRoot,
-    env: process.env,
-    shell: false,
-    encoding: "utf8",
-    maxBuffer: maxScriptOutputBuffer,
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, [script, ...args], {
+      cwd: mobileRoot,
+      env: process.env,
+      shell: false,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let output = "";
+
+    child.stdout.on("data", (chunk) => {
+      const text = chunk.toString();
+      process.stdout.write(text);
+      output = appendOutputTail(output, text);
+    });
+
+    child.stderr.on("data", (chunk) => {
+      const text = chunk.toString();
+      process.stderr.write(text);
+      output = appendOutputTail(output, text);
+    });
+
+    child.on("error", (error) => {
+      const text = error.message;
+      process.stderr.write(`${text}\n`);
+      output = appendOutputTail(output, text);
+      resolve({ output, status: 1 });
+    });
+
+    child.on("close", (code) => {
+      resolve({ output, status: code ?? 1 });
+    });
   });
-
-  process.stdout.write(result.stdout ?? "");
-  process.stderr.write(result.stderr ?? "");
-
-  return {
-    output: `${result.stdout ?? ""}${result.stderr ?? ""}`,
-    status: result.status ?? 1,
-  };
 }
 
-function runNodeScript(script, args) {
+async function runNodeScript(script, args) {
   for (let attempt = 1; attempt <= 2; attempt += 1) {
-    const result = runNodeScriptOnce(script, args);
+    const result = await runNodeScriptOnce(script, args);
 
     if (result.status === 0) {
       return;
@@ -159,10 +213,10 @@ function runNodeScript(script, args) {
   }
 }
 
-function maybeSeedE2eData() {
+async function maybeSeedE2eData() {
   if (process.env.E2E_SKIP_SEED === "1") return;
 
-  runNodeScript("scripts/e2e-seed.js", ["seed"]);
+  await runNodeScript("scripts/e2e-seed.js", ["seed"]);
 }
 
 function isFixtureE2eMode() {
@@ -172,7 +226,7 @@ function isFixtureE2eMode() {
   );
 }
 
-function maybeRunSmsSyncJourneys() {
+async function maybeRunSmsSyncJourneys() {
   if (!isFixtureE2eMode()) {
     console.warn(
       "Skipping fixture SMS sync journeys because E2E fixture parser mode is not enabled."
@@ -180,7 +234,7 @@ function maybeRunSmsSyncJourneys() {
     return;
   }
 
-  runNodeScript("scripts/run-sms-sync-journeys.js", []);
+  await runNodeScript("scripts/run-sms-sync-journeys.js", []);
 }
 
 function getLiveSmsJourneys() {
@@ -193,31 +247,68 @@ function getLiveSmsJourneys() {
     .filter(Boolean);
 }
 
-function main() {
-  applyLocalE2eDefaults();
-  assertRequiredEnv();
-  maybeSeedE2eData();
+async function maybeRunAuthBootstrap() {
+  if (shouldBootstrapAuth && !hasRunAuthBootstrap) {
+    await runNodeScript("scripts/run-maestro.js", [
+      "test",
+      join("e2e", "maestro", authBootstrapFlow),
+    ]);
+    hasRunAuthBootstrap = true;
+  }
+}
 
-  for (const flow of maestroFlows) {
-    runNodeScript("scripts/run-maestro.js", [
+async function runMaestroFlows(flows) {
+  if (flows.length === 0) return;
+
+  await maybeRunAuthBootstrap();
+
+  for (const flow of flows) {
+    await runNodeScript("scripts/run-maestro.js", [
       "test",
       join("e2e", "maestro", flow),
     ]);
   }
-
-  maybeRunSmsSyncJourneys();
-  runNodeScript("scripts/run-live-sms-journeys.js", getLiveSmsJourneys());
 }
 
-if (require.main === module) {
-  try {
-    main();
-  } catch (error) {
-    console.error(error instanceof Error ? error.message : String(error));
-    process.exit(1);
+async function main() {
+  const selectedSuites = getRequestedCiSuites();
+  if (selectedSuites.size === 0) {
+    console.log(
+      "Skipping Android E2E because no affected suites were selected."
+    );
+    return;
+  }
+
+  applyLocalE2eDefaults();
+  assertRequiredEnv();
+  await maybeSeedE2eData();
+
+  if (selectedSuites.has("transactions")) {
+    await runMaestroFlows(transactionMaestroFlows);
+  }
+
+  if (selectedSuites.has("sms-sync")) {
+    await runMaestroFlows(smsSyncMaestroFlows);
+    await maybeRunSmsSyncJourneys();
+  }
+
+  if (selectedSuites.has("live-sms")) {
+    await runNodeScript(
+      "scripts/run-live-sms-journeys.js",
+      getLiveSmsJourneys()
+    );
   }
 }
 
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  });
+}
+
 module.exports = {
+  appendOutputTail,
+  getRequestedCiSuites,
   isDeviceOfflineFailure,
 };

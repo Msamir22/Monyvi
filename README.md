@@ -99,7 +99,7 @@ seeded test flow.
 Check that the Supabase containers are running:
 
 ```bash
-docker ps --format "{{.Names}}" | findstr supabase
+npx supabase status
 ```
 
 Check the local API URL and local anon key:

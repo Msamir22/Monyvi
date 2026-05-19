@@ -1,4 +1,12 @@
 interface RunCiE2eModule {
+  appendOutputTail(
+    currentOutput: string,
+    nextChunk: string,
+    maxLength?: number
+  ): string;
+  getRequestedCiSuites(
+    env?: Readonly<Record<string, string | undefined>>
+  ): ReadonlySet<"transactions" | "sms-sync" | "live-sms">;
   isDeviceOfflineFailure(output: string): boolean;
 }
 
@@ -7,6 +15,30 @@ const runCiE2e = jest.requireActual(
 ) as RunCiE2eModule;
 
 describe("run-ci-e2e helpers", () => {
+  it("defaults to all E2E suites when no selective suite is requested", () => {
+    expect([...runCiE2e.getRequestedCiSuites({})]).toEqual([
+      "transactions",
+      "sms-sync",
+      "live-sms",
+    ]);
+  });
+
+  it("parses selected E2E suites and treats skip as no-op", () => {
+    expect([
+      ...runCiE2e.getRequestedCiSuites({
+        E2E_CI_SUITES: "sms-sync,live-sms",
+      }),
+    ]).toEqual(["sms-sync", "live-sms"]);
+
+    expect(runCiE2e.getRequestedCiSuites({ E2E_CI_SUITES: "skip" }).size).toBe(
+      0
+    );
+  });
+
+  it("keeps only a bounded output tail for retry detection", () => {
+    expect(runCiE2e.appendOutputTail("abcdef", "ghij", 6)).toBe("efghij");
+  });
+
   it("detects ADB device-offline failures for infrastructure-only retry", () => {
     expect(
       runCiE2e.isDeviceOfflineFailure(
