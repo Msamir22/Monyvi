@@ -252,21 +252,5 @@ export const migrations = schemaMigrations({
         ),
       ],
     },
-    {
-      toVersion: 20,
-      steps: [
-        addColumns({
-          table: "categories",
-          columns: [{ name: "usage_count", type: "number" }],
-        }),
-        addColumns({
-          table: "asset_metals",
-          columns: [
-            { name: "deleted", type: "boolean" },
-            { name: "updated_at", type: "number" },
-          ],
-        }),
-      ],
-    },
   ],
 });
