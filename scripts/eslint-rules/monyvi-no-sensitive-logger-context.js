@@ -1,11 +1,6 @@
 "use strict";
 
-const KNOWN_DEBT_FILE_SUFFIXES = [
-  "apps/mobile/hooks/usePreferredCurrency.ts",
-  "apps/mobile/hooks/usePaymentSubmission.ts",
-  "apps/mobile/services/notification-service.ts",
-  "apps/mobile/services/sms-live-detection-handler.ts",
-];
+const KNOWN_DEBT_FILE_SUFFIXES = [];
 
 const SENSITIVE_KEYS = new Set([
   "accountid",
@@ -16,6 +11,7 @@ const SENSITIVE_KEYS = new Set([
   "email",
   "fingerprint",
   "fromaccountid",
+  "notificationid",
   "paymentid",
   "profileid",
   "rawsmsbody",
@@ -123,6 +119,8 @@ module.exports = {
     messages: {
       sensitiveLoggerKey:
         "Logger context key '{{keyName}}' may contain sensitive financial, account, or SMS data. Redact it before logging or omit it.",
+      sensitiveLoggerMessage:
+        "Logger message interpolates '{{keyName}}', which may expose sensitive financial, account, or SMS data. Redact it before logging or omit it.",
     },
   },
 
@@ -153,11 +151,45 @@ module.exports = {
       }
     }
 
+    function getSensitiveExpressionName(expression) {
+      if (expression.type === "Identifier") {
+        return isSensitiveKey(expression.name) ? expression.name : null;
+      }
+
+      if (expression.type === "MemberExpression") {
+        const propertyName = getPropertyName(expression);
+        return propertyName && isSensitiveKey(propertyName)
+          ? propertyName
+          : null;
+      }
+
+      return null;
+    }
+
+    function inspectLoggerMessage(argument) {
+      if (!argument || argument.type !== "TemplateLiteral") {
+        return;
+      }
+
+      for (const expression of argument.expressions) {
+        const keyName = getSensitiveExpressionName(expression);
+        if (keyName) {
+          context.report({
+            node: expression,
+            messageId: "sensitiveLoggerMessage",
+            data: { keyName },
+          });
+        }
+      }
+    }
+
     return {
       CallExpression(node) {
         if (!isLoggerCall(node)) {
           return;
         }
+
+        inspectLoggerMessage(node.arguments[0]);
 
         for (const argument of node.arguments) {
           if (argument.type === "ObjectExpression") {

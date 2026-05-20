@@ -21,14 +21,6 @@ ruleTester.run("monyvi-no-sensitive-logger-context", rule, {
       code: `logger.warn("sms.saved", { smsFingerprintPrefix: "abc123" });`,
       filename: "apps/mobile/services/sms-service.ts",
     },
-    {
-      code: `logger.info("sms.saved", { amount: 100, smsFingerprint: "abc" });`,
-      filename: "apps/mobile/services/sms-live-detection-handler.ts",
-    },
-    {
-      code: `logger.error("payment.failed", error, { paymentId: "p1", accountId: "a1" });`,
-      filename: "apps/mobile/hooks/usePaymentSubmission.ts",
-    },
   ],
   invalid: [
     {
@@ -45,6 +37,27 @@ ruleTester.run("monyvi-no-sensitive-logger-context", rule, {
       code: `logger.error("nested", error, { metadata: { userId: "u1" } });`,
       filename: "apps/mobile/services/profile-service.ts",
       errors: [{ messageId: "sensitiveLoggerKey" }],
+    },
+    {
+      code: `logger.info("sms.saved", { amount: 100, smsFingerprint: "abc" });`,
+      filename: "apps/mobile/services/sms-live-detection-handler.ts",
+      errors: [
+        { messageId: "sensitiveLoggerKey" },
+        { messageId: "sensitiveLoggerKey" },
+      ],
+    },
+    {
+      code: `logger.error("payment.failed", error, { paymentId: "p1", accountId: "a1" });`,
+      filename: "apps/mobile/hooks/usePaymentSubmission.ts",
+      errors: [
+        { messageId: "sensitiveLoggerKey" },
+        { messageId: "sensitiveLoggerKey" },
+      ],
+    },
+    {
+      code: "logger.error(`Account not found (ID: ${accountId})`);",
+      filename: "apps/mobile/services/edit-account-service.ts",
+      errors: [{ messageId: "sensitiveLoggerMessage" }],
     },
   ],
 });
