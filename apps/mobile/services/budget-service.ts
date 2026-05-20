@@ -13,7 +13,6 @@ import {
   Transaction,
   Category,
   type BudgetPeriod,
-  type BudgetStatus,
   type BudgetType,
   type CurrencyType,
   type AlertFiredLevel,
@@ -21,6 +20,7 @@ import {
 import { Q, type Collection } from "@nozbe/watermelondb";
 import {
   getCurrentPeriodBounds,
+  isPeriodExpired,
   filterExcludedTransactions,
   buildPauseInterval,
   parsePauseIntervals,
@@ -164,12 +164,12 @@ export async function createBudget(input: CreateBudgetInput): Promise<Budget> {
       b.type = input.type;
       b.categoryId = categoryId;
       b.amount = input.amount;
-      b.currency = input.currency as CurrencyType;
+      b.currency = input.currency;
       b.period = input.period;
       b.periodStart = input.periodStart ?? undefined;
       b.periodEnd = input.periodEnd ?? undefined;
       b.alertThreshold = input.alertThreshold;
-      b.status = "ACTIVE" as BudgetStatus;
+      b.status = "ACTIVE";
       b.deleted = false;
     });
     return budget;
@@ -283,7 +283,7 @@ export async function pauseBudget(budgetId: string): Promise<void> {
 
   await database.write(async () => {
     await budget.update((b) => {
-      b.status = "PAUSED" as BudgetStatus;
+      b.status = "PAUSED";
       b.pausedAt = new Date().toISOString();
     });
   });
@@ -308,7 +308,7 @@ export async function resumeBudget(budgetId: string): Promise<void> {
 
   await database.write(async () => {
     await budget.update((b) => {
-      b.status = "ACTIVE" as BudgetStatus;
+      b.status = "ACTIVE";
 
       // Build and append the completed pause interval
       if (pausedAtMs !== undefined) {
@@ -370,10 +370,50 @@ export async function autoPauseBudget(budgetId: string): Promise<void> {
 
   await database.write(async () => {
     await budget.update((b) => {
-      b.status = "PAUSED" as BudgetStatus;
+      b.status = "PAUSED";
       b.pausedAt = new Date().toISOString();
     });
   });
+}
+
+/**
+ * Pause all active custom budgets whose period has expired.
+ *
+ * This is an explicit lifecycle command. Hooks/read models should call this
+ * from a clear orchestration point instead of mutating while computing reads.
+ */
+export async function pauseExpiredCustomBudgets(): Promise<number> {
+  const scope = await getCurrentUserDataScope();
+  const candidates = await scope
+    .queryOwned(
+      budgetsCollection(),
+      Q.where("deleted", false),
+      Q.where("status", "ACTIVE"),
+      Q.where("period", "CUSTOM")
+    )
+    .fetch();
+
+  const expiredBudgets = candidates.filter((budget) =>
+    isPeriodExpired(budget.periodEnd)
+  );
+
+  if (expiredBudgets.length === 0) {
+    return 0;
+  }
+
+  const pausedAt = new Date().toISOString();
+  await database.write(async () => {
+    await Promise.all(
+      expiredBudgets.map((budget) =>
+        budget.update((b) => {
+          b.status = "PAUSED";
+          b.pausedAt = pausedAt;
+        })
+      )
+    );
+  });
+
+  return expiredBudgets.length;
 }
 
 // =============================================================================

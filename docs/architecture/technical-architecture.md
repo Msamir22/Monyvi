@@ -1,6 +1,6 @@
 # Monyvi Technical Architecture
 
-**Last updated:** 2026-05-20 **Status:** Implementation-aligned architecture map
+**Last updated:** 2026-05-21 **Status:** Implementation-aligned architecture map
 
 This document describes how the app is currently built. The constitution remains
 the authority for required engineering principles; this file explains the
@@ -137,8 +137,8 @@ Approved helper patterns live in `apps/mobile/services/user-data-access.ts`:
 Components and routes must not import the raw `database` object or call
 `useDatabase()` directly. Hooks may observe scoped data through approved helpers
 or repositories/read models, while services own writes and workflow mutations.
-Current exceptions are tracked by #655 and #657 and are allowlisted only until
-those issues remove them.
+Current route/component exceptions are tracked by #657 and are allowlisted only
+until that issue removes them.
 
 ## 7. Sync Architecture
 
@@ -208,6 +208,9 @@ Attachment rules:
 - Hooks should feel like React facades: subscribe, manage lifecycle state, and
   call commands. They must not own `database.write()` or multi-table business
   calculations.
+- Lifecycle mutations such as expired-budget auto-pause must be explicit mobile
+  service commands invoked by a container or orchestrator, not hidden side
+  effects of read-model or hook metric calculation.
 - Read-model services are the home for reusable scoped reads, joins, grouping,
   and screen-specific aggregation such as budget detail, transaction timeline,
   analytics, and net-worth views.
@@ -299,7 +302,6 @@ Tracked architecture debt:
 - #653 repairs sensitive SMS and financial logging.
 - #654 repairs package-boundary reversals between `packages/db` and
   `packages/logic`.
-- #655 moves hook-owned writes into command services.
 - #656 extracts read-model services from heavy hooks.
 - #657 splits oversized UI modules and restores container/presentational
   boundaries.

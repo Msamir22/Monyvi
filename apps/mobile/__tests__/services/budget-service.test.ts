@@ -24,6 +24,9 @@ interface MockBudgetRecord {
   readonly type: string;
   categoryId: string;
   readonly period: string;
+  status: string;
+  pausedAt?: string;
+  readonly periodEnd?: Date;
   readonly update: jest.Mock<
     Promise<void>,
     [(record: MockBudgetRecord) => void]
@@ -47,6 +50,7 @@ function createExistingCategoryBudget(): MockBudgetRecord {
     type: "CATEGORY",
     categoryId: "category-old",
     period: "MONTHLY",
+    status: "ACTIVE",
     update: jest.fn(
       (builder: (record: MockBudgetRecord) => void): Promise<void> => {
         builder(existingBudget);
@@ -56,6 +60,29 @@ function createExistingCategoryBudget(): MockBudgetRecord {
   };
 
   return existingBudget;
+}
+
+function createLifecycleBudget(
+  overrides: Partial<MockBudgetRecord> = {}
+): MockBudgetRecord {
+  const budget: MockBudgetRecord = {
+    id: "budget-lifecycle",
+    userId: "user-1",
+    type: "GLOBAL",
+    categoryId: "",
+    period: "CUSTOM",
+    status: "ACTIVE",
+    periodEnd: new Date("2020-01-01T00:00:00.000Z"),
+    update: jest.fn(
+      (builder: (record: MockBudgetRecord) => void): Promise<void> => {
+        builder(budget);
+        return Promise.resolve();
+      }
+    ),
+    ...overrides,
+  };
+
+  return budget;
 }
 
 jest.mock("@monyvi/db", (): unknown => ({
@@ -78,7 +105,11 @@ jest.mock("@/services/user-data-access", (): unknown => ({
   },
 }));
 
-import { createBudget, updateBudget } from "@/services/budget-service";
+import {
+  createBudget,
+  pauseExpiredCustomBudgets,
+  updateBudget,
+} from "@/services/budget-service";
 
 describe("budget-service", () => {
   beforeEach((): void => {
@@ -232,5 +263,36 @@ describe("budget-service", () => {
 
     expect(existingBudget.update).not.toHaveBeenCalled();
     expect(mockQueryOwned).toHaveBeenCalledTimes(1);
+  });
+
+  it("pauses only expired active custom budgets and returns the paused count", async (): Promise<void> => {
+    const expired = createLifecycleBudget({ id: "expired" });
+    const future = createLifecycleBudget({
+      id: "future",
+      periodEnd: new Date("2999-01-01T00:00:00.000Z"),
+    });
+    mockQueryOwned.mockReturnValueOnce(createQueryResult([expired, future]));
+
+    const pausedCount = await pauseExpiredCustomBudgets();
+
+    expect(pausedCount).toBe(1);
+    expect(expired.update).toHaveBeenCalledTimes(1);
+    expect(expired.status).toBe("PAUSED");
+    expect(expired.pausedAt).toEqual(expect.any(String));
+    expect(future.update).not.toHaveBeenCalled();
+  });
+
+  it("does not open a writer when no active custom budgets are expired", async (): Promise<void> => {
+    const future = createLifecycleBudget({
+      id: "future",
+      periodEnd: new Date("2999-01-01T00:00:00.000Z"),
+    });
+    mockQueryOwned.mockReturnValueOnce(createQueryResult([future]));
+
+    const pausedCount = await pauseExpiredCustomBudgets();
+
+    expect(pausedCount).toBe(0);
+    expect(mockWrite).not.toHaveBeenCalled();
+    expect(future.update).not.toHaveBeenCalled();
   });
 });

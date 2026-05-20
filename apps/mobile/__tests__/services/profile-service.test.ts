@@ -166,6 +166,7 @@ jest.mock("@/services/supabase", () => ({
 
 import {
   setPreferredLanguage,
+  setPreferredCurrency,
   completeOnboarding,
   confirmCurrencyAndOnboard,
 } from "@/services/profile-service";
@@ -251,6 +252,33 @@ describe("setPreferredLanguage", () => {
   it("throws if no profile row exists", async (): Promise<void> => {
     setupProfileNotFound();
     await expect(setPreferredLanguage("en")).rejects.toThrow();
+  });
+});
+
+describe("setPreferredCurrency", () => {
+  it("updates the scoped profile's preferredCurrency field via database.write", async (): Promise<void> => {
+    const updates: Record<string, unknown> = {};
+    const profile = createMockProfile({
+      preferredCurrency: "EGP",
+      update: jest.fn((fn: (p: Record<string, unknown>) => void) => {
+        fn(updates);
+      }),
+    });
+    setupProfileFound(profile);
+
+    await setPreferredCurrency("USD");
+
+    const { mockWrite } = getDbMocks();
+    expect(mockWrite).toHaveBeenCalledTimes(1);
+    expect(updates.preferredCurrency).toBe("USD");
+  });
+
+  it("throws if no scoped profile row exists", async (): Promise<void> => {
+    setupProfileNotFound();
+
+    await expect(setPreferredCurrency("EGP")).rejects.toThrow(
+      "No profile row found"
+    );
   });
 });
 

@@ -1,9 +1,6 @@
 "use strict";
 
-const KNOWN_DEBT_FILE_SUFFIXES = [
-  "apps/mobile/hooks/usePreferredCurrency.ts",
-  "apps/mobile/utils/transactions.ts",
-];
+const KNOWN_DEBT_FILE_SUFFIXES = [];
 
 function normalizePath(fileName) {
   return fileName.replace(/\\/g, "/");
