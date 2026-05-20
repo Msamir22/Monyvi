@@ -198,11 +198,23 @@ function buildBatchSmsSavedVerificationQueries() {
 
 let hasSavedSmsSyncBaseline = false;
 
+function shouldRelaunchBetweenSmsSyncJourneys(env = process.env) {
+  return env.E2E_SMS_SYNC_RELAUNCH_BETWEEN_JOURNEYS === "1";
+}
+
+async function maybeRelaunchBeforeSmsSyncJourney() {
+  if (!shouldRelaunchBetweenSmsSyncJourneys()) {
+    return;
+  }
+
+  forceStopApp();
+  await ensureE2eAppReady();
+}
+
 async function runBatchDuplicatesAndAtm() {
   grantReadSmsPermission();
   clearSmsSyncProbeRows();
-  forceStopApp();
-  await ensureE2eAppReady();
+  await maybeRelaunchBeforeSmsSyncJourney();
   runFlow("sms-sync-batch-duplicates-atm.yaml");
   verifyBatchSmsSaved();
   hasSavedSmsSyncBaseline = true;
@@ -214,8 +226,7 @@ async function runRescanSkipsSaved() {
   }
 
   grantReadSmsPermission();
-  forceStopApp();
-  await ensureE2eAppReady();
+  await maybeRelaunchBeforeSmsSyncJourney();
   runFlow("sms-sync-rescan-skips-saved.yaml");
   verifyBatchSmsSaved();
 }
@@ -261,4 +272,5 @@ module.exports = {
   buildBatchSmsSavedVerificationQueries,
   buildSmsSyncProbeCleanupSql,
   getActiveUserFilter,
+  shouldRelaunchBetweenSmsSyncJourneys,
 };
