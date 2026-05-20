@@ -3,53 +3,182 @@
 End-to-end tests for the Monyvi mobile app using
 [Maestro](https://maestro.mobile.dev/).
 
-## Quick Start
+## What Runs Locally
+
+The local E2E environment uses:
+
+- local Supabase for auth, database, and Edge Function URLs
+- an Android emulator with a Monyvi development build installed
+- Metro running in E2E fixture mode
+- deterministic seeded data and fixture SMS parsing
+- Maestro for driving the app UI
+
+Run commands from the repository root. Commands that call mobile package scripts
+directly use `-w @monyvi/mobile`.
+
+## Prerequisites
+
+- Docker Desktop running
+- Android emulator running and visible to `adb devices`
+- a Monyvi development build installed on the emulator; Expo Go is not enough
+- Maestro installed, or `MAESTRO_BIN` set to the Maestro executable
+- root dependencies installed with `npm install`
+
+The local runner derives safe local Supabase keys automatically from
+`npx supabase status`, so normal local runs should not require hand-written
+Supabase keys.
+
+## Start The Local E2E Environment
 
 ```powershell
 # 1. Start local Supabase from the repo root
-npx supabase start
+npm run supabase:start:local
 
-# 2. Start emulator + Metro in E2E fixture mode (separate terminal)
+# 2. Start the emulator if it is not already running
+adb devices
+
+# 3. Start Metro in E2E fixture mode (separate terminal)
 npm run mobile:e2e-fixture
-
-# 3. Seed deterministic E2E data, then run a test through the wrapper
-#    Seeding requires local E2E credentials in the current shell:
-#    E2E_LOCAL_JWT_SECRET, MAESTRO_E2E_EMAIL, MAESTRO_E2E_PASSWORD
-npm run e2e:seed
-npm run e2e:flow:local -- e2e/maestro/transactions/create-transaction.yaml
 ```
 
-The project wrapper runs an Android preflight before each `maestro test`: it
+`mobile:e2e-fixture` points Android at local Supabase and enables deterministic
+fixture parsing for SMS/AI flows. Keep that terminal open while tests run.
+
+## Run All E2E Suites
+
+```powershell
+npm run e2e:local -w @monyvi/mobile
+```
+
+This runs the same local CI-style path as `scripts/run-ci-e2e.js`:
+
+1. seed local E2E data
+2. bootstrap the authenticated test user in the app
+3. run transaction flows
+4. run SMS sync flows
+5. run live SMS journeys `01` through `14` plus `16`
+
+Journey `15` is excluded from the default local/dev-client run because it covers
+killed-app HeadlessJS and needs a release or preview APK with embedded JS.
+
+## Run A Specific Suite
+
+Use `E2E_CI_SUITES` to select one or more CI-style suites.
+
+```powershell
+# Bash/Git Bash
+E2E_CI_SUITES=transactions npm run e2e:local -w @monyvi/mobile
+E2E_CI_SUITES=sms-sync npm run e2e:local -w @monyvi/mobile
+E2E_CI_SUITES=live-sms npm run e2e:local -w @monyvi/mobile
+E2E_CI_SUITES=transactions,sms-sync npm run e2e:local -w @monyvi/mobile
+```
+
+PowerShell:
+
+```powershell
+$env:E2E_CI_SUITES = "live-sms"
+npm run e2e:local -w @monyvi/mobile
+Remove-Item Env:E2E_CI_SUITES
+```
+
+Valid suite names:
+
+| Suite          | What it runs                                                        |
+| -------------- | ------------------------------------------------------------------- |
+| `transactions` | Create, edit, quick-edit, swap account, change type, search, delete |
+| `sms-sync`     | SMS sync permission flow plus fixture batch scan/rescan journeys    |
+| `live-sms`     | Live SMS enable/permission/background/action journeys               |
+
+Use `E2E_CI_SUITES=skip` to verify the runner wiring without launching any
+Maestro flows.
+
+## Run One Maestro Flow
+
+Use this when you are debugging a single YAML flow.
+
+```powershell
+npm run e2e:flow:local -w @monyvi/mobile -- e2e/maestro/transactions/create-transaction.yaml
+```
+
+The `e2e:flow:local` wrapper runs Android preflight before Maestro starts: it
 checks Metro, reverses port `8081`, opens or recovers the Monyvi dev client, and
 waits until the app reaches a recognized loaded screen. Maestro YAML flows
 should not launch the app themselves; they should take over only after preflight
 has opened a ready app screen.
 
-To verify the local seeded auth path only, run:
+## Run Focused SMS Suites
+
+SMS sync:
 
 ```powershell
-npm run e2e:auth:local
+npm run e2e:sms-sync:local -w @monyvi/mobile
 ```
 
-That command clears the app state, seeds the local E2E user, opens the dev
-client through the preflight wrapper, signs in, and handles first-run prompts.
-
-Focused local fixture runners are available for narrower debugging:
+Live SMS, all default dev-client journeys:
 
 ```powershell
-npm run e2e:sms-sync:local
-npm run e2e:live-sms:local -- 16
+npm run e2e:live-sms:local -w @monyvi/mobile
 ```
 
-To target a specific connected emulator or device:
+Live SMS, specific journeys:
 
 ```powershell
-$env:DEVICE="emulator-5554"; npm run e2e:device -- e2e/maestro/transactions/create-transaction.yaml
-npm run e2e:device -- --device emulator-5554 e2e/maestro/transactions/create-transaction.yaml
+npm run e2e:live-sms:local -w @monyvi/mobile -- 16
+npm run e2e:live-sms:local -w @monyvi/mobile -- 09 10
 ```
 
-> **First time?** See the full setup in
-> [/.agent/workflows/maestro.md](/.agent/workflows/maestro.md)
+Release-only killed-app journey:
+
+```powershell
+npm run e2e:live-sms:release -w @monyvi/mobile
+```
+
+Use the release runner only after installing a release or preview APK. Journey
+`15` validates killed-app HeadlessJS and should not be trusted from a dev-client
+Metro-only run.
+
+## Auth Bootstrap Only
+
+To verify the local seeded auth path only:
+
+```powershell
+npm run e2e:auth:local -w @monyvi/mobile
+```
+
+That command clears app state, seeds the local E2E user, opens the dev client
+through the preflight wrapper, signs in, and handles first-run prompts.
+
+## Target A Specific Emulator Or Device
+
+```powershell
+$env:DEVICE = "emulator-5554"
+npm run e2e:device -w @monyvi/mobile -- e2e/maestro/transactions/create-transaction.yaml
+Remove-Item Env:DEVICE
+```
+
+Equivalent explicit flag:
+
+```powershell
+npm run e2e:device -w @monyvi/mobile -- --device emulator-5554 e2e/maestro/transactions/create-transaction.yaml
+```
+
+## Manual Seed And Flow Loop
+
+If you want to control seeding manually:
+
+```powershell
+# Seed deterministic E2E data
+npm run e2e:seed -w @monyvi/mobile
+
+# Run a test through the wrapper
+npm run e2e:flow:local -w @monyvi/mobile -- e2e/maestro/transactions/create-transaction.yaml
+```
+
+To reset seeded local data:
+
+```powershell
+npm run e2e:reset -w @monyvi/mobile
+```
 
 ## CI
 
@@ -64,7 +193,7 @@ parser by default. The runner starts Supabase locally, seeds the user and stable
 financial data, then runs Maestro. To reproduce the same path locally:
 
 ```powershell
-npm run e2e:local
+npm run e2e:local -w @monyvi/mobile
 ```
 
 Remote Supabase is still available as a temporary fallback by setting
@@ -78,7 +207,7 @@ credentials.
 | `EXPO_PUBLIC_AI_SMS_PARSER_MODE` | Set to `fixture` to avoid live AI parsing in E2E   |
 | `MAESTRO_E2E_EMAIL`              | Seeded E2E test account email                      |
 | `MAESTRO_E2E_PASSWORD`           | Seeded E2E test account password                   |
-| `E2E_LOCAL_JWT_SECRET`           | Local Supabase JWT secret for generated local keys |
+| `E2E_LOCAL_JWT_SECRET`           | Optional fallback for generated local keys         |
 | `SUPABASE_SERVICE_ROLE_KEY`      | Seed/reset access; local mode has a safe local key |
 
 By default the CI suite runs live SMS journeys `01` through `14` plus `16`.

@@ -7,6 +7,7 @@ import { database, type Profile } from "@monyvi/db";
 import { Q } from "@nozbe/watermelondb";
 import {
   createContext,
+  type JSX,
   ReactNode,
   useCallback,
   useContext,

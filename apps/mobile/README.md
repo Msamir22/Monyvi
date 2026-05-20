@@ -8,8 +8,9 @@ repository root unless noted otherwise.
 ## Running The App
 
 For full setup instructions, local Supabase, Google auth, E2E, database, and
-runtime scripts, use the root [README](../../README.md). For day-to-day local
-backend development, start from this root flow:
+runtime scripts, use the root [README](../../README.md). For E2E specifically,
+use the local walkthrough in [e2e/maestro/README.md](e2e/maestro/README.md). For
+day-to-day local backend development, start from this root flow:
 
 ```bash
 npm run supabase:start:local
@@ -22,8 +23,8 @@ app relies on native SMS permissions and the generated SMS broadcast receiver.
 
 ## Tech Stack
 
-- Expo SDK 52
-- React Native 0.76
+- Expo SDK 55
+- React Native 0.83
 - Expo Router
 - NativeWind
 - WatermelonDB
@@ -50,4 +51,5 @@ app relies on native SMS permissions and the generated SMS broadcast receiver.
 - [Business decisions](../../docs/business/business-decisions.md)
 - [Technical architecture](../../docs/architecture/technical-architecture.md)
 - [Design system](../../docs/design/design-system.md)
+- [Local E2E walkthrough](e2e/maestro/README.md)
 - [Constitution](../../.specify/memory/constitution.md)

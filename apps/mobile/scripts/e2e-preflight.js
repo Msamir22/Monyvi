@@ -25,6 +25,8 @@ const preflightAttemptTimeoutMs = parsePositiveInt(
 const devClientUrl = `exp+monyvi://expo-development-client/?url=${encodeURIComponent(
   metroUrl
 )}`;
+const devMenuPreferencesPath =
+  "shared_prefs/expo.modules.devmenu.sharedpreferences.xml";
 const privateShellMarkers = [
   "fab-button",
   "search-input",
@@ -202,6 +204,30 @@ function adb(args, options = {}) {
   });
 }
 
+function buildDevMenuPreferencesXml() {
+  return [
+    "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>",
+    "<map>",
+    '    <boolean name="isOnboardingFinished" value="true" />',
+    '    <boolean name="showFab" value="false" />',
+    "</map>",
+    "",
+  ].join("\n");
+}
+
+function disableExpoDevMenuFabForE2e() {
+  if (isReleaseBuild) return;
+
+  adb(["shell", "run-as", appId, "mkdir", "-p", "shared_prefs"], {
+    allowFailure: true,
+  });
+  adb(["shell", "run-as", appId, "tee", devMenuPreferencesPath], {
+    allowFailure: true,
+    capture: true,
+    input: buildDevMenuPreferencesXml(),
+  });
+}
+
 function collapseSystemUi() {
   adb(["shell", "cmd", "statusbar", "collapse"], { allowFailure: true });
 }
@@ -226,6 +252,7 @@ function startAppWithoutChangingPermissions() {
   }
 
   adb(["reverse", "tcp:8081", "tcp:8081"]);
+  disableExpoDevMenuFabForE2e();
   adb([
     "shell",
     "am",
@@ -616,6 +643,8 @@ module.exports = {
   appendAndroidPlatform,
   currentFocusShowsDevMenu,
   currentFocusShowsLauncher,
+  buildDevMenuPreferencesXml,
+  disableExpoDevMenuFabForE2e,
   getHttpClientNameForUrl,
   isAppReady,
   isReleaseBuild,

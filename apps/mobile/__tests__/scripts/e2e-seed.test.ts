@@ -12,8 +12,6 @@ describe("e2e-seed script helpers", () => {
     const config = getE2eSeedConfig({
       E2E_SUPABASE_MODE: "local",
       E2E_LOCAL_JWT_SECRET: "local-test-jwt-secret-with-enough-length",
-      MAESTRO_E2E_EMAIL: "e2e@monyvi.test",
-      MAESTRO_E2E_PASSWORD: "Password123!",
     });
 
     expect(config.mode).toBe("local");
@@ -24,12 +22,37 @@ describe("e2e-seed script helpers", () => {
     expect(config.serviceRoleKey).toContain("eyJ");
   });
 
-  it("fails fast when local E2E credentials are missing", () => {
-    expect(() =>
-      getE2eSeedConfig({
+  it("reads local Supabase keys from status output when local keys are not set", () => {
+    const config = getE2eSeedConfig(
+      {
         E2E_SUPABASE_MODE: "local",
-      })
-    ).toThrow("E2E_LOCAL_JWT_SECRET");
+      },
+      {
+        readLocalSupabaseStatusEnv: () =>
+          [
+            'ANON_KEY="local-anon-key"',
+            'SERVICE_ROLE_KEY="local-service-role-key"',
+          ].join("\n"),
+      }
+    );
+
+    expect(config.anonKey).toBe("local-anon-key");
+    expect(config.serviceRoleKey).toBe("local-service-role-key");
+    expect(config.email).toBe("e2e@monyvi.test");
+    expect(config.password).toBe("Password123!");
+  });
+
+  it("fails fast when local Supabase keys cannot be resolved", () => {
+    expect(() =>
+      getE2eSeedConfig(
+        {
+          E2E_SUPABASE_MODE: "local",
+        },
+        {
+          readLocalSupabaseStatusEnv: () => "",
+        }
+      )
+    ).toThrow("Could not find local Supabase keys");
   });
 
   it("uses explicit local Supabase keys without requiring the local JWT secret", () => {

@@ -43,8 +43,10 @@ appId: com.monyvi.app
     commands:
       - tapOn: "Email address"
       - inputText: ${MAESTRO_E2E_EMAIL}
+      - hideKeyboard
       - tapOn: "Password"
       - inputText: ${MAESTRO_E2E_PASSWORD}
+      - hideKeyboard
       - tapOn: "Sign in"
       - runFlow:
           when:

@@ -8,11 +8,12 @@
 import { schema, SupabaseDatabase } from "@monyvi/db";
 import { Q, type Database, type Model } from "@nozbe/watermelondb";
 import {
-  SyncDatabaseChangeSet,
+  type SyncDatabaseChangeSet,
   synchronize,
   SyncPullResult,
   SyncPushArgs,
   SyncPushResult,
+  SyncTableChangeSet,
 } from "@nozbe/watermelondb/sync";
 import { getCurrentUserId, supabase } from "./supabase";
 import { logger } from "@/utils/logger";
@@ -52,19 +53,6 @@ const SNAPSHOT_TABLES = [
 ] as const;
 
 type SnapshotTableName = (typeof SNAPSHOT_TABLES)[number];
-
-// Child tables that don't have user_id - need to sync via parent relationship
-const CHILD_TABLES_MAP: Record<
-  string,
-  {
-    parentTable: WritableSupabaseTablesNames;
-    foreignKey: string;
-  }
-> = {
-  asset_metals: { parentTable: "assets", foreignKey: "asset_id" },
-  bank_details: { parentTable: "accounts", foreignKey: "account_id" },
-};
-
 type ExcludedTableName = (typeof EXCLUDED_TABLES)[number];
 type SupabaseTablesNames = Exclude<
   keyof SupabaseDatabase["public"]["Tables"],
@@ -76,6 +64,74 @@ type WritableSupabaseTablesNames = Exclude<
   SupabaseTablesNames,
   ReadOnlyTableName
 >;
+type SupabaseTableRow<TTable extends SupabaseTablesNames> =
+  SupabaseDatabase["public"]["Tables"][TTable]["Row"];
+type SupabaseRelationship<TTable extends SupabaseTablesNames> =
+  SupabaseDatabase["public"]["Tables"][TTable]["Relationships"][number];
+type ChildTableConfigFor<TTable extends WritableSupabaseTablesNames> =
+  SupabaseRelationship<TTable> extends infer Relationship
+    ? Relationship extends {
+        readonly columns: readonly [infer ColumnName, ...unknown[]];
+        readonly referencedRelation: infer ParentTable;
+      }
+      ? {
+          readonly parentTable: Extract<
+            ParentTable,
+            WritableSupabaseTablesNames
+          >;
+          readonly foreignKey: Extract<
+            ColumnName,
+            keyof SupabaseTableRow<TTable>
+          >;
+        }
+      : never
+    : never;
+
+function defineChildTableMap<
+  const TConfig extends Partial<{
+    readonly [TTable in WritableSupabaseTablesNames]: ChildTableConfigFor<TTable>;
+  }>,
+>(config: TConfig): TConfig {
+  return config;
+}
+
+// Child tables that don't have user_id - need to sync via parent relationship.
+// The helper proves each child table, parent table, and FK column exists in the
+// generated Supabase schema types.
+const CHILD_TABLES_MAP = defineChildTableMap({
+  asset_metals: { parentTable: "assets", foreignKey: "asset_id" },
+  bank_details: { parentTable: "accounts", foreignKey: "account_id" },
+});
+
+type ChildTableName = keyof typeof CHILD_TABLES_MAP;
+type ChildParentTableName =
+  (typeof CHILD_TABLES_MAP)[ChildTableName]["parentTable"];
+type ChildTableConfig = (typeof CHILD_TABLES_MAP)[ChildTableName];
+
+const CHILD_TABLE_NAMES = Object.keys(CHILD_TABLES_MAP) as ChildTableName[];
+
+type UserOwnedWritableTableName = Exclude<
+  WritableSupabaseTablesNames,
+  ChildTableName
+>;
+type AppSyncDatabaseChangeSet = SyncDatabaseChangeSet & {
+  [TableName in SupabaseTablesNames]?: SyncTableChangeSet;
+};
+interface SupabaseWriteQuery extends PromiseLike<{ error: unknown }> {
+  eq(column: string, value: string): SupabaseWriteQuery;
+  in(column: string, values: readonly string[]): SupabaseWriteQuery;
+}
+
+interface SupabaseWriteTable {
+  insert(records: ReadonlyArray<Record<string, unknown>>): PromiseLike<{
+    error: unknown;
+  }>;
+  upsert(
+    record: Record<string, unknown>,
+    options: { readonly onConflict: string }
+  ): PromiseLike<{ error: unknown }>;
+  update(values: Record<string, unknown>): SupabaseWriteQuery;
+}
 
 function isSnapshotTable(
   table: SupabaseTablesNames
@@ -93,6 +149,20 @@ function isWritableTable(
   table: SupabaseTablesNames
 ): table is WritableSupabaseTablesNames {
   return !isReadOnlyTable(table);
+}
+
+function getChildTableConfig(
+  table: SupabaseTablesNames
+): ChildTableConfig | undefined {
+  return CHILD_TABLE_NAMES.includes(table as ChildTableName)
+    ? CHILD_TABLES_MAP[table as ChildTableName]
+    : undefined;
+}
+
+function getSupabaseWriteTable(
+  table: WritableSupabaseTablesNames
+): SupabaseWriteTable {
+  return supabase.from(table) as unknown as SupabaseWriteTable;
 }
 
 // Tables that should be synced to Supabase
@@ -140,7 +210,7 @@ function createForeignLocalChangeError(table: string): Error {
  */
 async function pullMarketRates(
   daysToKeep: number = 7
-): Promise<SyncDatabaseChangeSet["market_rates"]> {
+): Promise<SyncTableChangeSet> {
   try {
     // Calculate cutoff date (N days ago)
     const cutoffDate = new Date();
@@ -187,7 +257,7 @@ async function pullSnapshotTable(
   table: SnapshotTableName,
   userId: string,
   lastSyncDate: string | null
-): Promise<SyncDatabaseChangeSet[SnapshotTableName]> {
+): Promise<SyncTableChangeSet> {
   try {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - SNAPSHOT_RETENTION_DAYS);
@@ -234,10 +304,10 @@ async function pullSnapshotTable(
  * Pull user-scoped table (normal tables with user_id)
  */
 async function pullUserTable(
-  table: WritableSupabaseTablesNames,
+  table: UserOwnedWritableTableName,
   userId: string,
   lastSyncDate: string | null
-): Promise<SyncDatabaseChangeSet[WritableSupabaseTablesNames]> {
+): Promise<SyncTableChangeSet> {
   let query = supabase.from(table).select("*").eq("user_id", userId);
 
   if (lastSyncDate) {
@@ -273,14 +343,11 @@ async function pullUserTable(
  * Pull child table (no user_id, filtered via parent FK)
  */
 async function pullChildTable(
-  table: WritableSupabaseTablesNames,
-  childConfig: {
-    parentTable: WritableSupabaseTablesNames;
-    foreignKey: string;
-  },
+  table: ChildTableName,
+  childConfig: ChildTableConfig,
   userId: string,
   lastSyncDate: string | null
-): Promise<SyncDatabaseChangeSet[WritableSupabaseTablesNames]> {
+): Promise<SyncTableChangeSet> {
   // Get parent IDs for this user
   const parentResult = await supabase
     .from(childConfig.parentTable)
@@ -337,7 +404,7 @@ async function pullChildTable(
 async function pullCategories(
   userId: string,
   lastSyncDate: string | null
-): Promise<SyncDatabaseChangeSet["categories"]> {
+): Promise<SyncTableChangeSet> {
   let query = supabase
     .from("categories")
     .select("*")
@@ -385,13 +452,13 @@ async function pullChanges(
     return { changes: {}, timestamp: Date.now() };
   }
 
-  const changes: SyncDatabaseChangeSet = {};
+  const changes: AppSyncDatabaseChangeSet = {};
   const lastSyncDate = lastPulledAt
     ? new Date(lastPulledAt).toISOString()
     : null;
 
   for (const table of SYNCABLE_TABLES) {
-    const childConfig = CHILD_TABLES_MAP[table];
+    const childConfig = getChildTableConfig(table);
 
     // Route to appropriate specialized pull function.
     if (table === "market_rates") {
@@ -402,14 +469,14 @@ async function pullChanges(
       changes[table] = await pullCategories(userId, lastSyncDate);
     } else if (childConfig) {
       changes[table] = await pullChildTable(
-        table as WritableSupabaseTablesNames,
+        table as ChildTableName,
         childConfig,
         userId,
         lastSyncDate
       );
     } else {
       changes[table] = await pullUserTable(
-        table as WritableSupabaseTablesNames,
+        table as UserOwnedWritableTableName,
         userId,
         lastSyncDate
       );
@@ -436,11 +503,12 @@ async function pushChanges(
   }
 
   const { changes } = pushArgs;
-  for (const [tableName, tableChanges] of Object.entries(changes)) {
+  for (const [tableName, rawTableChanges] of Object.entries(changes)) {
     const table = tableName as SyncableTable;
     if (!SYNCABLE_TABLES.includes(tableName as SyncableTable)) {
       continue;
     }
+    const tableChanges = rawTableChanges as SyncTableChangeSet;
 
     // Skip read-only tables (pull only, never push)
     if (!isWritableTable(table)) {
@@ -448,7 +516,7 @@ async function pushChanges(
     }
 
     // Check if this is a child table (no user_id column)
-    const childConfig = CHILD_TABLES_MAP[table];
+    const childConfig = getChildTableConfig(table);
     const isChildTable = childConfig !== undefined;
 
     try {
@@ -474,18 +542,19 @@ async function pushChanges(
 
       // Handle created records
       if (tableChanges.created.length > 0) {
-        const records = tableChanges.created.map((record) => {
-          assertPushRecordBelongsToCurrentUser(
-            table,
-            record,
-            userId,
-            childConfig,
-            activeParentIds
-          );
-          return transformToSupabase(table, record, userId, isChildTable);
-        });
+        const records: Array<Record<string, unknown>> =
+          tableChanges.created.map((record) => {
+            assertPushRecordBelongsToCurrentUser(
+              table,
+              record,
+              userId,
+              childConfig,
+              activeParentIds
+            );
+            return transformToSupabase(table, record, userId, isChildTable);
+          });
 
-        const { error } = await supabase.from(table).insert(records);
+        const { error } = await getSupabaseWriteTable(table).insert(records);
         if (error) {
           throw createSyncTableError("insert", table, error);
         }
@@ -508,9 +577,10 @@ async function pushChanges(
             isChildTable
           );
 
-          const { error } = await supabase
-            .from(table)
-            .upsert(transformed, { onConflict: "id" });
+          const { error } = await getSupabaseWriteTable(table).upsert(
+            transformed,
+            { onConflict: "id" }
+          );
           if (error) {
             throw createSyncTableError("upsert", table, error);
           }
@@ -519,9 +589,10 @@ async function pushChanges(
 
       // Handle deleted records (soft delete)
       if (tableChanges.deleted.length > 0) {
-        let query = supabase
-          .from(table)
-          .update({ deleted: true, updated_at: new Date().toISOString() });
+        let query = getSupabaseWriteTable(table).update({
+          deleted: true,
+          updated_at: new Date().toISOString(),
+        });
 
         if (childConfig && deleteParentIds) {
           query = query.in(childConfig.foreignKey, deleteParentIds);
@@ -543,7 +614,7 @@ async function pushChanges(
 
 async function fetchOwnedParentIds(
   database: Database,
-  parentTable: WritableSupabaseTablesNames,
+  parentTable: ChildParentTableName,
   userId: string,
   options: { readonly includeDeleted?: boolean } = {}
 ): Promise<readonly string[]> {
@@ -566,7 +637,7 @@ function assertPushRecordBelongsToCurrentUser(
   userId: string,
   childConfig:
     | {
-        parentTable: WritableSupabaseTablesNames;
+        parentTable: ChildParentTableName;
         foreignKey: string;
       }
     | undefined,
@@ -678,19 +749,15 @@ function transformFromSupabase(
   return transformed;
 }
 
-// Type helper for Supabase insert types
-type SupabaseInsert<T extends WritableSupabaseTablesNames> =
-  SupabaseDatabase["public"]["Tables"][T]["Insert"];
-
 /**
  * Transform WatermelonDB record to Supabase format
  */
-function transformToSupabase<T extends WritableSupabaseTablesNames>(
-  table: T,
+function transformToSupabase(
+  table: WritableSupabaseTablesNames,
   record: unknown,
   userId: string,
   isChildTable: boolean = false
-): SupabaseInsert<T> {
+): Record<string, unknown> {
   const wmRecord = record as Record<string, unknown>;
   const transformed: Record<string, unknown> =
     table === "profiles"
@@ -721,7 +788,7 @@ function transformToSupabase<T extends WritableSupabaseTablesNames>(
     }
   }
 
-  return transformed as SupabaseInsert<T>;
+  return transformed;
 }
 
 // Module-level sync lock — tracks in-flight sync to prevent concurrent synchronize() calls.

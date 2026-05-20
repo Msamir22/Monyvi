@@ -29,7 +29,7 @@ interface AccountsSectionProps {
   accounts: Account[];
   isLoading: boolean;
   /** Optional ref to the cash-account card for tooltip anchoring. */
-  readonly cashAccountRef?: React.RefObject<View>;
+  readonly cashAccountRef?: React.RefObject<View | null>;
 }
 
 interface AccountCardData {

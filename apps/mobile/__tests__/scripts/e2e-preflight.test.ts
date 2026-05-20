@@ -1,5 +1,6 @@
 interface E2ePreflightModule {
   appendAndroidPlatform(url: string): string;
+  buildDevMenuPreferencesXml(): string;
   currentFocusShowsDevMenu(currentFocus: string): boolean;
   currentFocusShowsLauncher(currentFocus: string): boolean;
   getHttpClientNameForUrl(url: string): "http" | "https";
@@ -26,6 +27,15 @@ describe("e2e-preflight", () => {
     expect(
       preflight.getHttpClientNameForUrl("http://127.0.0.1:8081/status")
     ).toBe("http");
+  });
+
+  it("builds dev menu preferences that hide the Expo tools button", () => {
+    expect(preflight.buildDevMenuPreferencesXml()).toContain(
+      '<boolean name="showFab" value="false" />'
+    );
+    expect(preflight.buildDevMenuPreferencesXml()).toContain(
+      '<boolean name="isOnboardingFinished" value="true" />'
+    );
   });
 
   it("treats the pre-auth pitch carousel as loaded product UI", () => {

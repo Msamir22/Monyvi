@@ -46,7 +46,9 @@ jest.mock("react-native/Libraries/Modal/Modal", () => {
     return visible ? children : null;
   }
 
-  return MockModal;
+  MockModal.displayName = "Modal";
+
+  return { __esModule: true, default: MockModal };
 });
 
 jest.mock("expo-router", () => ({
@@ -249,7 +251,7 @@ describe("Settings live SMS permission recovery", () => {
     jest
       .spyOn(AppState, "addEventListener")
       .mockImplementation((_event, handler): { remove: () => void } => {
-        const typedHandler = handler as (status: AppStateStatus) => void;
+        const typedHandler = handler;
         appStateChangeHandlers.push(typedHandler);
         return {
           remove: jest.fn(() => {

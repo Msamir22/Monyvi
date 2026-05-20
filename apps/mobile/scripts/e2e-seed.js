@@ -1,8 +1,13 @@
 const { createHash, createHmac } = require("node:crypto");
+const { spawnSync } = require("node:child_process");
+const { resolve } = require("node:path");
 const { createClient } = require("@supabase/supabase-js");
 
 const LOCAL_SUPABASE_URL = "http://127.0.0.1:54321";
 const LOCAL_ANDROID_SUPABASE_URL = "http://10.0.2.2:54321";
+const DEFAULT_LOCAL_E2E_EMAIL = "e2e@monyvi.test";
+const DEFAULT_LOCAL_E2E_PASSWORD = "Password123!";
+const repoRoot = resolve(__dirname, "..", "..", "..");
 
 const E2E_USER_FULL_NAME = "Monyvi E2E";
 const FIXED_NOW = "2026-04-08T12:00:00.000Z";
@@ -98,23 +103,102 @@ function requiredRemoteEnv(env, name) {
   throw new Error(`${name} is required when E2E_SUPABASE_MODE=remote`);
 }
 
-function requiredLocalEnv(env, name) {
-  const value = env[name];
-  if (value) return value;
-  throw new Error(`${name} is required when E2E_SUPABASE_MODE=local`);
+function resolveNpxCommand() {
+  return process.platform === "win32" ? "npx.cmd" : "npx";
 }
 
-function getE2eSeedConfig(env = process.env) {
-  const mode = env.E2E_SUPABASE_MODE === "remote" ? "remote" : "local";
-  const isLocal = mode === "local";
-  const localJwtSecret = isLocal ? env.E2E_LOCAL_JWT_SECRET : null;
+function parseSupabaseEnv(output) {
+  return output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .reduce((supabaseEnv, line) => {
+      const separatorIndex = line.indexOf("=");
+      if (separatorIndex === -1) return supabaseEnv;
 
-  function getLocalJwt(role) {
-    return createLocalSupabaseJwt(
-      localJwtSecret ?? requiredLocalEnv(env, "E2E_LOCAL_JWT_SECRET"),
-      role
+      const key = line.slice(0, separatorIndex);
+      const value = line.slice(separatorIndex + 1).replace(/^"|"$/g, "");
+      return { ...supabaseEnv, [key]: value };
+    }, {});
+}
+
+function readLocalSupabaseStatusEnv() {
+  const result = spawnSync(
+    resolveNpxCommand(),
+    ["supabase", "status", "-o", "env"],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+      shell: process.platform === "win32",
+      timeout: 60_000,
+    }
+  );
+
+  if (result.status !== 0) {
+    throw new Error(
+      [
+        "Local Supabase is not ready.",
+        "Start it from the repo root with: npm run supabase:start:local",
+        result.error?.message,
+        result.stderr || result.stdout,
+      ]
+        .filter(Boolean)
+        .join("\n")
     );
   }
+
+  return result.stdout;
+}
+
+function resolveLocalSupabaseKeys(env, readStatusEnv) {
+  const explicitAnonKey =
+    env.EXPO_PUBLIC_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY || env.ANON_KEY;
+  const explicitServiceRoleKey =
+    env.SUPABASE_SERVICE_ROLE_KEY || env.SERVICE_ROLE_KEY;
+
+  if (explicitAnonKey && explicitServiceRoleKey) {
+    return { anonKey: explicitAnonKey, serviceRoleKey: explicitServiceRoleKey };
+  }
+
+  if (env.E2E_LOCAL_JWT_SECRET) {
+    return {
+      anonKey:
+        explicitAnonKey ??
+        createLocalSupabaseJwt(env.E2E_LOCAL_JWT_SECRET, "anon"),
+      serviceRoleKey:
+        explicitServiceRoleKey ??
+        createLocalSupabaseJwt(env.E2E_LOCAL_JWT_SECRET, "service_role"),
+    };
+  }
+
+  const statusEnv = parseSupabaseEnv(readStatusEnv());
+  const anonKey =
+    explicitAnonKey ||
+    statusEnv.ANON_KEY ||
+    statusEnv.SUPABASE_ANON_KEY ||
+    statusEnv.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+  const serviceRoleKey =
+    explicitServiceRoleKey ||
+    statusEnv.SERVICE_ROLE_KEY ||
+    statusEnv.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!anonKey || !serviceRoleKey) {
+    throw new Error(
+      "Could not find local Supabase keys. Start local Supabase from the repo root with: npm run supabase:start:local"
+    );
+  }
+
+  return { anonKey, serviceRoleKey };
+}
+
+function getE2eSeedConfig(env = process.env, options = {}) {
+  const mode = env.E2E_SUPABASE_MODE === "remote" ? "remote" : "local";
+  const isLocal = mode === "local";
+  const readStatusEnv =
+    options.readLocalSupabaseStatusEnv ?? readLocalSupabaseStatusEnv;
+  const localKeys = isLocal
+    ? resolveLocalSupabaseKeys(env, readStatusEnv)
+    : null;
 
   return {
     mode,
@@ -130,22 +214,22 @@ function getE2eSeedConfig(env = process.env) {
     serviceRoleKey:
       env.SUPABASE_SERVICE_ROLE_KEY ??
       (isLocal
-        ? getLocalJwt("service_role")
+        ? localKeys.serviceRoleKey
         : requiredRemoteEnv(env, "SUPABASE_SERVICE_ROLE_KEY")),
     anonKey:
       env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??
       (isLocal
-        ? getLocalJwt("anon")
+        ? localKeys.anonKey
         : requiredRemoteEnv(env, "EXPO_PUBLIC_SUPABASE_ANON_KEY")),
     email:
       env.MAESTRO_E2E_EMAIL ??
       (isLocal
-        ? requiredLocalEnv(env, "MAESTRO_E2E_EMAIL")
+        ? DEFAULT_LOCAL_E2E_EMAIL
         : requiredRemoteEnv(env, "MAESTRO_E2E_EMAIL")),
     password:
       env.MAESTRO_E2E_PASSWORD ??
       (isLocal
-        ? requiredLocalEnv(env, "MAESTRO_E2E_PASSWORD")
+        ? DEFAULT_LOCAL_E2E_PASSWORD
         : requiredRemoteEnv(env, "MAESTRO_E2E_PASSWORD")),
   };
 }

@@ -22,7 +22,9 @@
 import React, { createContext, useContext, useRef } from "react";
 import type { View } from "react-native";
 
-const MicButtonRefContext = createContext<React.RefObject<View> | null>(null);
+const MicButtonRefContext = createContext<React.RefObject<View | null> | null>(
+  null
+);
 
 export function MicButtonRefProvider({
   children,
@@ -37,6 +39,6 @@ export function MicButtonRefProvider({
   );
 }
 
-export function useMicButtonRef(): React.RefObject<View> | null {
+export function useMicButtonRef(): React.RefObject<View | null> | null {
   return useContext(MicButtonRefContext);
 }

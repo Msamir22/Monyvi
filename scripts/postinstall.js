@@ -5,11 +5,10 @@
  * versions available for our current Expo SDK version.
  *
  * Patches applied:
- * - expo-audio 0.3.5: Fix inverted `isPrepared` guard in AudioModule.kt
- *   (https://github.com/expo/expo/issues/35589)
- *   The condition `if (!ref.isPrepared)` prevents `record()` from being
- *   called when the recorder IS prepared. Fixed upstream in 0.4.0+ (SDK 53+)
- *   but not backported to 0.3.x (SDK 52).
+ * - react-native-get-sms-android 2.1.0: make its Android Gradle project
+ *   compatible with Android Gradle Plugin 8 / React Native 0.83.
+ * - @supabase/supabase-js 2.106.0: remove an optional OpenTelemetry dynamic
+ *   import that Hermes cannot parse in React Native release bundles.
  */
 
 const fs = require("fs");
@@ -28,25 +27,127 @@ const path = require("path");
 /** @type {PatchEntry[]} */
 const patches = [
   {
-    packageName: "expo-audio",
-    expectedVersion: "0.3.5",
+    packageName: "react-native-get-sms-android",
+    expectedVersion: "2.1.0",
     file: path.join(
       __dirname,
       "..",
       "node_modules",
-      "expo-audio",
+      "react-native-get-sms-android",
       "android",
-      "src",
-      "main",
-      "java",
-      "expo",
-      "modules",
-      "audio",
-      "AudioModule.kt"
+      "build.gradle"
     ),
-    search: "if (!ref.isPrepared) {",
-    replace: "if (ref.isPrepared) {",
-    description: "expo-audio#35589: Fix inverted isPrepared guard in record()",
+    search: `buildscript {
+    repositories {
+        google()
+        jcenter()
+    }`,
+    replace: `buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }`,
+    description:
+      "react-native-get-sms-android: replace buildscript jcenter with mavenCentral",
+  },
+  {
+    packageName: "react-native-get-sms-android",
+    expectedVersion: "2.1.0",
+    file: path.join(
+      __dirname,
+      "..",
+      "node_modules",
+      "react-native-get-sms-android",
+      "android",
+      "build.gradle"
+    ),
+    search: `android {
+    compileSdkVersion safeExtGet('compileSdkVersion', 28)`,
+    replace: `android {
+    namespace "com.react"
+    compileSdkVersion safeExtGet('compileSdkVersion', 28)`,
+    description:
+      "react-native-get-sms-android: add Android namespace for AGP 8",
+  },
+  {
+    packageName: "react-native-get-sms-android",
+    expectedVersion: "2.1.0",
+    file: path.join(
+      __dirname,
+      "..",
+      "node_modules",
+      "react-native-get-sms-android",
+      "android",
+      "build.gradle"
+    ),
+    search: `    jcenter()
+}
+
+dependencies {
+    compile "com.facebook.react:react-native:+"
+}`,
+    replace: `    mavenCentral()
+}
+
+dependencies {
+    compileOnly "com.facebook.react:react-android"
+}`,
+    description:
+      "react-native-get-sms-android: replace jcenter and legacy React Native dependency",
+  },
+  {
+    packageName: "@supabase/supabase-js",
+    expectedVersion: "2.106.0",
+    file: path.join(
+      __dirname,
+      "..",
+      "node_modules",
+      "@supabase",
+      "supabase-js",
+      "dist",
+      "index.mjs"
+    ),
+    search: `function loadOtel() {
+\tif (otelModulePromise === null) otelModulePromise = import(
+\t\t/* webpackIgnore: true */
+\t\t/* @vite-ignore */
+\t\tOTEL_PKG
+).catch(() => null);
+\treturn otelModulePromise;
+}`,
+    replace: `function loadOtel() {
+\tif (otelModulePromise === null) otelModulePromise = Promise.resolve(null);
+\treturn otelModulePromise;
+}`,
+    description:
+      "@supabase/supabase-js: disable optional OpenTelemetry dynamic import in ESM bundle",
+  },
+  {
+    packageName: "@supabase/supabase-js",
+    expectedVersion: "2.106.0",
+    file: path.join(
+      __dirname,
+      "..",
+      "node_modules",
+      "@supabase",
+      "supabase-js",
+      "dist",
+      "index.cjs"
+    ),
+    search: `function loadOtel() {
+\tif (otelModulePromise === null) otelModulePromise = import(
+\t\t/* webpackIgnore: true */
+\t\t/* @vite-ignore */
+\t\tOTEL_PKG
+).catch(() => null);
+\treturn otelModulePromise;
+}`,
+    replace: `function loadOtel() {
+\tif (otelModulePromise === null) otelModulePromise = Promise.resolve(null);
+\treturn otelModulePromise;
+}`,
+    description:
+      "@supabase/supabase-js: disable optional OpenTelemetry dynamic import in CJS bundle",
   },
 ];
 

@@ -1,6 +1,6 @@
 import { palette } from "@/constants/colors";
 import { useTheme } from "@/context/ThemeContext";
-import React, { useEffect } from "react";
+import React, { type JSX, useEffect } from "react";
 import { View } from "react-native";
 import Animated, {
   Easing,

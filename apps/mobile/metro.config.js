@@ -4,12 +4,26 @@ const path = require("node:path");
 
 const projectRoot = __dirname;
 const workspaceRoot = path.resolve(projectRoot, "../..");
+const shouldUseWorkspaceRoot = process.env.EXPO_NO_METRO_WORKSPACE_ROOT !== "1";
+const packageWatchFolders = [
+  path.resolve(workspaceRoot, "packages/db"),
+  path.resolve(workspaceRoot, "packages/logic"),
+];
 
 const config = getSentryExpoConfig(projectRoot);
 
 // 1. Add the monorepo root while preserving Expo/Sentry defaults.
+const defaultWatchFolders = shouldUseWorkspaceRoot
+  ? (config.watchFolders ?? [])
+  : (config.watchFolders ?? []).filter(
+      (folder) => path.resolve(folder) !== workspaceRoot
+    );
+const monorepoWatchFolders = shouldUseWorkspaceRoot
+  ? [workspaceRoot]
+  : packageWatchFolders;
+
 config.watchFolders = Array.from(
-  new Set([...(config.watchFolders ?? []), workspaceRoot])
+  new Set([...defaultWatchFolders, ...monorepoWatchFolders])
 );
 
 // 2. Resolve modules from the app first, then the workspace root.

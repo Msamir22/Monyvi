@@ -1,26 +1,35 @@
 const { spawnSync } = require("node:child_process");
-
-const LOCAL_ANDROID_SUPABASE_URL = "http://10.0.2.2:54321";
+const { getE2eSeedConfig } = require("./e2e-seed");
 
 function resolveNpxCommand() {
   return process.platform === "win32" ? "npx.cmd" : "npx";
 }
 
-function main() {
-  const env = {
-    ...process.env,
+function buildE2eFixtureEnv(baseEnv = process.env) {
+  const config = getE2eSeedConfig({
+    ...baseEnv,
+    E2E_SUPABASE_MODE: "local",
+  });
+
+  return {
+    ...baseEnv,
     E2E_SUPABASE_MODE: "local",
     EXPO_PUBLIC_MONYVI_TEST_MODE: "e2e",
     EXPO_PUBLIC_AI_SMS_PARSER_MODE: "fixture",
     EXPO_PUBLIC_SUPABASE_URL:
-      process.env.EXPO_PUBLIC_SUPABASE_URL ?? LOCAL_ANDROID_SUPABASE_URL,
+      baseEnv.EXPO_PUBLIC_SUPABASE_URL ?? config.appSupabaseUrl,
     EXPO_PUBLIC_SUPABASE_ANON_KEY:
-      process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "",
-    EXPO_PUBLIC_SENTRY_DSN: process.env.EXPO_PUBLIC_SENTRY_DSN ?? "",
-    EXPO_NO_METRO_WORKSPACE_ROOT:
-      process.env.EXPO_NO_METRO_WORKSPACE_ROOT ?? "1",
+      baseEnv.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? config.anonKey,
+    EXPO_PUBLIC_SENTRY_DSN: baseEnv.EXPO_PUBLIC_SENTRY_DSN ?? "",
+    EXPO_NO_METRO_WORKSPACE_ROOT: baseEnv.EXPO_NO_METRO_WORKSPACE_ROOT ?? "1",
     EXPO_NO_TELEMETRY: "1",
-    CI: process.env.CI ?? "1",
+    CI: baseEnv.CI ?? "1",
+  };
+}
+
+function main() {
+  const env = {
+    ...buildE2eFixtureEnv(),
   };
 
   const shouldClearCache = process.env.E2E_METRO_CLEAR_CACHE === "1";
@@ -43,4 +52,10 @@ function main() {
   process.exit(result.status ?? 1);
 }
 
-main();
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  buildE2eFixtureEnv,
+};

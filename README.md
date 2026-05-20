@@ -33,7 +33,7 @@ The active product is the Expo mobile app in `apps/mobile`.
 
 ## Prerequisites
 
-- **Node.js 20+** and npm
+- **Node.js 22 LTS** and npm
 - **Docker Desktop** running. Local Supabase runs in Docker containers.
 - **Supabase CLI** available through `npx supabase` or installed globally. It is
   required for `db:*`, `supabase:*`, and `fn:deploy:*` scripts.
@@ -137,6 +137,48 @@ Run `npm run supabase:runtime:setup-local` after:
 - noticing that `fetch-metal-rates` is missing from `cron.job`
 
 You do not need to run it every time you start the mobile app.
+
+## Local E2E Tests
+
+The mobile E2E suite uses Maestro, a local Supabase stack, seeded test data, and
+the deterministic SMS parser fixture. The full walkthrough lives in
+[apps/mobile/e2e/maestro/README.md](apps/mobile/e2e/maestro/README.md).
+
+Minimum local loop:
+
+```bash
+# Terminal 1: start local Supabase
+npm run supabase:start:local
+
+# Terminal 2: start the mobile app in E2E fixture mode
+npm run mobile:e2e-fixture
+
+# Terminal 3: run all local E2E suites
+npm run e2e:local -w @monyvi/mobile
+```
+
+Run one CI-style suite:
+
+```bash
+E2E_CI_SUITES=transactions npm run e2e:local -w @monyvi/mobile
+E2E_CI_SUITES=sms-sync npm run e2e:local -w @monyvi/mobile
+E2E_CI_SUITES=live-sms npm run e2e:local -w @monyvi/mobile
+```
+
+Run one Maestro flow:
+
+```bash
+npm run e2e:flow:local -w @monyvi/mobile -- e2e/maestro/transactions/create-transaction.yaml
+```
+
+Run a focused live SMS journey:
+
+```bash
+npm run e2e:live-sms:local -w @monyvi/mobile -- 16
+```
+
+On PowerShell, set one-off environment variables with `$env:NAME = "value"` in
+the current terminal before running the command.
 
 ### Local Google Sign-In
 
@@ -244,6 +286,7 @@ npm run supabase:runtime:setup-local
 - [Business decisions](docs/business/business-decisions.md)
 - [Technical architecture](docs/architecture/technical-architecture.md)
 - [Design system](docs/design/design-system.md)
+- [Local E2E walkthrough](apps/mobile/e2e/maestro/README.md)
 - [Constitution](.specify/memory/constitution.md)
 
 ## Shared Packages

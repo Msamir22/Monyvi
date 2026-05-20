@@ -1,5 +1,5 @@
 import { LinearGradient } from "expo-linear-gradient";
-import React from "react";
+import React, { type JSX } from "react";
 import { View, ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "@/context/ThemeContext";
@@ -20,7 +20,7 @@ export function GradientBackground({
   if (isDark && theme.backgroundGradient) {
     return (
       <LinearGradient
-        colors={theme.backgroundGradient as [string, string, ...string[]]}
+        colors={theme.backgroundGradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={style}

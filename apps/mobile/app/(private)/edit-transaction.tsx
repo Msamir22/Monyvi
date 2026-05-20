@@ -52,24 +52,12 @@ import React, {
 import {
   ActivityIndicator,
   LayoutAnimation,
-  Platform,
   ScrollView,
   Text,
   TouchableOpacity,
-  UIManager,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-// =============================================================================
-// Android LayoutAnimation Enablement
-// =============================================================================
-if (
-  Platform.OS === "android" &&
-  UIManager.setLayoutAnimationEnabledExperimental
-) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 // =============================================================================
 // Types

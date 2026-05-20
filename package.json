@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "description": "Monyvi - Offline-first money tracking, live rates, and inflation guidance for Egypt",
+  "engines": {
+    "node": ">=22 <23"
+  },
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -79,7 +82,7 @@
     "nx": "22.3.3",
     "prettier": "^3.2.5",
     "supabase": "^2.71.1",
-    "typescript": "^5.4.0"
+    "typescript": "~5.9.2"
   },
   "optionalDependencies": {
     "lightningcss-linux-x64-gnu": "1.27.0"

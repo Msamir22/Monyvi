@@ -72,6 +72,10 @@ const mockSetNotificationCategoryAsync =
   Notifications.setNotificationCategoryAsync as jest.MockedFunction<
     typeof Notifications.setNotificationCategoryAsync
   >;
+const mockSetNotificationChannelAsync =
+  Notifications.setNotificationChannelAsync as jest.MockedFunction<
+    typeof Notifications.setNotificationChannelAsync
+  >;
 
 function getScheduledNotificationInput(): Parameters<
   typeof Notifications.scheduleNotificationAsync
@@ -96,6 +100,19 @@ function getNotificationCategoryActions(): Parameters<
   }
 
   return categoryCall[1];
+}
+
+function getNotificationChannelInput(): Parameters<
+  typeof Notifications.setNotificationChannelAsync
+>[1] {
+  const channelCall = mockSetNotificationChannelAsync.mock.calls[0] as
+    | Parameters<typeof Notifications.setNotificationChannelAsync>
+    | undefined;
+  if (!channelCall) {
+    throw new Error("Expected notification channel to be configured");
+  }
+
+  return channelCall[1];
 }
 
 function createParsedSmsTransaction(): ParsedSmsTransaction {
@@ -294,6 +311,24 @@ describe("notification-service", () => {
           trigger: { channelId: "sms-transactions" },
         })
       );
+    });
+
+    it("lets Android use the default channel sound without a custom sound resource", async () => {
+      mockGetPermissionsAsync.mockResolvedValueOnce(
+        createPermissionStatus({ granted: true })
+      );
+
+      await showTransactionNotification(
+        createParsedSmsTransaction(),
+        "account-1",
+        "MainCIBAccount"
+      );
+
+      expect(mockSetNotificationChannelAsync).toHaveBeenCalledWith(
+        "sms-transactions",
+        expect.any(Object)
+      );
+      expect(getNotificationChannelInput()).not.toHaveProperty("sound");
     });
 
     it("keeps SMS notification actions foreground-capable for killed-app responses", async () => {

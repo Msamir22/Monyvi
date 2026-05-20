@@ -5,9 +5,7 @@ const {
   ensureE2eAppReady,
   resolveMaestroBin,
 } = require("./e2e-preflight");
-const { createLocalSupabaseJwt } = require("./e2e-seed");
-
-const LOCAL_ANDROID_SUPABASE_URL = "http://10.0.2.2:54321";
+const { getE2eSeedConfig } = require("./e2e-seed");
 
 function shouldRunPreflight(args) {
   return args.includes("test");
@@ -35,20 +33,18 @@ function normalizeDeviceArgs(args) {
 function applyLocalE2eDefaults() {
   if (process.env.E2E_SUPABASE_MODE !== "local") return;
 
+  const config = getE2eSeedConfig({
+    ...process.env,
+    E2E_SUPABASE_MODE: "local",
+  });
+
   process.env.E2E_SUPABASE_MODE = "local";
-  process.env.EXPO_PUBLIC_SUPABASE_URL ??= LOCAL_ANDROID_SUPABASE_URL;
+  process.env.EXPO_PUBLIC_SUPABASE_URL ??= config.appSupabaseUrl;
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??= config.anonKey;
   process.env.EXPO_PUBLIC_MONYVI_TEST_MODE ??= "e2e";
   process.env.EXPO_PUBLIC_AI_SMS_PARSER_MODE ??= "fixture";
-
-  if (
-    !process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY &&
-    process.env.E2E_LOCAL_JWT_SECRET
-  ) {
-    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = createLocalSupabaseJwt(
-      process.env.E2E_LOCAL_JWT_SECRET,
-      "anon"
-    );
-  }
+  process.env.MAESTRO_E2E_EMAIL ??= config.email;
+  process.env.MAESTRO_E2E_PASSWORD ??= config.password;
 }
 
 async function main() {
