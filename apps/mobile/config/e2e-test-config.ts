@@ -1,24 +1,45 @@
 export type MonyviTestMode = "off" | "e2e";
 export type AiSmsParserMode = "edge" | "fixture";
 
-const publicMonyviTestModeEnv = process.env.EXPO_PUBLIC_MONYVI_TEST_MODE;
-const publicAiSmsParserModeEnv = process.env.EXPO_PUBLIC_AI_SMS_PARSER_MODE;
+interface E2eProcessEnv {
+  readonly EXPO_PUBLIC_MONYVI_TEST_MODE?: unknown;
+  readonly EXPO_PUBLIC_AI_SMS_PARSER_MODE?: unknown;
+}
 
-function getTestProcessEnv(): Record<string, string | undefined> | undefined {
-  return globalThis.process?.env;
+interface E2eProcess {
+  readonly env?: E2eProcessEnv;
+}
+
+function stringEnv(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function getProcessEnv(): E2eProcessEnv | undefined {
+  return (globalThis as { readonly process?: E2eProcess }).process?.env;
+}
+
+const publicMonyviTestModeEnv = stringEnv(
+  process.env.EXPO_PUBLIC_MONYVI_TEST_MODE
+);
+const publicAiSmsParserModeEnv = stringEnv(
+  process.env.EXPO_PUBLIC_AI_SMS_PARSER_MODE
+);
+
+function getNodeEnv(): string | undefined {
+  return stringEnv(process.env.NODE_ENV);
 }
 
 function getPublicMonyviTestModeEnv(): string | undefined {
-  if (process.env.NODE_ENV === "test") {
-    return getTestProcessEnv()?.EXPO_PUBLIC_MONYVI_TEST_MODE;
+  if (getNodeEnv() === "test") {
+    return stringEnv(getProcessEnv()?.EXPO_PUBLIC_MONYVI_TEST_MODE);
   }
 
   return publicMonyviTestModeEnv;
 }
 
 function getPublicAiSmsParserModeEnv(): string | undefined {
-  if (process.env.NODE_ENV === "test") {
-    return getTestProcessEnv()?.EXPO_PUBLIC_AI_SMS_PARSER_MODE;
+  if (getNodeEnv() === "test") {
+    return stringEnv(getProcessEnv()?.EXPO_PUBLIC_AI_SMS_PARSER_MODE);
   }
 
   return publicAiSmsParserModeEnv;
@@ -38,7 +59,7 @@ export function isE2eTestMode(): boolean {
 
 export function shouldUseFixtureSmsParser(): boolean {
   return (
-    process.env.NODE_ENV !== "production" &&
+    getNodeEnv() !== "production" &&
     isE2eTestMode() &&
     getAiSmsParserMode() === "fixture"
   );
