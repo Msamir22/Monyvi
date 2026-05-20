@@ -5,15 +5,15 @@
  * Strategy: "Last Write Wins" - most recent updated_at timestamp wins conflicts
  */
 
-import { schema, SupabaseDatabase } from "@monyvi/db";
+import { schema, type SupabaseDatabase } from "@monyvi/db";
 import { Q, type Database, type Model } from "@nozbe/watermelondb";
 import {
-  type SyncDatabaseChangeSet,
   synchronize,
-  SyncPullResult,
-  SyncPushArgs,
-  SyncPushResult,
-  SyncTableChangeSet,
+  type SyncDatabaseChangeSet,
+  type SyncPullResult,
+  type SyncPushArgs,
+  type SyncPushResult,
+  type SyncTableChangeSet,
 } from "@nozbe/watermelondb/sync";
 import { getCurrentUserId, supabase } from "./supabase";
 import { logger } from "@/utils/logger";
@@ -683,7 +683,8 @@ function stringifyJsonForWatermelon(value: unknown): string | null | undefined {
 
 function parseJsonForSupabase(
   value: unknown,
-  fallback: Record<string, never> | null
+  fallback: Record<string, never> | null,
+  columnName: string
 ): unknown {
   if (value === undefined || value === null) {
     return fallback;
@@ -695,8 +696,11 @@ function parseJsonForSupabase(
 
   try {
     return JSON.parse(value) as unknown;
-  } catch {
-    return fallback;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Invalid serialized JSON in profile column ${columnName}: ${reason}`
+    );
   }
 }
 
@@ -721,11 +725,13 @@ function normalizeProfileToSupabase(
     ...record,
     [PROFILE_NOTIFICATION_SETTINGS_COLUMN]: parseJsonForSupabase(
       record[PROFILE_NOTIFICATION_SETTINGS_COLUMN],
-      null
+      null,
+      PROFILE_NOTIFICATION_SETTINGS_COLUMN
     ),
     [PROFILE_ONBOARDING_FLAGS_COLUMN]: parseJsonForSupabase(
       record[PROFILE_ONBOARDING_FLAGS_COLUMN],
-      {}
+      {},
+      PROFILE_ONBOARDING_FLAGS_COLUMN
     ),
   };
 }

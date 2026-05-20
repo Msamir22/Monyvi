@@ -243,6 +243,39 @@ describe("syncDatabase", () => {
     );
   });
 
+  it("rejects invalid serialized profile JSON during push", async () => {
+    mockSynchronize.mockImplementation(
+      async (args: {
+        pushChanges: (input: {
+          changes: Record<string, unknown>;
+          lastPulledAt: number | null;
+        }) => Promise<unknown>;
+      }) => {
+        await args.pushChanges({
+          changes: {
+            profiles: {
+              created: [],
+              updated: [
+                {
+                  id: "profile-1",
+                  user_id: "current-user",
+                  onboarding_flags: "{invalid-json",
+                },
+              ],
+              deleted: [],
+            },
+          },
+          lastPulledAt: null,
+        });
+      }
+    );
+
+    await expect(syncDatabase(mockDatabase)).rejects.toThrow(
+      "Invalid serialized JSON in profile column onboarding_flags"
+    );
+    expect(mockUpsert).not.toHaveBeenCalled();
+  });
+
   it("pulls profile JSON fields as WatermelonDB string fields", async () => {
     selectResult = {
       data: [

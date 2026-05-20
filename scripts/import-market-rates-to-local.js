@@ -50,18 +50,38 @@ function queryLinkedMarketRates() {
     const output = runSupabase([
       "db",
       "query",
+      "--agent=no",
       "--linked",
       "-o",
       "json",
       "-f",
       selectPath,
     ]);
-    const jsonStartIndex = output.indexOf("{");
-    const parsed = JSON.parse(output.slice(jsonStartIndex));
-    return parsed.rows;
+    return parseSupabaseQueryRows(output);
   } finally {
     unlinkSync(selectPath);
   }
+}
+
+function parseSupabaseQueryRows(output) {
+  const jsonStartIndex = output.search(/[\[{]/);
+  if (jsonStartIndex === -1) {
+    throw new Error("Supabase query did not return JSON output.");
+  }
+
+  const jsonEndIndex = Math.max(
+    output.lastIndexOf("]"),
+    output.lastIndexOf("}")
+  );
+  const parsed = JSON.parse(output.slice(jsonStartIndex, jsonEndIndex + 1));
+  if (Array.isArray(parsed)) {
+    return parsed;
+  }
+  if (Array.isArray(parsed.rows)) {
+    return parsed.rows;
+  }
+
+  throw new Error("Supabase query JSON did not include result rows.");
 }
 
 function importLocalMarketRates(rows) {
@@ -107,4 +127,10 @@ function main() {
   console.log(`Imported ${rows.length} market_rates rows into local Supabase.`);
 }
 
-main();
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  parseSupabaseQueryRows,
+};

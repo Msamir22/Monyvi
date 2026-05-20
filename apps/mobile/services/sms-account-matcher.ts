@@ -338,7 +338,15 @@ function matchAccountCore(
 
   // Step 1: Card last 4 + sender match (highest confidence)
   if (cardLast4) {
-    const matchedAccount = accounts.find((acc) => acc.cardLast4 === cardLast4);
+    const matchedAccount = accounts.find(
+      (acc) =>
+        acc.cardLast4 === cardLast4 &&
+        isSenderMatch(senderDisplayName, {
+          bankSmsSenderName: acc.smsSenderName,
+          bankName: acc.bankName,
+          accountName: acc.name,
+        })
+    );
     if (matchedAccount) {
       return {
         accountId: matchedAccount.id,

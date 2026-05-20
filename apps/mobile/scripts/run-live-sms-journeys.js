@@ -1,4 +1,6 @@
 const { join } = require("node:path");
+const { spawnSync } = require("node:child_process");
+const { createClient } = require("@supabase/supabase-js");
 const {
   adb,
   appId,
@@ -10,10 +12,11 @@ const {
   run,
   wait,
 } = require("./e2e-preflight");
-const { getE2eSeedConfig } = require("./e2e-seed");
+const { getE2eSeedConfig, seedE2eData } = require("./e2e-seed");
 
 const mobileRoot = join(__dirname, "..");
 const flowDir = join("e2e", "maestro", "live-sms-detection");
+const defaultMaestroFlowTimeoutMs = 10 * 60 * 1000;
 
 const smsPermissions = [
   "android.permission.READ_SMS",
@@ -26,10 +29,27 @@ const actionProbeMarkers = [
   "BACKGROUND CONFIRM MARKET",
   "CLOSED CONFIRM MARKET",
 ];
-const activeUserFilter =
-  "user_id = (select user_id from profiles where deleted = 0 order by updated_at desc limit 1)";
 const releaseOnlyJourneyIds = new Set(["15"]);
 const isReleaseRun = process.env.E2E_RELEASE_BUILD === "1";
+const killedAppConfirmMarker = createKilledAppConfirmMarker(process.env);
+process.env.MAESTRO_CLOSED_CONFIRM_MARKET = killedAppConfirmMarker;
+
+function sqlString(value) {
+  return `'${value.replaceAll("'", "''")}'`;
+}
+
+function getActiveUserFilter(env = process.env) {
+  if (!env.E2E_USER_ID) {
+    throw new Error("E2E_USER_ID is required for live SMS probe SQL.");
+  }
+
+  return `user_id = ${sqlString(env.E2E_USER_ID)}`;
+}
+
+function createKilledAppConfirmMarker(env = process.env) {
+  const runId = env.E2E_PROBE_RUN_ID || `${Date.now()}`;
+  return `CLOSED CONFIRM MARKET ${runId}`;
+}
 
 function clearPermissionFlags(permission) {
   adb(
@@ -135,13 +155,83 @@ function grantNotificationPermission() {
   grantPermission(notificationPermission);
 }
 
+function isRetryableMaestroTransportFailure(output) {
+  return /StatusRuntimeException:\s*UNAVAILABLE(?::\s*End of stream or IOException)?|host:transport:.*device offline|device offline/i.test(
+    output
+  );
+}
+
+function getMaestroFlowTimeoutMs(env = process.env) {
+  const parsed = Number(env.E2E_MAESTRO_FLOW_TIMEOUT_MS);
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : defaultMaestroFlowTimeoutMs;
+}
+
+function reconnectMaestroTransport() {
+  run("adb", ["kill-server"], { allowFailure: true, timeout: 30000 });
+  run("adb", ["start-server"], { timeout: 30000 });
+  run("adb", ["wait-for-device"], { timeout: 60000 });
+
+  if (!isReleaseRun) {
+    adb(["reverse", "tcp:8081", "tcp:8081"], { allowFailure: true });
+  }
+}
+
+function runMaestroFlowOnce(maestroBin, flow) {
+  const result = spawnSync(maestroBin, ["test", join(flowDir, flow)], {
+    encoding: "utf8",
+    cwd: mobileRoot,
+    maxBuffer: 16 * 1024 * 1024,
+    shell: process.platform === "win32" && maestroBin.endsWith(".bat"),
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: getMaestroFlowTimeoutMs(),
+  });
+  const stdout = result.stdout || "";
+  const stderr = result.stderr || "";
+  const errorMessage = result.error?.message ?? "";
+
+  if (stdout) {
+    process.stdout.write(stdout);
+  }
+  if (stderr) {
+    process.stderr.write(stderr);
+  }
+
+  return {
+    didTimeout:
+      result.error?.code === "ETIMEDOUT" || result.signal === "SIGTERM",
+    output: `${stdout}${stderr}${errorMessage}`,
+    status: result.error ? 1 : (result.status ?? 1),
+  };
+}
+
 function runFlow(flow) {
   const maestroBin = resolveMaestroBin();
   if (!maestroBin) {
     throw new Error("Maestro was not found. Install it or set MAESTRO_BIN.");
   }
 
-  run(maestroBin, ["test", join(flowDir, flow)], { cwd: mobileRoot });
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const result = runMaestroFlowOnce(maestroBin, flow);
+    if (result.status === 0) {
+      return;
+    }
+
+    if (
+      attempt === 1 &&
+      (result.didTimeout || isRetryableMaestroTransportFailure(result.output))
+    ) {
+      logInfo("liveSmsJourney.maestroTransportRetry", {
+        flow,
+        reason: result.didTimeout ? "timeout" : "transport-unavailable",
+      });
+      reconnectMaestroTransport();
+      continue;
+    }
+
+    throw new Error(`${maestroBin} test ${join(flowDir, flow)} failed`);
+  }
 }
 
 function applyLocalE2eDefaults() {
@@ -170,9 +260,15 @@ async function bootstrapCleanAuthenticatedSession() {
   if (process.env.E2E_SKIP_AUTH_BOOTSTRAP === "1") return;
 
   applyLocalE2eDefaults();
-  run(process.execPath, [join(__dirname, "e2e-seed.js"), "seed"], {
-    cwd: mobileRoot,
+  const config = getE2eSeedConfig({
+    ...process.env,
+    E2E_SUPABASE_MODE: "local",
   });
+  const client = createClient(config.supabaseUrl, config.serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const result = await seedE2eData(client, config);
+  process.env.E2E_USER_ID = result.userId;
   adb(["shell", "pm", "clear", appId]);
   await ensureE2eAppReady();
   runFlow("../helpers/ci-auth-bootstrap.yaml");
@@ -540,6 +636,7 @@ function swipeRecentsCardAway(cardBounds) {
 }
 
 function buildLiveSmsActionProbeCleanupSql() {
+  const activeUserFilter = getActiveUserFilter();
   const transactionMarkerFilters = actionProbeMarkers
     .map(
       (marker) => `counterparty like '%${marker}%' or note like '%${marker}%'`
@@ -556,7 +653,18 @@ function buildLiveSmsActionProbeCleanupSql() {
   return sql;
 }
 
+function shouldSkipRunAsProbeCleanup(env = process.env) {
+  return env.E2E_RELEASE_BUILD === "1";
+}
+
 function clearLiveSmsActionProbeRows() {
+  if (shouldSkipRunAsProbeCleanup()) {
+    logInfo("liveSmsProbeCleanup.skipped", {
+      reason: "run-as-unavailable-for-release-apk",
+    });
+    return;
+  }
+
   const sql = buildLiveSmsActionProbeCleanupSql();
 
   adb(["shell", "run-as", appId, "sqlite3", "watermelon.db"], {
@@ -648,11 +756,11 @@ function sendKilledAppConfirmSms() {
   killBackgroundAppProcess();
   sendEmulatorSms(
     "QNB",
-    "Purchase EGP 72.56 at CLOSED CONFIRM MARKET using card ending 1234"
+    `Purchase EGP 72.56 at ${killedAppConfirmMarker} using card ending 1234`
   );
   const notificationPatterns = [
     "Expense Detected",
-    "CLOSED CONFIRM MARKET",
+    killedAppConfirmMarker,
     "72\\.56",
   ];
   waitForNotificationText(notificationPatterns);
@@ -889,4 +997,9 @@ if (require.main === module) {
 
 module.exports = {
   buildLiveSmsActionProbeCleanupSql,
+  createKilledAppConfirmMarker,
+  getMaestroFlowTimeoutMs,
+  getActiveUserFilter,
+  isRetryableMaestroTransportFailure,
+  shouldSkipRunAsProbeCleanup,
 };

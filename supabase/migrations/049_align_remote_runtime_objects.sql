@@ -54,7 +54,15 @@ END;$function$;
 ALTER TABLE public.categories
 ADD COLUMN IF NOT EXISTS usage_count integer NOT NULL DEFAULT 0;
 
--- Keep category usage counters in sync with transaction category changes.
+-- Shared system categories are visible to every user, so their usage counters
+-- must stay neutral. User-specific ordering can only update user-owned
+-- category rows.
+UPDATE public.categories
+  SET usage_count = 0, updated_at = now()
+  WHERE user_id IS NULL
+    AND usage_count <> 0;
+
+-- Keep user-owned category usage counters in sync with transaction category changes.
 CREATE OR REPLACE FUNCTION public.update_category_usage_count()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -65,37 +73,43 @@ BEGIN
   -- Handle INSERT: increment the new category's usage_count
   IF TG_OP = 'INSERT' THEN
     IF NEW.category_id IS NOT NULL AND NEW.deleted = false THEN
-      UPDATE categories
+      UPDATE public.categories
         SET usage_count = usage_count + 1, updated_at = now()
-        WHERE id = NEW.category_id;
+        WHERE id = NEW.category_id
+          AND user_id = NEW.user_id;
     END IF;
     RETURN NEW;
   END IF;
 
-  -- Handle UPDATE: if category_id changed or soft-delete toggled
+  -- Handle UPDATE: if owner, category_id, or soft-delete changed
   IF TG_OP = 'UPDATE' THEN
-    -- Category changed: decrement old, increment new
-    IF OLD.category_id IS DISTINCT FROM NEW.category_id THEN
+    -- Category or owner changed: decrement old, increment new
+    IF OLD.category_id IS DISTINCT FROM NEW.category_id
+      OR OLD.user_id IS DISTINCT FROM NEW.user_id THEN
       IF OLD.category_id IS NOT NULL AND OLD.deleted = false THEN
-        UPDATE categories
+        UPDATE public.categories
           SET usage_count = GREATEST(usage_count - 1, 0), updated_at = now()
-          WHERE id = OLD.category_id;
+          WHERE id = OLD.category_id
+            AND user_id = OLD.user_id;
       END IF;
       IF NEW.category_id IS NOT NULL AND NEW.deleted = false THEN
-        UPDATE categories
+        UPDATE public.categories
           SET usage_count = usage_count + 1, updated_at = now()
-          WHERE id = NEW.category_id;
+          WHERE id = NEW.category_id
+            AND user_id = NEW.user_id;
       END IF;
     -- Soft-delete toggled
     ELSIF OLD.deleted IS DISTINCT FROM NEW.deleted THEN
       IF NEW.deleted = true AND NEW.category_id IS NOT NULL THEN
-        UPDATE categories
+        UPDATE public.categories
           SET usage_count = GREATEST(usage_count - 1, 0), updated_at = now()
-          WHERE id = NEW.category_id;
+          WHERE id = NEW.category_id
+            AND user_id = NEW.user_id;
       ELSIF NEW.deleted = false AND NEW.category_id IS NOT NULL THEN
-        UPDATE categories
+        UPDATE public.categories
           SET usage_count = usage_count + 1, updated_at = now()
-          WHERE id = NEW.category_id;
+          WHERE id = NEW.category_id
+            AND user_id = NEW.user_id;
       END IF;
     END IF;
     RETURN NEW;
@@ -104,9 +118,10 @@ BEGIN
   -- Handle DELETE: decrement the category's usage_count
   IF TG_OP = 'DELETE' THEN
     IF OLD.category_id IS NOT NULL AND OLD.deleted = false THEN
-      UPDATE categories
+      UPDATE public.categories
         SET usage_count = GREATEST(usage_count - 1, 0), updated_at = now()
-        WHERE id = OLD.category_id;
+        WHERE id = OLD.category_id
+          AND user_id = OLD.user_id;
     END IF;
     RETURN OLD;
   END IF;
@@ -121,6 +136,10 @@ AFTER INSERT OR DELETE OR UPDATE ON public.transactions
 FOR EACH ROW EXECUTE FUNCTION public.update_category_usage_count();
 
 DROP TRIGGER IF EXISTS handle_asset_metals_updated_at ON public.asset_metals;
+ALTER TABLE public.asset_metals
+  ADD COLUMN IF NOT EXISTS deleted boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
+
 CREATE TRIGGER handle_asset_metals_updated_at
 BEFORE UPDATE ON public.asset_metals
 FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();

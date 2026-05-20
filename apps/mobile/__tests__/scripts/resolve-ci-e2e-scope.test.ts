@@ -1,4 +1,7 @@
 interface ResolveCiE2eScopeModule {
+  getGitDiffArgs(
+    env?: Readonly<Record<string, string | undefined>>
+  ): readonly string[];
   resolveCiE2eScope(files: readonly string[]): {
     readonly shouldRun: boolean;
     readonly suites: readonly string[];
@@ -57,5 +60,14 @@ describe("resolve-ci-e2e-scope", () => {
       shouldRun: true,
       suites: ["transactions", "sms-sync", "live-sms"],
     });
+  });
+
+  it("diffs the full pushed range on push events", () => {
+    expect(
+      scopeResolver.getGitDiffArgs({
+        GITHUB_EVENT_NAME: "push",
+        E2E_PUSH_BEFORE_SHA: "abc123",
+      })
+    ).toEqual(["diff", "--name-only", "abc123...HEAD"]);
   });
 });

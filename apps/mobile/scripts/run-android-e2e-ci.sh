@@ -13,16 +13,18 @@ adb install -r monyvi-android-debug/app-debug.apk
 adb reverse tcp:8081 tcp:8081
 
 metro_url="${E2E_HOST_METRO_URL:-http://127.0.0.1:8081}"
-bundle_url="${metro_url%/}/index.bundle?platform=android&dev=true&minify=false"
-bundle_output="${RUNNER_TEMP:-/tmp}/monyvi-e2e-index.android.bundle"
-warm_timeout_seconds="${E2E_METRO_WARM_TIMEOUT_SECONDS:-240}"
+status_url="${metro_url%/}/status"
+metro_wait_timeout_seconds="${E2E_METRO_WAIT_TIMEOUT_SECONDS:-240}"
 
-echo "Warming Android Metro bundle at ${bundle_url}"
-curl --fail --silent --show-error --location \
-  --retry 2 --retry-delay 2 --retry-all-errors \
-  --max-time "$warm_timeout_seconds" \
-  --output "$bundle_output" \
-  "$bundle_url"
+echo "Waiting for Metro status at ${status_url}"
+deadline=$((SECONDS + metro_wait_timeout_seconds))
+until curl --fail --silent --show-error --max-time 10 "$status_url" >/dev/null; do
+  if [ "$SECONDS" -ge "$deadline" ]; then
+    echo "Metro did not become ready at ${status_url} within ${metro_wait_timeout_seconds}s." >&2
+    exit 1
+  fi
+  sleep 2
+done
 
 set +e
 npm run e2e:ci -w @monyvi/mobile

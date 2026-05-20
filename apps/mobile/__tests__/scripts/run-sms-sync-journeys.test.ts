@@ -1,5 +1,6 @@
 interface RunSmsSyncJourneysModule {
   buildSmsSyncProbeCleanupSql(): string;
+  buildBatchSmsSavedVerificationQueries(): readonly string[];
 }
 
 const smsSyncJourneys = jest.requireActual(
@@ -7,6 +8,14 @@ const smsSyncJourneys = jest.requireActual(
 ) as RunSmsSyncJourneysModule;
 
 describe("run-sms-sync-journeys helpers", () => {
+  beforeEach(() => {
+    process.env.E2E_USER_ID = "e2e-user-1";
+  });
+
+  afterEach(() => {
+    delete process.env.E2E_USER_ID;
+  });
+
   it("cleans only current-user SMS sync probe rows and fails on SQL errors", () => {
     const sql = smsSyncJourneys.buildSmsSyncProbeCleanupSql();
 
@@ -16,8 +25,15 @@ describe("run-sms-sync-journeys helpers", () => {
     expect(sql).toContain("notes = 'ATM Withdrawal'");
     expect(sql).toContain("amount = 2000");
     expect(sql).toContain("sms_fingerprint is not null");
-    expect(sql).toContain(
-      "user_id = (select user_id from profiles where deleted = 0 order by updated_at desc limit 1)"
-    );
+    expect(sql).toContain("user_id = 'e2e-user-1'");
+  });
+
+  it("verifies saved SMS sync rows only for the current E2E user", () => {
+    const queries = smsSyncJourneys.buildBatchSmsSavedVerificationQueries();
+
+    expect(queries).toHaveLength(3);
+    for (const query of queries) {
+      expect(query).toContain("user_id = 'e2e-user-1'");
+    }
   });
 });

@@ -98,6 +98,24 @@ function resolveCiE2eScope(files) {
   };
 }
 
+function isUsableCommitSha(value) {
+  return Boolean(value) && !/^0+$/.test(value);
+}
+
+function getGitDiffArgs(env = process.env) {
+  const baseRef = env.GITHUB_BASE_REF;
+  if (baseRef) {
+    return ["diff", "--name-only", `origin/${baseRef}...HEAD`];
+  }
+
+  const pushBeforeSha = env.E2E_PUSH_BEFORE_SHA || env.GITHUB_EVENT_BEFORE;
+  if (env.GITHUB_EVENT_NAME === "push" && isUsableCommitSha(pushBeforeSha)) {
+    return ["diff", "--name-only", `${pushBeforeSha}...HEAD`];
+  }
+
+  return ["diff", "--name-only", "HEAD~1", "HEAD"];
+}
+
 function getChangedFilesFromGit() {
   if (process.env.E2E_CHANGED_FILES) {
     return process.env.E2E_CHANGED_FILES.split(/\r?\n|,/)
@@ -110,10 +128,7 @@ function getChangedFilesFromGit() {
     return args;
   }
 
-  const baseRef = process.env.GITHUB_BASE_REF;
-  const diffArgs = baseRef
-    ? ["diff", "--name-only", `origin/${baseRef}...HEAD`]
-    : ["diff", "--name-only", "HEAD~1", "HEAD"];
+  const diffArgs = getGitDiffArgs();
   const result = spawnSync("git", diffArgs, {
     encoding: "utf8",
     shell: false,
@@ -163,5 +178,6 @@ if (require.main === module) {
 }
 
 module.exports = {
+  getGitDiffArgs,
   resolveCiE2eScope,
 };

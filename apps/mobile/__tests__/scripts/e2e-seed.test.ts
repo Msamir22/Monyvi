@@ -156,6 +156,29 @@ describe("e2e-seed script helpers", () => {
     expect(transferRows[0]).toMatchObject({ date: today });
   });
 
+  it("does not seed fake global market rates in remote mode", async () => {
+    const operations: string[] = [];
+    const marketRateRows: unknown[] = [];
+    const client = createMockClient(operations, { marketRateRows });
+
+    await seedE2eData(client, {
+      ...getE2eSeedConfig({
+        E2E_SUPABASE_MODE: "remote",
+        EXPO_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
+        EXPO_PUBLIC_SUPABASE_ANON_KEY: "anon-key",
+        SUPABASE_SERVICE_ROLE_KEY: "service-role-key",
+        MAESTRO_E2E_EMAIL: "e2e@monyvi.test",
+        MAESTRO_E2E_PASSWORD: "Password123!",
+      }),
+      userId: "user-e2e",
+    });
+
+    expect(operations).not.toContain(
+      `upsert:market_rates:${EXPECTED_E2E_MARKET_RATE_ID}`
+    );
+    expect(marketRateRows).toHaveLength(0);
+  });
+
   it("syncs credentials when the E2E auth user already exists", async () => {
     const operations: string[] = [];
     const client = createMockClient(operations);

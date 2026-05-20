@@ -530,9 +530,12 @@ async function seedE2eData(client, config) {
     onConflict: "id",
   });
   await upsertRows(client, "transfers", rows.transfers, { onConflict: "id" });
-  await upsertRows(client, "market_rates", rows.marketRate, {
-    onConflict: "id",
-  });
+
+  if (config.mode === "local") {
+    await upsertRows(client, "market_rates", rows.marketRate, {
+      onConflict: "id",
+    });
+  }
 
   return { userId };
 }

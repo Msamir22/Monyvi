@@ -1,9 +1,12 @@
 const { join } = require("node:path");
 const { spawn, spawnSync } = require("node:child_process");
-const { getE2eSeedConfig } = require("./e2e-seed");
+const { createClient } = require("@supabase/supabase-js");
+const { getE2eSeedConfig, seedE2eData } = require("./e2e-seed");
 
 const mobileRoot = join(__dirname, "..");
 const maxCapturedOutputLength = 256 * 1024;
+const defaultChildTimeoutMs = 20 * 60 * 1000;
+const defaultLiveSmsTimeoutMs = 45 * 60 * 1000;
 
 const shouldBootstrapAuth = process.env.E2E_SKIP_AUTH_BOOTSTRAP !== "1";
 const allCiSuites = ["transactions", "sms-sync", "live-sms"];
@@ -115,6 +118,18 @@ function appendOutputTail(
   return nextOutput.slice(nextOutput.length - maxLength);
 }
 
+function getChildTimeoutMs(env = process.env) {
+  const parsed = Number(env.E2E_CHILD_TIMEOUT_MS);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultChildTimeoutMs;
+}
+
+function getLiveSmsTimeoutMs(env = process.env) {
+  const parsed = Number(env.E2E_LIVE_SMS_TIMEOUT_MS);
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : defaultLiveSmsTimeoutMs;
+}
+
 function getRequestedCiSuites(env = process.env) {
   const value = env.E2E_CI_SUITES;
   if (!value || value === "full") {
@@ -161,7 +176,7 @@ function reconnectAdb() {
   runAdb(["reverse", "tcp:8081", "tcp:8081"], { timeout: 30_000 });
 }
 
-function runNodeScriptOnce(script, args) {
+function runNodeScriptOnce(script, args, options = {}) {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [script, ...args], {
       cwd: mobileRoot,
@@ -170,6 +185,16 @@ function runNodeScriptOnce(script, args) {
       stdio: ["ignore", "pipe", "pipe"],
     });
     let output = "";
+    let didTimeout = false;
+    const timeoutMs = options.timeoutMs ?? getChildTimeoutMs();
+    const timeout = setTimeout(() => {
+      didTimeout = true;
+      const label = `${script} ${args.join(" ")}`.trim();
+      const text = `${label} timed out after ${timeoutMs}ms`;
+      process.stderr.write(`${text}\n`);
+      output = appendOutputTail(output, text);
+      child.kill("SIGTERM");
+    }, timeoutMs);
 
     child.stdout.on("data", (chunk) => {
       const text = chunk.toString();
@@ -184,6 +209,7 @@ function runNodeScriptOnce(script, args) {
     });
 
     child.on("error", (error) => {
+      clearTimeout(timeout);
       const text = error.message;
       process.stderr.write(`${text}\n`);
       output = appendOutputTail(output, text);
@@ -191,14 +217,15 @@ function runNodeScriptOnce(script, args) {
     });
 
     child.on("close", (code) => {
-      resolve({ output, status: code ?? 1 });
+      clearTimeout(timeout);
+      resolve({ output, status: didTimeout ? 124 : (code ?? 1) });
     });
   });
 }
 
-async function runNodeScript(script, args) {
+async function runNodeScript(script, args, options = {}) {
   for (let attempt = 1; attempt <= 2; attempt += 1) {
-    const result = await runNodeScriptOnce(script, args);
+    const result = await runNodeScriptOnce(script, args, options);
 
     if (result.status === 0) {
       return;
@@ -216,7 +243,15 @@ async function runNodeScript(script, args) {
 async function maybeSeedE2eData() {
   if (process.env.E2E_SKIP_SEED === "1") return;
 
-  await runNodeScript("scripts/e2e-seed.js", ["seed"]);
+  const config = getE2eSeedConfig();
+  const client = createClient(config.supabaseUrl, config.serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const result = await seedE2eData(client, config);
+  process.env.E2E_USER_ID = result.userId;
+  console.log(
+    `Seeded E2E data for ${config.email} (${result.userId}) on ${config.mode} Supabase`
+  );
 }
 
 function isFixtureE2eMode() {
@@ -245,6 +280,10 @@ function getLiveSmsJourneys() {
     .split(",")
     .map((journey) => journey.trim())
     .filter(Boolean);
+}
+
+function shouldBootstrapBeforeLiveSms(selectedSuites, supabaseMode) {
+  return selectedSuites.has("live-sms") && supabaseMode !== "local";
 }
 
 async function maybeRunAuthBootstrap() {
@@ -292,10 +331,15 @@ async function main() {
     await maybeRunSmsSyncJourneys();
   }
 
+  if (shouldBootstrapBeforeLiveSms(selectedSuites, getSupabaseMode())) {
+    await maybeRunAuthBootstrap();
+  }
+
   if (selectedSuites.has("live-sms")) {
     await runNodeScript(
       "scripts/run-live-sms-journeys.js",
-      getLiveSmsJourneys()
+      getLiveSmsJourneys(),
+      { timeoutMs: getLiveSmsTimeoutMs() }
     );
   }
 }
@@ -309,6 +353,9 @@ if (require.main === module) {
 
 module.exports = {
   appendOutputTail,
+  getChildTimeoutMs,
+  getLiveSmsTimeoutMs,
   getRequestedCiSuites,
   isDeviceOfflineFailure,
+  shouldBootstrapBeforeLiveSms,
 };
