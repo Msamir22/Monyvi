@@ -3,25 +3,38 @@
 const KNOWN_DEBT_FILE_SUFFIXES = [];
 
 const SENSITIVE_KEYS = new Set([
+  "account_id",
   "accountid",
   "amount",
   "availablebalance",
   "balance",
+  "bank_account_id",
   "bankaccountid",
   "email",
   "fingerprint",
+  "from_account_id",
   "fromaccountid",
   "notificationid",
+  "payment_id",
   "paymentid",
+  "profile_id",
   "profileid",
+  "raw_sms_body",
   "rawsmsbody",
   "sender",
+  "sender_display_name",
   "senderdisplayname",
+  "sms_body",
   "smsbody",
+  "sms_fingerprint",
   "smsfingerprint",
+  "to_account_id",
   "toaccountid",
+  "transaction_id",
   "transactionid",
+  "transfer_id",
   "transferid",
+  "user_id",
   "userid",
 ]);
 
@@ -156,8 +169,65 @@ module.exports = {
       return {};
     }
 
-    function inspectObjectExpression(objectExpression) {
+    const sourceCode = context.getSourceCode();
+
+    function findVariable(name, scopeNode) {
+      let scope =
+        typeof sourceCode.getScope === "function"
+          ? sourceCode.getScope(scopeNode)
+          : context.getScope();
+      while (scope) {
+        const variable = scope.set.get(name);
+        if (variable) {
+          return variable;
+        }
+        scope = scope.upper;
+      }
+
+      return null;
+    }
+
+    function resolveExpression(expression, visitedIdentifiers, scopeNode) {
+      if (expression.type !== "Identifier") {
+        return expression;
+      }
+
+      if (visitedIdentifiers.has(expression.name)) {
+        return null;
+      }
+
+      visitedIdentifiers.add(expression.name);
+      const variable = findVariable(expression.name, scopeNode);
+      const definition = variable?.defs.find(
+        (def) => def.node.type === "VariableDeclarator" && def.node.init
+      );
+      const init = definition?.node.init;
+      if (!init) {
+        return null;
+      }
+
+      if (init.type === "Identifier") {
+        return resolveExpression(init, visitedIdentifiers, scopeNode);
+      }
+
+      return init;
+    }
+
+    function inspectObjectExpression(
+      objectExpression,
+      visitedIdentifiers,
+      scopeNode
+    ) {
       for (const property of objectExpression.properties) {
+        if (property.type === "SpreadElement") {
+          inspectContextExpression(
+            property.argument,
+            new Set(visitedIdentifiers),
+            scopeNode
+          );
+          continue;
+        }
+
         if (property.type !== "Property") {
           continue;
         }
@@ -172,8 +242,44 @@ module.exports = {
         }
 
         if (property.value.type === "ObjectExpression") {
-          inspectObjectExpression(property.value);
+          inspectObjectExpression(
+            property.value,
+            visitedIdentifiers,
+            scopeNode
+          );
         }
+
+        if (property.value.type === "Identifier") {
+          inspectContextExpression(
+            property.value,
+            new Set(visitedIdentifiers),
+            scopeNode
+          );
+        }
+      }
+    }
+
+    function inspectContextExpression(
+      expression,
+      visitedIdentifiers,
+      scopeNode
+    ) {
+      if (expression.type === "SpreadElement") {
+        inspectContextExpression(
+          expression.argument,
+          visitedIdentifiers,
+          scopeNode
+        );
+        return;
+      }
+
+      const resolved = resolveExpression(
+        expression,
+        visitedIdentifiers,
+        scopeNode
+      );
+      if (resolved?.type === "ObjectExpression") {
+        inspectObjectExpression(resolved, visitedIdentifiers, scopeNode);
       }
     }
 
@@ -272,9 +378,7 @@ module.exports = {
         inspectLoggerMessage(node.arguments[0]);
 
         for (const argument of node.arguments) {
-          if (argument.type === "ObjectExpression") {
-            inspectObjectExpression(argument);
-          }
+          inspectContextExpression(argument, new Set(), node);
         }
       },
     };

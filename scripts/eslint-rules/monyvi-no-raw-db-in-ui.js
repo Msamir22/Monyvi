@@ -1,5 +1,7 @@
 "use strict";
 
+const path = require("path");
+
 const KNOWN_DEBT_FILE_SUFFIXES = [
   "apps/mobile/app/(private)/settings.tsx",
   "apps/mobile/app/(private)/startup.tsx",
@@ -23,6 +25,29 @@ function isTestFile(fileName) {
     normalized.endsWith(".test.tsx") ||
     normalized.endsWith(".spec.ts") ||
     normalized.endsWith(".spec.tsx")
+  );
+}
+
+function resolveRelativeSource(fileName, source) {
+  if (!source.startsWith(".")) {
+    return source;
+  }
+
+  return path.posix.normalize(
+    path.posix.join(path.posix.dirname(normalizePath(fileName)), source)
+  );
+}
+
+function sourceTargetsDatabase(fileName, source) {
+  if (source === "@monyvi/db" || source.startsWith("@monyvi/db/")) {
+    return true;
+  }
+
+  const resolved = resolveRelativeSource(fileName, source);
+  return (
+    resolved === "packages/db" ||
+    resolved.startsWith("packages/db/") ||
+    resolved.includes("/packages/db/")
   );
 }
 
@@ -61,19 +86,22 @@ module.exports = {
       return {};
     }
 
+    const useDatabaseFunctions = new Set(["useDatabase"]);
+
     return {
       ImportDeclaration(node) {
         const source =
           typeof node.source.value === "string" ? node.source.value : "";
-        if (source !== "@monyvi/db") {
+        if (!sourceTargetsDatabase(fileName, source)) {
           return;
         }
 
         const hasDatabaseImport = node.specifiers.some(
           (specifier) =>
-            specifier.type === "ImportSpecifier" &&
-            specifier.imported.type === "Identifier" &&
-            specifier.imported.name === "database"
+            specifier.type === "ImportNamespaceSpecifier" ||
+            (specifier.type === "ImportSpecifier" &&
+              specifier.imported.type === "Identifier" &&
+              specifier.imported.name === "database")
         );
 
         if (hasDatabaseImport) {
@@ -84,10 +112,20 @@ module.exports = {
         }
       },
 
+      VariableDeclarator(node) {
+        if (
+          node.id.type === "Identifier" &&
+          node.init?.type === "Identifier" &&
+          useDatabaseFunctions.has(node.init.name)
+        ) {
+          useDatabaseFunctions.add(node.id.name);
+        }
+      },
+
       CallExpression(node) {
         if (
           node.callee.type === "Identifier" &&
-          node.callee.name === "useDatabase"
+          useDatabaseFunctions.has(node.callee.name)
         ) {
           context.report({
             node,
