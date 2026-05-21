@@ -55,7 +55,32 @@ ruleTester.run("monyvi-no-sensitive-logger-context", rule, {
       ],
     },
     {
+      code: `logger.info("notification.sent", { notificationId: "n1" });`,
+      filename: "apps/mobile/services/notification-service.ts",
+      errors: [{ messageId: "sensitiveLoggerKey" }],
+    },
+    {
       code: "logger.error(`Account not found (ID: ${accountId})`);",
+      filename: "apps/mobile/services/edit-account-service.ts",
+      errors: [{ messageId: "sensitiveLoggerMessage" }],
+    },
+    {
+      code: "logger.error(`Account not found (ID: ${account.id})`);",
+      filename: "apps/mobile/services/edit-account-service.ts",
+      errors: [{ messageId: "sensitiveLoggerMessage" }],
+    },
+    {
+      code: "logger.error(`Account not found (ID: ${account?.id})`);",
+      filename: "apps/mobile/services/edit-account-service.ts",
+      errors: [{ messageId: "sensitiveLoggerMessage" }],
+    },
+    {
+      code: "logger.error(`Account not found (ID: ${accountId!})`);",
+      filename: "apps/mobile/services/edit-account-service.ts",
+      errors: [{ messageId: "sensitiveLoggerMessage" }],
+    },
+    {
+      code: "logger.error(`Account not found (ID: ${accountId as string})`);",
       filename: "apps/mobile/services/edit-account-service.ts",
       errors: [{ messageId: "sensitiveLoggerMessage" }],
     },

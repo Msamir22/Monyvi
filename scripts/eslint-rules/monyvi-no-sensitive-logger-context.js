@@ -25,6 +25,28 @@ const SENSITIVE_KEYS = new Set([
   "userid",
 ]);
 
+const SENSITIVE_MEMBER_OWNERS = new Set([
+  "account",
+  "bankaccount",
+  "message",
+  "notification",
+  "payment",
+  "profile",
+  "sender",
+  "sms",
+  "transaction",
+  "transfer",
+  "user",
+]);
+
+const SENSITIVE_MEMBER_PROPERTIES = new Set([
+  "body",
+  "email",
+  "fingerprint",
+  "id",
+  "sender",
+]);
+
 function normalizePath(fileName) {
   return fileName.replace(/\\/g, "/");
 }
@@ -95,7 +117,7 @@ function isLoggerCall(node) {
 }
 
 function isSensitiveKey(keyName) {
-  const normalized = keyName.toLowerCase();
+  const normalized = normalizeSensitiveName(keyName);
   if (
     normalized.includes("redacted") ||
     normalized.includes("masked") ||
@@ -105,6 +127,10 @@ function isSensitiveKey(keyName) {
   }
 
   return SENSITIVE_KEYS.has(normalized);
+}
+
+function normalizeSensitiveName(keyName) {
+  return keyName.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 module.exports = {
@@ -151,14 +177,68 @@ module.exports = {
       }
     }
 
-    function getSensitiveExpressionName(expression) {
-      if (expression.type === "Identifier") {
-        return isSensitiveKey(expression.name) ? expression.name : null;
+    function unwrapExpression(expression) {
+      let current = expression;
+
+      while (
+        current?.type === "ChainExpression" ||
+        current?.type === "TSNonNullExpression" ||
+        current?.type === "TSAsExpression" ||
+        current?.type === "TSTypeAssertion" ||
+        current?.type === "TSInstantiationExpression" ||
+        current?.type === "ParenthesizedExpression"
+      ) {
+        current = current.expression;
       }
 
-      if (expression.type === "MemberExpression") {
-        const propertyName = getPropertyName(expression);
-        return propertyName && isSensitiveKey(propertyName)
+      return current;
+    }
+
+    function getIdentifierName(expression) {
+      const unwrapped = unwrapExpression(expression);
+      return unwrapped?.type === "Identifier" ? unwrapped.name : null;
+    }
+
+    function isSensitiveMemberExpression(expression) {
+      const propertyName = getPropertyName(expression);
+      if (!propertyName) {
+        return false;
+      }
+
+      if (isSensitiveKey(propertyName)) {
+        return true;
+      }
+
+      const ownerName = getIdentifierName(expression.object);
+      if (!ownerName) {
+        return false;
+      }
+
+      return (
+        SENSITIVE_MEMBER_OWNERS.has(normalizeSensitiveName(ownerName)) &&
+        SENSITIVE_MEMBER_PROPERTIES.has(normalizeSensitiveName(propertyName))
+      );
+    }
+
+    function getSensitiveExpressionName(expression) {
+      const unwrapped = unwrapExpression(expression);
+
+      if (unwrapped.type === "Identifier") {
+        return isSensitiveKey(unwrapped.name) ? unwrapped.name : null;
+      }
+
+      if (
+        unwrapped.type === "CallExpression" &&
+        unwrapped.callee.type === "Identifier" &&
+        ["String", "Number"].includes(unwrapped.callee.name) &&
+        unwrapped.arguments.length === 1
+      ) {
+        return getSensitiveExpressionName(unwrapped.arguments[0]);
+      }
+
+      if (unwrapped.type === "MemberExpression") {
+        const propertyName = getPropertyName(unwrapped);
+        return propertyName && isSensitiveMemberExpression(unwrapped)
           ? propertyName
           : null;
       }

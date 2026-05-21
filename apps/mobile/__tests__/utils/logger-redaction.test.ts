@@ -20,6 +20,23 @@ describe("logger redaction helpers", () => {
     expect(redacted).not.toContain("abc");
   });
 
+  it("keeps the prefix hidden at the hidden-suffix threshold", () => {
+    const redacted = redactIdentifierForLog("abcd");
+
+    expect(redacted).toBe("[redacted:length=4]");
+    expect(redacted).not.toContain("abcd");
+    expect(redacted).not.toContain("prefix=");
+  });
+
+  it("emits only the safe prefix after the hidden-suffix threshold", () => {
+    const redacted = redactIdentifierForLog("abcde");
+
+    expect(redacted).toBe("[redacted:prefix=a;length=5]");
+    expect(redacted).toContain("prefix=a");
+    expect(redacted).not.toContain("abcde");
+    expect(redacted).not.toContain("bcde");
+  });
+
   it("normalizes missing identifiers", () => {
     expect(redactIdentifierForLog(null)).toBe("[redacted:missing]");
     expect(redactIdentifierForLog(undefined)).toBe("[redacted:missing]");
