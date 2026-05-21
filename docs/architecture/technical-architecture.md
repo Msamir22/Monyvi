@@ -293,10 +293,12 @@ Error/logging patterns:
   account IDs, transaction IDs, transfer IDs, or payment IDs. Log event codes,
   counts, booleans, retryability, and redacted or prefix-only identifiers
   instead.
+- Use `redactIdentifierForLog` from `apps/mobile/utils/logger-redaction.ts` when
+  an operational log needs to correlate repeated failures without exposing the
+  full identifier.
 
 Tracked architecture debt:
 
-- #653 repairs sensitive SMS and financial logging.
 - #654 repairs package-boundary reversals between `packages/db` and
   `packages/logic`.
 - #655 moves hook-owned writes into command services.
