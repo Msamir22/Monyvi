@@ -9,7 +9,7 @@
 
 import React from "react";
 import { Text, View } from "react-native";
-import type { SubcategorySpending } from "@/hooks/useBudgetDetail";
+import type { SubcategorySpending } from "@/services/budget-detail-read-model-service";
 import type { CurrencyType } from "@monyvi/db";
 import { formatCurrency } from "@monyvi/logic";
 import { palette } from "@/constants/colors";

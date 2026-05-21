@@ -302,7 +302,9 @@ Tracked architecture debt:
 - #653 repairs sensitive SMS and financial logging.
 - #654 repairs package-boundary reversals between `packages/db` and
   `packages/logic`.
-- #656 extracts read-model services from heavy hooks.
+- #656 extracts read-model services from heavy hooks. Budget detail is the first
+  extracted slice; analytics, transaction grouping, net worth, and remaining
+  budget list read helpers are still tracked debt.
 - #657 splits oversized UI modules and restores container/presentational
   boundaries.
 - #659 splits sync internals into focused strategies and ownership guards.

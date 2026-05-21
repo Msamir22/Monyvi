@@ -1,52 +1,24 @@
 /**
  * useBudgetDetail Hook
  *
- * Observes a single budget, computes spending metrics, weekly buckets,
- * subcategory breakdown, and recent matching transactions.
+ * Observes a single scoped budget and delegates detail aggregation to the
+ * budget detail read-model service.
  *
  * @module useBudgetDetail
  */
 
-import { useState, useEffect } from "react";
-import { Budget, database, Transaction, Category } from "@monyvi/db";
-import { Q } from "@nozbe/watermelondb";
+import { useEffect, useState } from "react";
+import { database, type Budget, type Transaction } from "@monyvi/db";
+import type { SpendingMetrics } from "@monyvi/logic";
+
 import {
-  getCurrentPeriodBounds,
-  getDaysLeft,
-  getDaysElapsed,
-  getWeeklyBuckets,
-  computeSpendingMetrics,
-  filterExcludedTransactions,
-  type SpendingMetrics,
-  type WeeklyBucket,
-} from "@monyvi/logic";
-import {
-  getSpendingForBudget,
-  getCategoryAndSubcategoryIds,
-} from "@/services/budget-service";
-import {
-  observeOwnedById,
-  queryAccessibleCategories,
-  queryOwned,
-} from "@/services/user-data-access";
+  getBudgetDetailReadModel,
+  type SubcategorySpending,
+  type WeeklySpendingData,
+} from "@/services/budget-detail-read-model-service";
+import { observeOwnedById } from "@/services/user-data-access";
 import { logger } from "@/utils/logger";
 import { runUserScopedEffect, useCurrentUser } from "./useCurrentUser";
-
-// =============================================================================
-// TYPES
-// =============================================================================
-
-export interface SubcategorySpending {
-  readonly categoryId: string;
-  readonly categoryName: string;
-  readonly amount: number;
-  readonly percentage: number;
-}
-
-export interface WeeklySpendingData {
-  readonly bucket: WeeklyBucket;
-  readonly amount: number;
-}
 
 interface UseBudgetDetailResult {
   readonly budget: Budget | null;
@@ -59,39 +31,34 @@ interface UseBudgetDetailResult {
   readonly isLoading: boolean;
 }
 
-// =============================================================================
-// CONSTANTS
-// =============================================================================
+interface BudgetDetailState {
+  readonly metrics: SpendingMetrics | null;
+  readonly daysLeft: number;
+  readonly daysElapsed: number;
+  readonly weeklySpending: readonly WeeklySpendingData[];
+  readonly subcategoryBreakdown: readonly SubcategorySpending[];
+  readonly recentTransactions: readonly Transaction[];
+  readonly isLoading: boolean;
+}
 
-const RECENT_TRANSACTIONS_LIMIT = 6;
-
-// =============================================================================
-// HOOK
-// =============================================================================
+const EMPTY_DETAIL_STATE: BudgetDetailState = {
+  metrics: null,
+  daysLeft: 0,
+  daysElapsed: 1,
+  weeklySpending: [],
+  subcategoryBreakdown: [],
+  recentTransactions: [],
+  isLoading: false,
+};
 
 export function useBudgetDetail(budgetId: string): UseBudgetDetailResult {
   const [budget, setBudget] = useState<Budget | null>(null);
-  const { userId, isResolvingUser } = useCurrentUser();
-  // F-04: Consolidated into a single state object to avoid cascading re-renders
-  const [state, setState] = useState<{
-    readonly metrics: SpendingMetrics | null;
-    readonly daysLeft: number;
-    readonly daysElapsed: number;
-    readonly weeklySpending: readonly WeeklySpendingData[];
-    readonly subcategoryBreakdown: readonly SubcategorySpending[];
-    readonly recentTransactions: readonly Transaction[];
-    readonly isLoading: boolean;
-  }>({
-    metrics: null,
-    daysLeft: 0,
-    daysElapsed: 1,
-    weeklySpending: [],
-    subcategoryBreakdown: [],
-    recentTransactions: [],
+  const [state, setState] = useState<BudgetDetailState>({
+    ...EMPTY_DETAIL_STATE,
     isLoading: true,
   });
+  const { userId, isResolvingUser } = useCurrentUser();
 
-  // ── Subscribe to budget changes ──
   useEffect(() => {
     if (!budgetId) return;
 
@@ -104,15 +71,7 @@ export function useBudgetDetail(budgetId: string): UseBudgetDetailResult {
       },
       onSignedOut: () => {
         setBudget(null);
-        setState({
-          metrics: null,
-          daysLeft: 0,
-          daysElapsed: 1,
-          weeklySpending: [],
-          subcategoryBreakdown: [],
-          recentTransactions: [],
-          isLoading: false,
-        });
+        setState(EMPTY_DETAIL_STATE);
       },
       onAuthenticated: (currentUserId) => {
         const subscription = observeOwnedById<Budget>(
@@ -120,19 +79,11 @@ export function useBudgetDetail(budgetId: string): UseBudgetDetailResult {
           budgetId,
           currentUserId
         ).subscribe({
-          next: (b) => setBudget(b),
+          next: (observedBudget) => setBudget(observedBudget),
           error: (err: unknown) => {
             logger.error("budgetDetail.budget.observe.failed", err);
             setBudget(null);
-            setState({
-              metrics: null,
-              daysLeft: 0,
-              daysElapsed: 1,
-              weeklySpending: [],
-              subcategoryBreakdown: [],
-              recentTransactions: [],
-              isLoading: false,
-            });
+            setState(EMPTY_DETAIL_STATE);
           },
         });
 
@@ -141,182 +92,27 @@ export function useBudgetDetail(budgetId: string): UseBudgetDetailResult {
     });
   }, [budgetId, userId, isResolvingUser]);
 
-  // ── Compute all metrics when budget changes ──
   useEffect(() => {
     if (!budget) return;
+    const currentBudget = budget;
     let cancelled = false;
 
     async function compute(): Promise<void> {
-      if (!budget) return;
       setState((prev) => ({ ...prev, isLoading: true }));
 
       try {
-        const bounds = getCurrentPeriodBounds(
-          budget.period,
-          budget.periodStart,
-          budget.periodEnd
-        );
-
-        // Spending
-        const spent = await getSpendingForBudget(budget);
-        const elapsed = getDaysElapsed(bounds.start);
-        const left = getDaysLeft(bounds.end);
-        const computedMetrics = computeSpendingMetrics(
-          spent,
-          budget.amount,
-          elapsed,
-          budget.alertThreshold
-        );
-
-        // Weekly buckets
-        const buckets = getWeeklyBuckets(bounds);
-        const weeklyData: WeeklySpendingData[] = [];
-
-        // Resolve category IDs once for reuse in scoped queries
-        const categoryIds =
-          budget.isCategoryBudget && budget.categoryId
-            ? await getCategoryAndSubcategoryIds(budget.categoryId)
-            : null;
-
-        for (const bucket of buckets) {
-          const conditions = [
-            Q.where("deleted", false),
-            Q.where("type", "EXPENSE"),
-            Q.where("date", Q.gte(bucket.weekStart.getTime())),
-            Q.where("date", Q.lte(bucket.weekEnd.getTime())),
-          ];
-
-          // Scope to category tree for category budgets
-          if (categoryIds) {
-            conditions.push(Q.where("category_id", Q.oneOf(categoryIds)));
-          }
-
-          const transactionsCollection =
-            database.get<Transaction>("transactions");
-          const weeklyTransactions = await queryOwned(
-            transactionsCollection,
-            budget.userId,
-            Q.and(...conditions)
-          ).fetch();
-
-          // Exclude paused-window transactions
-          const activeTxs = filterExcludedTransactions(
-            weeklyTransactions,
-            budget.typedPauseIntervals,
-            budget.pausedAtMs
-          );
-
-          weeklyData.push({
-            bucket,
-            amount: activeTxs.reduce((sum, tx) => sum + tx.amount, 0),
-          });
-        }
-
-        // Subcategory breakdown (for category budgets)
-        let breakdown: SubcategorySpending[] = [];
-        if (budget.isCategoryBudget && budget.categoryId && spent > 0) {
-          const children = await queryAccessibleCategories(
-            database.get<Category>("categories"),
-            budget.userId,
-            Q.and(
-              Q.where("parent_id", budget.categoryId),
-              Q.where("deleted", false)
-            )
-          ).fetch();
-
-          for (const child of children) {
-            // M1 fix: Include L3 (grandchild) transactions in subcategory breakdown
-            const childCategoryIds = await getCategoryAndSubcategoryIds(
-              child.id
-            );
-            const allChildTxs = await queryOwned(
-              database.get<Transaction>("transactions"),
-              budget.userId,
-              Q.and(
-                Q.where("deleted", false),
-                Q.where("type", "EXPENSE"),
-                Q.where("category_id", Q.oneOf(childCategoryIds)),
-                Q.where("date", Q.gte(bounds.start.getTime())),
-                Q.where("date", Q.lte(bounds.end.getTime()))
-              )
-            ).fetch();
-
-            // Exclude paused-window transactions
-            const activeChildTxs = filterExcludedTransactions(
-              allChildTxs,
-              budget.typedPauseIntervals,
-              budget.pausedAtMs
-            );
-
-            const childAmount = activeChildTxs.reduce(
-              (sum, tx) => sum + tx.amount,
-              0
-            );
-            if (childAmount > 0) {
-              breakdown.push({
-                categoryId: child.id,
-                categoryName: child.displayName,
-                amount: childAmount,
-                percentage: (childAmount / spent) * 100,
-              });
-            }
-          }
-
-          // Sort by amount descending
-          breakdown = breakdown.sort((a, b) => b.amount - a.amount);
-        }
-
-        // Recent transactions — over-fetch to compensate for pause-window filtering
-        const recentConditions = [
-          Q.where("deleted", false),
-          Q.where("type", "EXPENSE"),
-          Q.where("date", Q.gte(bounds.start.getTime())),
-          Q.where("date", Q.lte(bounds.end.getTime())),
-        ];
-
-        // Scope to category tree for category budgets
-        if (categoryIds) {
-          recentConditions.push(Q.where("category_id", Q.oneOf(categoryIds)));
-        }
-
-        const recentRaw = await queryOwned(
-          database.get<Transaction>("transactions"),
-          budget.userId,
-          ...recentConditions,
-          Q.sortBy("date", Q.desc),
-          Q.take(RECENT_TRANSACTIONS_LIMIT * 2)
-        ).fetch();
-
-        // Exclude paused-window transactions, then trim to the desired limit
-        const recentFiltered = filterExcludedTransactions(
-          recentRaw,
-          budget.typedPauseIntervals,
-          budget.pausedAtMs
-        ).slice(0, RECENT_TRANSACTIONS_LIMIT);
+        const detail = await getBudgetDetailReadModel(currentBudget);
 
         if (!cancelled) {
           setState({
-            metrics: computedMetrics,
-            daysLeft: left,
-            daysElapsed: elapsed,
-            weeklySpending: weeklyData,
-            subcategoryBreakdown: breakdown,
-            recentTransactions: recentFiltered,
+            ...detail,
             isLoading: false,
           });
         }
       } catch (error: unknown) {
         logger.error("budgetDetail.compute.failed", error);
         if (!cancelled) {
-          setState({
-            metrics: null,
-            daysLeft: 0,
-            daysElapsed: 1,
-            weeklySpending: [],
-            subcategoryBreakdown: [],
-            recentTransactions: [],
-            isLoading: false,
-          });
+          setState(EMPTY_DETAIL_STATE);
         }
       }
     }
