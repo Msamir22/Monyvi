@@ -312,8 +312,9 @@ Tracked architecture debt:
   facade and makes the SMS scan progress component presentational by passing
   category labels from the route container. The SMS scan progress renderer is
   now split below the max-lines threshold, and settings no longer needs the
-  raw-DB UI guardrail exception. Settings max-lines debt, edit routes, and
-  remaining oversized screen sections stay tracked debt until their slices land.
+  raw-DB UI guardrail exception. Settings is now split below the max-lines
+  threshold. Edit routes and remaining oversized screen sections stay tracked
+  debt until their slices land.
 - #659 splits sync internals into focused strategies and ownership guards.
 
 ## 13. Guardrail Rollout
