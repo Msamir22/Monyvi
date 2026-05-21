@@ -37,6 +37,21 @@ ruleTester.run("monyvi-no-raw-db-in-ui", rule, {
       errors: [{ messageId: "rawDatabaseImport" }],
     },
     {
+      code: `import { database } from "@monyvi/db/database";`,
+      filename: "apps/mobile/app/(private)/new-screen.tsx",
+      errors: [{ messageId: "rawDatabaseImport" }],
+    },
+    {
+      code: `import { database } from "../../../../packages/db/src/database";`,
+      filename: "apps/mobile/app/(private)/new-screen.tsx",
+      errors: [{ messageId: "rawDatabaseImport" }],
+    },
+    {
+      code: `import * as db from "@monyvi/db";`,
+      filename: "apps/mobile/components/NewDrawer.tsx",
+      errors: [{ messageId: "rawDatabaseImport" }],
+    },
+    {
       code: `const database = useDatabase();`,
       filename: "apps/mobile/components/NewDrawer.tsx",
       errors: [{ messageId: "rawUseDatabase" }],
@@ -44,6 +59,14 @@ ruleTester.run("monyvi-no-raw-db-in-ui", rule, {
     {
       code: `const database = useDatabase();`,
       filename: "apps/mobile/components/navigation/AppDrawer.tsx",
+      errors: [{ messageId: "rawUseDatabase" }],
+    },
+    {
+      code: `
+        const getDatabase = useDatabase;
+        const database = getDatabase();
+      `,
+      filename: "apps/mobile/components/NewDrawer.tsx",
       errors: [{ messageId: "rawUseDatabase" }],
     },
   ],
