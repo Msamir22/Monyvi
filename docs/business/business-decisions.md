@@ -407,22 +407,8 @@ Business rules:
 
 ## 11. Current Known Product And Documentation Gaps
 
-These are documented so future contributors do not mistake them for approved
-patterns:
+These are documented so future contributors keep product behavior aligned with
+the current implementation:
 
 - `parse-transaction` was removed. Active AI parsing is `parse-sms` and
   `parse-voice`.
-- Root package scripts still mention a nonexistent `@monyvi/api` workspace.
-- Some content-loading screens still use `ActivityIndicator`; the intended
-  standard is skeleton loading for content and spinners only for short action
-  progress.
-- Some raw `console.*` calls remain in app code; the intended standard is the
-  structured logger.
-- `usePreferredCurrency` currently writes directly from a hook. Future work
-  should move that write behind a profile/preferences service.
-- `packages/db` currently imports app/logic helpers in model getters, which
-  violates the intended monorepo dependency direction. Do not add new reverse
-  dependencies.
-- The full palette in `colors.ts` is not completely registered in
-  `tailwind.config.js`. Use registered classes first and add missing tokens
-  deliberately when needed.

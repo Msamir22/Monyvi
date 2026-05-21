@@ -28,6 +28,7 @@
     "mobile:install-check": "npm run install-check -w @monyvi/mobile",
     "lint": "eslint . --rulesdir scripts/eslint-rules --ext .ts,.tsx,.js,.jsx",
     "lint:fix": "eslint . --rulesdir scripts/eslint-rules --ext .ts,.tsx,.js,.jsx --fix",
+    "test:eslint-rules": "node -e \"const fs=require('fs'); for (const f of fs.readdirSync('scripts/eslint-rules').filter((name)=>name.endsWith('.test.js'))) require('./scripts/eslint-rules/'+f)\"",
     "android": "expo run:android",
     "start:android": "npm run start -w @monyvi/mobile",
     "ios": "expo run:ios",

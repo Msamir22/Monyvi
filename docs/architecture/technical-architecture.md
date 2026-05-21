@@ -1,7 +1,6 @@
 # Monyvi Technical Architecture
 
-**Last updated:** 2026-05-10  
-**Status:** Implementation-aligned architecture map
+**Last updated:** 2026-05-20 **Status:** Implementation-aligned architecture map
 
 This document describes how the app is currently built. The constitution remains
 the authority for required engineering principles; this file explains the
@@ -61,10 +60,9 @@ Rules:
 - `packages/logic` may import DB types only when unavoidable.
 - `packages/db` must not import from `apps/mobile` or `packages/logic`.
 
-Current debt: some `packages/db` model getters import app/logic helpers. Treat
-that as an existing architecture violation, not a precedent. New work should
-avoid adding reverse dependencies and should move presentation formatting out of
-DB models over time.
+Tracked exception: issue #654 repairs existing reverse imports from
+`packages/db` model getters into `@monyvi/logic`. Those imports are allowlisted
+only while the repair issue is open; they are not a pattern for new work.
 
 ## 4. App Runtime And Routing
 
@@ -136,11 +134,11 @@ Approved helper patterns live in `apps/mobile/services/user-data-access.ts`:
 - `queryChildrenOfOwnedParents()`
 - `assertChildRecordParentOwned()`
 
-Components should not import the raw `database` object. Hooks may observe scoped
-queries. Services own writes and workflow mutations.
-
-Known exception: `usePreferredCurrency` currently writes profile currency
-directly. Future work should move that write into a service.
+Components and routes must not import the raw `database` object or call
+`useDatabase()` directly. Hooks may observe scoped data through approved helpers
+or repositories/read models, while services own writes and workflow mutations.
+Current exceptions are tracked by #655 and #657 and are allowlisted only until
+those issues remove them.
 
 ## 7. Sync Architecture
 
@@ -186,20 +184,41 @@ because Supabase JWT payloads can exceed SecureStore's per-key limit.
 
 The app does not support anonymous auth.
 
-## 9. Business Logic Placement
+## 9. Layer Ownership And Attachment Pattern
 
-Use this placement model:
+Use this placement model when adding or moving code:
 
-| Layer                    | Responsibility                                                                    |
-| ------------------------ | --------------------------------------------------------------------------------- |
-| `packages/logic`         | Pure calculations, parsers, currency/metal/budget/analytics helpers.              |
-| `apps/mobile/services`   | WatermelonDB writes, orchestration, external service clients, sync, auth helpers. |
-| `apps/mobile/hooks`      | React lifecycle, subscriptions, screen state, memoized derived UI state.          |
-| `apps/mobile/components` | Render props/state, call callbacks, own UI-only concerns.                         |
-| `supabase/functions`     | Secure network gateways for AI parsing and market-rate ingestion.                 |
+| Layer                                     | Responsibility                                                                                    |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `packages/db`                             | WatermelonDB schema, migrations, generated types, models, relationships, and sync configuration.  |
+| `packages/logic`                          | Pure calculations, parsers, formatters, and domain utilities over plain interfaces.               |
+| `apps/mobile/services` command services   | WatermelonDB writes, external clients, platform adapters, sync, auth, and workflow orchestration. |
+| `apps/mobile/services` read models/repos  | Scoped local queries, joins, and display/read aggregation that should be testable outside React.  |
+| `apps/mobile/hooks` and feature facades   | React lifecycle, subscriptions, loading/error/UI state, and command invocation.                   |
+| Container components or route composition | Connect hooks/facades to presentational sections and own navigation/UI-only feedback.             |
+| Presentational components                 | Render props and callbacks only; no raw database access, business rules, or hidden subscriptions. |
+| `supabase/functions`                      | Secure network gateways for AI parsing and market-rate ingestion.                                 |
 
-Services should return explicit success/error results or throw intentional
-errors that the caller can translate into UI feedback.
+Attachment rules:
+
+- DB models expose persisted fields and relationships. Do not attach display
+  formatting, parsing, or app-specific helpers to model classes.
+- Shared calculations accept plain data shapes. If `packages/logic` needs DB
+  names, use `import type` or a local interface, not runtime model imports.
+- Hooks should feel like React facades: subscribe, manage lifecycle state, and
+  call commands. They must not own `database.write()` or multi-table business
+  calculations.
+- Read-model services are the home for reusable scoped reads, joins, grouping,
+  and screen-specific aggregation such as budget detail, transaction timeline,
+  analytics, and net-worth views.
+- Components are split into containers and presentational pieces when a feature
+  needs data lookup. Presentational components receive already-shaped props.
+- Refactors should move one domain slice at a time with characterization tests
+  first. Do not bundle the whole architecture hardening epic into one patch.
+
+Tracked exceptions are recorded in #653-#659 and enforced through temporary
+ESLint allowlists. Remove each allowlist entry in the same PR that repairs the
+corresponding debt.
 
 ## 10. AI And Automation Flows
 
@@ -269,14 +288,48 @@ Error/logging patterns:
 - Error boundaries provide root and section-level recovery.
 - Avoid logging raw transcripts, SMS bodies, financial notes, or parsed
   transaction payloads.
+- Logger context must not include raw SMS bodies, sender names, full SMS
+  fingerprints, financial amounts or balances, email addresses, full user IDs,
+  account IDs, transaction IDs, transfer IDs, or payment IDs. Log event codes,
+  counts, booleans, retryability, and redacted or prefix-only identifiers
+  instead.
 
-Known debt:
+Tracked architecture debt:
 
-- Several raw `console.*` calls remain.
-- Some screens still use content-loading spinners instead of skeletons.
-- Some root package scripts reference a nonexistent `@monyvi/api` workspace.
+- #653 repairs sensitive SMS and financial logging.
+- #654 repairs package-boundary reversals between `packages/db` and
+  `packages/logic`.
+- #655 moves hook-owned writes into command services.
+- #656 extracts read-model services from heavy hooks.
+- #657 splits oversized UI modules and restores container/presentational
+  boundaries.
+- #659 splits sync internals into focused strategies and ownership guards.
 
-## 13. Developer Workflow
+## 13. Guardrail Rollout
+
+Custom architecture guardrails live in `scripts/eslint-rules` and are wired
+through the root lint script, mobile lint script, lint-staged, CI, and VSCode
+rule paths.
+
+Current guardrails:
+
+- `user-scoped-db-access` requires approved scoped helper APIs for local
+  WatermelonDB access.
+- `monyvi-package-boundaries` prevents new package-boundary reversals.
+- `monyvi-no-hook-db-write` prevents new `database.write()` calls outside mobile
+  command services.
+- `monyvi-no-raw-db-in-ui` prevents new raw DB access from routes and
+  components.
+- `monyvi-no-sensitive-logger-context` prevents new sensitive logger context
+  keys.
+- `max-lines` blocks new oversized source files, with generated files and
+  current #657 debt explicitly allowlisted.
+
+These rules are hard errors. Existing violations are narrow allowlist entries,
+not accepted patterns. When a child issue repairs an area, remove its allowlist
+entry and add or update the relevant rule tests.
+
+## 14. Developer Workflow
 
 Common commands:
 
