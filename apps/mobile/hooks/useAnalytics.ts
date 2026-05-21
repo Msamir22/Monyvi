@@ -32,6 +32,13 @@ interface UseAnalyticsResult<T> {
   refetch: () => void;
 }
 
+interface YearMonthPeriod {
+  readonly year: number;
+  readonly month: number;
+}
+
+const MAX_PERIOD_CHECK_DELAY_MS = 24 * 60 * 60 * 1000;
+
 export function useMonthlyChartData(
   months: number = 12,
   accountIds?: string[],
@@ -206,6 +213,7 @@ export function useComparison(
   const { userId, isResolvingUser } = useCurrentUser();
   const accountIdsString = useAccountIdsKey(accountIds);
   const selectedAccountIds = useSelectedAccountIds(accountIdsString);
+  const targetPeriod = useComparisonTargetPeriod(year, month);
 
   const refetch = (): void => {
     setRefreshKey((prev) => prev + 1);
@@ -232,8 +240,8 @@ export function useComparison(
     const { currentQuery, previousQuery } = observeComparisonTransactions({
       userId,
       type,
-      year,
-      month,
+      year: targetPeriod.year,
+      month: targetPeriod.month,
       accountIds: selectedAccountIds,
     });
     const currentSub = currentQuery.observe().subscribe({
@@ -261,8 +269,8 @@ export function useComparison(
     };
   }, [
     type,
-    year,
-    month,
+    targetPeriod.year,
+    targetPeriod.month,
     accountIdsString,
     refreshKey,
     userId,
@@ -355,6 +363,79 @@ function useSelectedAccountIds(accountIdsString: string): readonly string[] {
     () => (accountIdsString.length > 0 ? accountIdsString.split(",") : []),
     [accountIdsString]
   );
+}
+
+function useComparisonTargetPeriod(
+  year: number | undefined,
+  month: number | undefined
+): YearMonthPeriod {
+  const [currentPeriod, setCurrentPeriod] =
+    useState<YearMonthPeriod>(getCurrentYearMonth);
+
+  useEffect(() => {
+    if (year !== undefined && month !== undefined) {
+      return;
+    }
+
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let isActive = true;
+
+    const scheduleNextCheck = (): void => {
+      timeoutId = setTimeout(() => {
+        if (!isActive) {
+          return;
+        }
+
+        setCurrentPeriod((prev) => {
+          const next = getCurrentYearMonth();
+          if (prev.year === next.year && prev.month === next.month) {
+            return prev;
+          }
+
+          return next;
+        });
+        scheduleNextCheck();
+      }, getDelayUntilNextPeriodCheck());
+    };
+
+    scheduleNextCheck();
+
+    return () => {
+      isActive = false;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [year, month]);
+
+  return useMemo(
+    () => ({
+      year: year ?? currentPeriod.year,
+      month: month ?? currentPeriod.month,
+    }),
+    [year, month, currentPeriod]
+  );
+}
+
+function getCurrentYearMonth(): YearMonthPeriod {
+  const now = new Date();
+
+  return {
+    year: now.getFullYear(),
+    month: now.getMonth() + 1,
+  };
+}
+
+function getDelayUntilNextPeriodCheck(): number {
+  const now = new Date();
+  const nextMonthStart = new Date(
+    now.getFullYear(),
+    now.getMonth() + 1,
+    1
+  ).getTime();
+  const delayUntilNextMonth = nextMonthStart - now.getTime() + 1;
+
+  return Math.max(1, Math.min(delayUntilNextMonth, MAX_PERIOD_CHECK_DELAY_MS));
 }
 
 function toError(err: unknown): Error {

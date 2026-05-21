@@ -50,5 +50,75 @@ ruleTester.run("monyvi-no-hook-db-write", rule, {
       filename: "apps/mobile/utils/transactions.ts",
       errors: [{ messageId: "dbWriteOutsideService" }],
     },
+    {
+      code: `await useDatabase().write(async () => {});`,
+      filename: "apps/mobile/components/Thing.tsx",
+      errors: [{ messageId: "dbWriteOutsideService" }],
+    },
+    {
+      code: `
+        import { database as localDatabase } from "@monyvi/db";
+        await localDatabase.write(async () => {});
+      `,
+      filename: "apps/mobile/components/Thing.tsx",
+      errors: [{ messageId: "dbWriteOutsideService" }],
+    },
+    {
+      code: `
+        import { database as db } from "../../../../packages/db/src/database";
+        await db.write(async () => {});
+      `,
+      filename: "apps/mobile/components/Thing.tsx",
+      errors: [{ messageId: "dbWriteOutsideService" }],
+    },
+    {
+      code: `
+        import * as db from "@monyvi/db";
+        await db.database.write(async () => {});
+      `,
+      filename: "apps/mobile/components/Thing.tsx",
+      errors: [{ messageId: "dbWriteOutsideService" }],
+    },
+    {
+      code: `
+        const { write } = database;
+        await write(async () => {});
+      `,
+      filename: "apps/mobile/components/Thing.tsx",
+      errors: [{ messageId: "dbWriteOutsideService" }],
+    },
+    {
+      code: `
+        const { write: writeToDatabase } = useDatabase();
+        await writeToDatabase(async () => {});
+      `,
+      filename: "apps/mobile/components/Thing.tsx",
+      errors: [{ messageId: "dbWriteOutsideService" }],
+    },
+    {
+      code: `
+        const writeToDatabase = database.write;
+        await writeToDatabase(async () => {});
+      `,
+      filename: "apps/mobile/components/Thing.tsx",
+      errors: [{ messageId: "dbWriteOutsideService" }],
+    },
+    {
+      code: `
+        const getDatabase = useDatabase;
+        const db = getDatabase();
+        await db.write(async () => {});
+      `,
+      filename: "apps/mobile/components/Thing.tsx",
+      errors: [{ messageId: "dbWriteOutsideService" }],
+    },
+    {
+      code: `
+        const getDatabase = useDatabase;
+        await getDatabase().write(async () => {});
+      `,
+      filename: "apps/mobile/components/Thing.tsx",
+      errors: [{ messageId: "dbWriteOutsideService" }],
+    },
   ],
 });
