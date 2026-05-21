@@ -31,8 +31,9 @@ import { useTranslation } from "react-i18next";
 
 import { palette } from "@/constants/colors";
 import { usePreferredCurrency } from "@/hooks/usePreferredCurrency";
-import { useBudgets, type BudgetWithMetrics } from "@/hooks/useBudgets";
+import { useBudgets } from "@/hooks/useBudgets";
 import { pauseExpiredCustomBudgets } from "@/services/budget-service";
+import type { BudgetWithMetrics } from "@/services/budget-list-read-model-service";
 import { logger } from "@/utils/logger";
 
 import { formatCurrency } from "@monyvi/logic";

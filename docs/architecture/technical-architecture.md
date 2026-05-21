@@ -212,8 +212,8 @@ Attachment rules:
   service commands invoked by a container or orchestrator, not hidden side
   effects of read-model or hook metric calculation.
 - Read-model services are the home for reusable scoped reads, joins, grouping,
-  and screen-specific aggregation such as budget detail, transaction timeline,
-  analytics, and net-worth views.
+  and screen-specific aggregation such as budget detail, budget list metrics,
+  transaction timeline, analytics, and net-worth views.
 - Components are split into containers and presentational pieces when a feature
   needs data lookup. Presentational components receive already-shaped props.
 - Refactors should move one domain slice at a time with characterization tests
@@ -302,9 +302,11 @@ Tracked architecture debt:
 - #653 repairs sensitive SMS and financial logging.
 - #654 repairs package-boundary reversals between `packages/db` and
   `packages/logic`.
-- #656 extracts read-model services from heavy hooks. Budget detail, analytics,
-  transaction list/grouping, and net worth are extracted slices; remaining
-  budget list read helpers are still tracked debt.
+- #656 extracts read-model services from heavy hooks. Budget detail, budget list
+  metrics, analytics, transaction list/grouping, and net worth are extracted
+  slices. Future read-model work should follow the same service-owned query and
+  React-facade hook pattern instead of adding query/calculation logic back into
+  hooks.
 - #657 splits oversized UI modules and restores container/presentational
   boundaries.
 - #659 splits sync internals into focused strategies and ownership guards.

@@ -14,7 +14,7 @@
 
 import { palette } from "@/constants/colors";
 import { useCategoryLookup } from "@/context/CategoriesContext";
-import type { BudgetWithMetrics } from "@/hooks/useBudgets";
+import type { BudgetWithMetrics } from "@/services/budget-list-read-model-service";
 import type { CurrencyType } from "@monyvi/db";
 import { formatCurrency } from "@monyvi/logic";
 import { Ionicons } from "@expo/vector-icons";
