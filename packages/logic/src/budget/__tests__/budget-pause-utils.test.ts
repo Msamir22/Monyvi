@@ -2,7 +2,7 @@
  * Unit Tests: Budget Pause Utilities
  *
  * Tests for isWithinPauseWindow, filterExcludedTransactions,
- * buildPauseInterval, and parsePauseIntervals.
+ * buildPauseInterval, parsePauseIntervals, and parsePausedAtMs.
  */
 
 import {
@@ -10,6 +10,7 @@ import {
   filterExcludedTransactions,
   buildPauseInterval,
   parsePauseIntervals,
+  parsePausedAtMs,
   type PauseInterval,
 } from "../budget-pause-utils";
 
@@ -236,5 +237,33 @@ describe("parsePauseIntervals", () => {
 
   it("returns empty array for non-array JSON (object)", () => {
     expect(parsePauseIntervals('{"from":1,"to":2}')).toEqual([]);
+  });
+});
+
+// =============================================================================
+// parsePausedAtMs
+// =============================================================================
+
+describe("parsePausedAtMs", () => {
+  it("returns undefined for null", () => {
+    expect(parsePausedAtMs(null)).toBeUndefined();
+  });
+
+  it("returns undefined for undefined", () => {
+    expect(parsePausedAtMs(undefined)).toBeUndefined();
+  });
+
+  it("returns undefined for empty string", () => {
+    expect(parsePausedAtMs("")).toBeUndefined();
+  });
+
+  it("parses a valid ISO timestamp into epoch milliseconds", () => {
+    expect(parsePausedAtMs("2026-03-20T08:00:00.000Z")).toBe(
+      msOf("2026-03-20T08:00:00.000Z")
+    );
+  });
+
+  it("returns undefined for invalid timestamps", () => {
+    expect(parsePausedAtMs("not-a-date")).toBeUndefined();
   });
 });

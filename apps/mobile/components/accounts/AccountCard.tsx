@@ -1,4 +1,5 @@
 import { palette } from "@/constants/colors";
+import { formatAccountBalance } from "@/utils/financial-display";
 import { Account, MarketRate } from "@monyvi/db";
 import { convertCurrency, formatCurrency } from "@monyvi/logic";
 import { Ionicons } from "@expo/vector-icons";
@@ -29,7 +30,7 @@ interface AccountCardProps {
  *
  * The subtitle shows an approximate USD value when the account currency is not USD and `latestRates` is provided; otherwise it shows a type-based label (e.g., "Bank Account", "Digital Wallet", "Physical money").
  *
- * @param account - The account to display (provides name, type, currency, balance, and formattedBalance).
+ * @param account - The account to display (provides name, type, currency, and balance).
  * @param latestRates - Market rates used to convert the account balance to USD for the approximate subtitle; may be null to disable conversion.
  * @param onPress - Optional press handler invoked when the card is tapped.
  * @returns A JSX element representing the account card.
@@ -134,7 +135,7 @@ function AccountCardImpl({
         {/* Balance Display */}
         <View className="items-end">
           <Text className="text-lg font-black text-slate-900 dark:text-white">
-            {account.formattedBalance}
+            {formatAccountBalance(account)}
           </Text>
         </View>
       </View>

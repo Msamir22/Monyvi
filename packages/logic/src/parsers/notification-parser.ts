@@ -4,8 +4,8 @@
  * Based on specification in notification_parser_spec.md
  */
 
-import { CurrencyType } from "@monyvi/db";
-import { ParsedNotification } from "../types";
+import type { CurrencyType } from "@monyvi/db";
+import type { ParsedNotification } from "../types";
 
 /**
  * Parse InstaPay (IPN) transfer sent notification

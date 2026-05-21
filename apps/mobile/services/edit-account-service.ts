@@ -29,6 +29,7 @@ import { roundForCurrency } from "@monyvi/logic";
 import { Q, type Model } from "@nozbe/watermelondb";
 import { t } from "i18next";
 import { logger } from "@/utils/logger";
+import { redactIdentifierForLog } from "@/utils/logger-redaction";
 import {
   USER_DATA_ACCESS_ERROR_CODES,
   findOwnedById,
@@ -301,7 +302,11 @@ export async function updateAccountWithinWriter(
       error.message === USER_DATA_ACCESS_ERROR_CODES.OWNERSHIP_FAILED
     ) {
       logger.error(
-        `Attempted to update account with mismatched userId (ID: ${accountId})`
+        "Attempted to update account with mismatched user scope",
+        undefined,
+        {
+          redactedAccountId: redactIdentifierForLog(accountId),
+        }
       );
       throw new Error(EDIT_ACCOUNT_ERROR_CODES.OWNERSHIP_FAILED);
     }
@@ -310,12 +315,16 @@ export async function updateAccountWithinWriter(
       error instanceof Error && error.message
         ? error.message
         : t("account_not_found");
-    logger.error(`Account not found (ID: ${accountId})`);
+    logger.error("Account not found", undefined, {
+      redactedAccountId: redactIdentifierForLog(accountId),
+    });
     throw new Error(message);
   }
 
   if (existingAccount.deleted) {
-    logger.error(`Attempted to update deleted account (ID: ${accountId})`);
+    logger.error("Attempted to update deleted account", undefined, {
+      redactedAccountId: redactIdentifierForLog(accountId),
+    });
     throw new Error(t("accounts:cannot_update_deleted_account"));
   }
 
