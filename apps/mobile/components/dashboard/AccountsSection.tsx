@@ -8,6 +8,7 @@ import { Dimensions, Text, TouchableOpacity, View } from "react-native";
 import { palette } from "@/constants/colors";
 import { AccountsSectionSkeleton } from "@/components/dashboard/skeletons/AccountsSectionSkeleton";
 import { buildAccountDisplayNames } from "@/utils/account-display";
+import { formatAccountBalance } from "@/utils/financial-display";
 import { EmptyStateCard } from "../ui/EmptyStateCard";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -156,7 +157,7 @@ function AccountsSectionComponent({
       return {
         id: account.id,
         name: displayNames.get(account.id) ?? account.name,
-        balance: account.formattedBalance,
+        balance: formatAccountBalance(account),
         type: account.type,
         gradient: config.gradient,
         iconName: config.iconName,

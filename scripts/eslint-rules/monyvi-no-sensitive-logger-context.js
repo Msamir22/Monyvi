@@ -1,11 +1,6 @@
 "use strict";
 
-const KNOWN_DEBT_FILE_SUFFIXES = [
-  "apps/mobile/hooks/usePreferredCurrency.ts",
-  "apps/mobile/hooks/usePaymentSubmission.ts",
-  "apps/mobile/services/notification-service.ts",
-  "apps/mobile/services/sms-live-detection-handler.ts",
-];
+const KNOWN_DEBT_FILE_SUFFIXES = [];
 
 const SENSITIVE_KEYS = new Set([
   "account_id",
@@ -19,6 +14,7 @@ const SENSITIVE_KEYS = new Set([
   "fingerprint",
   "from_account_id",
   "fromaccountid",
+  "notificationid",
   "payment_id",
   "paymentid",
   "profile_id",
@@ -40,6 +36,28 @@ const SENSITIVE_KEYS = new Set([
   "transferid",
   "user_id",
   "userid",
+]);
+
+const SENSITIVE_MEMBER_OWNERS = new Set([
+  "account",
+  "bankaccount",
+  "message",
+  "notification",
+  "payment",
+  "profile",
+  "sender",
+  "sms",
+  "transaction",
+  "transfer",
+  "user",
+]);
+
+const SENSITIVE_MEMBER_PROPERTIES = new Set([
+  "body",
+  "email",
+  "fingerprint",
+  "id",
+  "sender",
 ]);
 
 function normalizePath(fileName) {
@@ -140,6 +158,8 @@ module.exports = {
     messages: {
       sensitiveLoggerKey:
         "Logger context key '{{keyName}}' may contain sensitive financial, account, or SMS data. Redact it before logging or omit it.",
+      sensitiveLoggerMessage:
+        "Logger message interpolates '{{keyName}}', which may expose sensitive financial, account, or SMS data. Redact it before logging or omit it.",
     },
   },
 
@@ -263,11 +283,99 @@ module.exports = {
       }
     }
 
+    function unwrapExpression(expression) {
+      let current = expression;
+
+      while (
+        current?.type === "ChainExpression" ||
+        current?.type === "TSNonNullExpression" ||
+        current?.type === "TSAsExpression" ||
+        current?.type === "TSTypeAssertion" ||
+        current?.type === "TSInstantiationExpression" ||
+        current?.type === "ParenthesizedExpression"
+      ) {
+        current = current.expression;
+      }
+
+      return current;
+    }
+
+    function getIdentifierName(expression) {
+      const unwrapped = unwrapExpression(expression);
+      return unwrapped?.type === "Identifier" ? unwrapped.name : null;
+    }
+
+    function isSensitiveMemberExpression(expression) {
+      const propertyName = getPropertyName(expression);
+      if (!propertyName) {
+        return false;
+      }
+
+      if (isSensitiveKey(propertyName)) {
+        return true;
+      }
+
+      const ownerName = getIdentifierName(expression.object);
+      if (!ownerName) {
+        return false;
+      }
+
+      return (
+        SENSITIVE_MEMBER_OWNERS.has(normalizeSensitiveName(ownerName)) &&
+        SENSITIVE_MEMBER_PROPERTIES.has(normalizeSensitiveName(propertyName))
+      );
+    }
+
+    function getSensitiveExpressionName(expression) {
+      const unwrapped = unwrapExpression(expression);
+
+      if (unwrapped.type === "Identifier") {
+        return isSensitiveKey(unwrapped.name) ? unwrapped.name : null;
+      }
+
+      if (
+        unwrapped.type === "CallExpression" &&
+        unwrapped.callee.type === "Identifier" &&
+        ["String", "Number"].includes(unwrapped.callee.name) &&
+        unwrapped.arguments.length === 1
+      ) {
+        return getSensitiveExpressionName(unwrapped.arguments[0]);
+      }
+
+      if (unwrapped.type === "MemberExpression") {
+        const propertyName = getPropertyName(unwrapped);
+        return propertyName && isSensitiveMemberExpression(unwrapped)
+          ? propertyName
+          : null;
+      }
+
+      return null;
+    }
+
+    function inspectLoggerMessage(argument) {
+      if (!argument || argument.type !== "TemplateLiteral") {
+        return;
+      }
+
+      for (const expression of argument.expressions) {
+        const keyName = getSensitiveExpressionName(expression);
+        if (keyName) {
+          context.report({
+            node: expression,
+            messageId: "sensitiveLoggerMessage",
+            data: { keyName },
+          });
+        }
+      }
+    }
+
     return {
       CallExpression(node) {
         if (!isLoggerCall(node)) {
           return;
         }
+
+        inspectLoggerMessage(node.arguments[0]);
 
         for (const argument of node.arguments) {
           inspectContextExpression(argument, new Set(), node);

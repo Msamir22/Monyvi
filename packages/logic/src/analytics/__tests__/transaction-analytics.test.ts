@@ -5,14 +5,10 @@
  * generateMonthlyChartData, and calculateComparison.
  */
 
-import type {
-  TransactionType,
-  TransactionSource,
-  CurrencyType,
-  Transaction,
-  Category,
-} from "@monyvi/db";
+import type { TransactionType } from "@monyvi/db";
 import {
+  type AnalyticsCategory,
+  type AnalyticsTransaction,
   calculateMonthlyTotals,
   aggregateByCategory,
   generateMonthlyChartData,
@@ -34,15 +30,15 @@ interface MockTransactionInput {
   dateInMs?: number;
 }
 
-function createMockTransaction(input: MockTransactionInput): Transaction {
+function createMockTransaction(
+  input: MockTransactionInput
+): AnalyticsTransaction {
   return {
     amount: input.amount,
     type: input.type,
     categoryId: input.categoryId ?? "cat-1",
     dateInMs: input.dateInMs ?? Date.now(),
-    source: "MANUAL" as TransactionSource,
-    currency: "EGP" as CurrencyType,
-  } as unknown as Transaction;
+  };
 }
 
 interface MockCategoryInput {
@@ -53,14 +49,14 @@ interface MockCategoryInput {
   color?: string;
 }
 
-function createMockCategory(input: MockCategoryInput): Category {
+function createMockCategory(input: MockCategoryInput): AnalyticsCategory {
   return {
     id: input.id,
     displayName: input.displayName,
     level: input.level ?? 0,
     parentId: input.parentId,
     color: input.color ?? "#FF0000",
-  } as unknown as Category;
+  };
 }
 
 // =============================================================================
@@ -288,10 +284,8 @@ describe("aggregateByCategory", () => {
     // Both categories have 500, so check by looking up each
     const foodResult = result.find((r) => r.id === "food");
     const transportResult = result.find((r) => r.id === "transport");
-    expect(foodResult!.amount).toBe(500);
-    expect(foodResult!.percentage).toBe(50);
-    expect(transportResult!.amount).toBe(500);
-    expect(transportResult!.percentage).toBe(50);
+    expect(foodResult).toMatchObject({ amount: 500, percentage: 50 });
+    expect(transportResult).toMatchObject({ amount: 500, percentage: 50 });
   });
 
   it("returns empty array when there are no expenses", () => {
@@ -420,8 +414,7 @@ describe("aggregateByCategory", () => {
 
     // Parent "food" should include its own (50) + children (200 + 100) = 350
     const foodCategory = result.find((r) => r.id === "food");
-    expect(foodCategory).toBeDefined();
-    expect(foodCategory!.amount).toBe(350);
+    expect(foodCategory).toMatchObject({ amount: 350 });
   });
 
   it("ignores income transactions in category breakdown", () => {
@@ -447,8 +440,7 @@ describe("aggregateByCategory", () => {
 
     // Total expenses is only 500, so food = 100%
     const foodCategory = result.find((r) => r.id === "food");
-    expect(foodCategory).toBeDefined();
-    expect(foodCategory!.percentage).toBe(100);
+    expect(foodCategory).toMatchObject({ percentage: 100 });
   });
 
   it("preserves color and level from category", () => {

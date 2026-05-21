@@ -59,10 +59,11 @@ Rules:
 - `apps/mobile` may import from both packages.
 - `packages/logic` may import DB types only when unavoidable.
 - `packages/db` must not import from `apps/mobile` or `packages/logic`.
+- `packages/db` models must not own presentation formatting or parsed helper
+  state; format at the mobile view/container boundary and parse with explicit
+  logic helpers at the service or hook callsite.
 
-Tracked exception: issue #654 repairs existing reverse imports from
-`packages/db` model getters into `@monyvi/logic`. Those imports are allowlisted
-only while the repair issue is open; they are not a pattern for new work.
+These boundaries are enforced by `monyvi-package-boundaries`.
 
 ## 4. App Runtime And Routing
 
@@ -296,12 +297,12 @@ Error/logging patterns:
   account IDs, transaction IDs, transfer IDs, or payment IDs. Log event codes,
   counts, booleans, retryability, and redacted or prefix-only identifiers
   instead.
+- Use `redactIdentifierForLog` from `apps/mobile/utils/logger-redaction.ts` when
+  an operational log needs to correlate repeated failures without exposing the
+  full identifier.
 
 Tracked architecture debt:
 
-- #653 repairs sensitive SMS and financial logging.
-- #654 repairs package-boundary reversals between `packages/db` and
-  `packages/logic`.
 - #656 extracts read-model services from heavy hooks. Budget detail, analytics,
   transaction list/grouping, and net worth are extracted slices; remaining
   budget list read helpers are still tracked debt.
