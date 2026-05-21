@@ -50,5 +50,50 @@ ruleTester.run("monyvi-package-boundaries", rule, {
       filename: "packages/logic/src/analytics/new-analytics.ts",
       errors: [{ messageId: "logicRuntimeDbImport" }],
     },
+    {
+      code: `import { formatCurrency } from "../../../logic/src/utils/currency";`,
+      filename: "packages/db/src/models/NewModel.ts",
+      errors: [{ messageId: "dbReverseImport" }],
+    },
+    {
+      code: `import { AppState } from "../../../../apps/mobile/services/app-state";`,
+      filename: "packages/db/src/models/NewModel.ts",
+      errors: [{ messageId: "dbReverseImport" }],
+    },
+    {
+      code: `import { Transaction } from "../../../db/src/models/Transaction";`,
+      filename: "packages/logic/src/analytics/new-analytics.ts",
+      errors: [{ messageId: "logicRuntimeDbImport" }],
+    },
+    {
+      code: `const logic = require("@monyvi/logic");`,
+      filename: "packages/db/src/models/NewModel.ts",
+      errors: [{ messageId: "dbReverseImport" }],
+    },
+    {
+      code: `const db = require("../../../db/src");`,
+      filename: "packages/logic/src/analytics/new-analytics.ts",
+      errors: [{ messageId: "logicRuntimeDbImport" }],
+    },
+    {
+      code: `export { formatCurrency } from "@monyvi/logic";`,
+      filename: "packages/db/src/models/NewModel.ts",
+      errors: [{ messageId: "dbReverseImport" }],
+    },
+    {
+      code: `export * from "../../../db/src";`,
+      filename: "packages/logic/src/analytics/new-analytics.ts",
+      errors: [{ messageId: "logicRuntimeDbImport" }],
+    },
+    {
+      code: `await import("@monyvi/logic");`,
+      filename: "packages/db/src/models/NewModel.ts",
+      errors: [{ messageId: "dbReverseImport" }],
+    },
+    {
+      code: `await import("../../../db/src");`,
+      filename: "packages/logic/src/analytics/new-analytics.ts",
+      errors: [{ messageId: "logicRuntimeDbImport" }],
+    },
   ],
 });

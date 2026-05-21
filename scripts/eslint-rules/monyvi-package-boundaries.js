@@ -1,5 +1,7 @@
 "use strict";
 
+const path = require("path");
+
 const KNOWN_DEBT_FILE_SUFFIXES = [
   "packages/db/src/models/Account.ts",
   "packages/db/src/models/Budget.ts",
@@ -33,6 +35,45 @@ function isInsidePackage(fileName, packageName) {
   return normalized.includes(`packages/${packageName}/`);
 }
 
+function resolveRelativeSource(fileName, source) {
+  if (!source.startsWith(".")) {
+    return source;
+  }
+
+  return path.posix.normalize(
+    path.posix.join(path.posix.dirname(normalizePath(fileName)), source)
+  );
+}
+
+function sourceTargetsPackage(fileName, source, packageName) {
+  if (
+    source === `@monyvi/${packageName}` ||
+    source.startsWith(`@monyvi/${packageName}/`)
+  ) {
+    return true;
+  }
+
+  const resolved = resolveRelativeSource(fileName, source);
+  return (
+    resolved === `packages/${packageName}` ||
+    resolved.startsWith(`packages/${packageName}/`) ||
+    resolved.includes(`/packages/${packageName}/`)
+  );
+}
+
+function sourceTargetsMobileApp(fileName, source) {
+  if (source.startsWith("apps/mobile") || source.startsWith("@/")) {
+    return true;
+  }
+
+  const resolved = resolveRelativeSource(fileName, source);
+  return (
+    resolved === "apps/mobile" ||
+    resolved.startsWith("apps/mobile/") ||
+    resolved.includes("/apps/mobile/")
+  );
+}
+
 function isTypeOnlyImport(node) {
   if (node.importKind === "type") {
     return true;
@@ -42,6 +83,10 @@ function isTypeOnlyImport(node) {
     node.specifiers.length > 0 &&
     node.specifiers.every((specifier) => specifier.importKind === "type")
   );
+}
+
+function isTypeOnlyExport(node) {
+  return node.exportKind === "type";
 }
 
 module.exports = {
@@ -69,35 +114,93 @@ module.exports = {
 
     return {
       ImportDeclaration(node) {
-        const source =
-          typeof node.source.value === "string" ? node.source.value : "";
+        checkImportLikeNode(node, isTypeOnlyImport(node));
+      },
 
-        if (
-          isInsidePackage(fileName, "db") &&
-          (source === "@monyvi/logic" ||
-            source.startsWith("@monyvi/logic/") ||
-            source.startsWith("apps/mobile") ||
-            source.startsWith("@/"))
-        ) {
-          context.report({
-            node,
-            messageId: "dbReverseImport",
-            data: { source },
-          });
+      ExportNamedDeclaration(node) {
+        checkImportLikeNode(node, isTypeOnlyExport(node));
+      },
+
+      ExportAllDeclaration(node) {
+        checkImportLikeNode(node, isTypeOnlyExport(node));
+      },
+
+      CallExpression(node) {
+        if (node.callee.type === "Import" && node.arguments.length === 1) {
+          const sourceNode = node.arguments[0];
+          if (
+            sourceNode.type === "Literal" &&
+            typeof sourceNode.value === "string"
+          ) {
+            checkSource(node, sourceNode.value, false);
+          }
           return;
         }
 
         if (
-          isInsidePackage(fileName, "logic") &&
-          (source === "@monyvi/db" || source.startsWith("@monyvi/db/")) &&
-          !isTypeOnlyImport(node)
+          node.callee.type !== "Identifier" ||
+          node.callee.name !== "require" ||
+          node.arguments.length !== 1
         ) {
-          context.report({
-            node,
-            messageId: "logicRuntimeDbImport",
-          });
+          return;
         }
+
+        const sourceNode = node.arguments[0];
+        if (
+          sourceNode.type !== "Literal" ||
+          typeof sourceNode.value !== "string"
+        ) {
+          return;
+        }
+
+        checkSource(node, sourceNode.value, false);
+      },
+
+      ImportExpression(node) {
+        const sourceNode = node.source;
+        if (
+          sourceNode.type !== "Literal" ||
+          typeof sourceNode.value !== "string"
+        ) {
+          return;
+        }
+
+        checkSource(node, sourceNode.value, false);
       },
     };
+
+    function checkImportLikeNode(node, isTypeOnly) {
+      if (!node.source || typeof node.source.value !== "string") {
+        return;
+      }
+
+      checkSource(node, node.source.value, isTypeOnly);
+    }
+
+    function checkSource(node, source, isTypeOnly) {
+      if (
+        isInsidePackage(fileName, "db") &&
+        (sourceTargetsPackage(fileName, source, "logic") ||
+          sourceTargetsMobileApp(fileName, source))
+      ) {
+        context.report({
+          node,
+          messageId: "dbReverseImport",
+          data: { source },
+        });
+        return;
+      }
+
+      if (
+        isInsidePackage(fileName, "logic") &&
+        sourceTargetsPackage(fileName, source, "db") &&
+        !isTypeOnly
+      ) {
+        context.report({
+          node,
+          messageId: "logicRuntimeDbImport",
+        });
+      }
+    }
   },
 };
