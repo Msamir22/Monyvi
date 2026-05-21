@@ -1,9 +1,10 @@
 import React from "react";
-import { render, waitFor } from "@testing-library/react-native";
+import { act, render, waitFor } from "@testing-library/react-native";
 
 const mockPauseExpiredCustomBudgets = jest.fn();
 const mockRefresh = jest.fn();
 const mockUseBudgets = jest.fn();
+const mockLoggerError = jest.fn();
 let mockIsFocused = true;
 
 jest.mock("expo-router", () => {
@@ -59,7 +60,11 @@ jest.mock("@/services/budget-service", () => ({
 }));
 
 jest.mock("@/utils/logger", () => ({
-  logger: { error: jest.fn() },
+  logger: {
+    error: (...args: readonly unknown[]): void => {
+      mockLoggerError(...args);
+    },
+  },
 }));
 
 jest.mock("@monyvi/logic", () => ({
@@ -135,5 +140,64 @@ describe("BudgetDashboard", () => {
     await waitFor(() => {
       expect(mockPauseExpiredCustomBudgets).toHaveBeenCalledTimes(2);
     });
+  });
+
+  it("refreshes the budget list when expired budgets are auto-paused", async (): Promise<void> => {
+    mockPauseExpiredCustomBudgets.mockResolvedValueOnce(2);
+
+    render(<BudgetDashboard />);
+
+    await waitFor(() => {
+      expect(mockRefresh).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("does not refresh when no budgets needed pausing", async (): Promise<void> => {
+    mockPauseExpiredCustomBudgets.mockResolvedValueOnce(0);
+
+    render(<BudgetDashboard />);
+
+    await waitFor(() => {
+      expect(mockPauseExpiredCustomBudgets).toHaveBeenCalledTimes(1);
+    });
+    expect(mockRefresh).not.toHaveBeenCalled();
+  });
+
+  it("logs and swallows errors from auto-pause", async (): Promise<void> => {
+    const error = new Error("db failure");
+    mockPauseExpiredCustomBudgets.mockRejectedValueOnce(error);
+
+    render(<BudgetDashboard />);
+
+    await waitFor(() => {
+      expect(mockLoggerError).toHaveBeenCalledWith(
+        "budgetDashboard.pauseExpired.failed",
+        error
+      );
+    });
+    expect(mockRefresh).not.toHaveBeenCalled();
+  });
+
+  it("does not refresh if auto-pause resolves after cleanup", async (): Promise<void> => {
+    let resolvePause: (pausedCount: number) => void = () => undefined;
+    mockPauseExpiredCustomBudgets.mockReturnValueOnce(
+      new Promise<number>((resolve) => {
+        resolvePause = resolve;
+      })
+    );
+
+    const { unmount } = render(<BudgetDashboard />);
+
+    await waitFor(() => {
+      expect(mockPauseExpiredCustomBudgets).toHaveBeenCalledTimes(1);
+    });
+
+    unmount();
+    await act(async () => {
+      resolvePause(3);
+      await Promise.resolve();
+    });
+
+    expect(mockRefresh).not.toHaveBeenCalled();
   });
 });
