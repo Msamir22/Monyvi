@@ -66,6 +66,16 @@ const BALANCE_ADJUSTMENT_EXPENSE_CATEGORY_ID =
 /** Tolerance for floating-point balance comparison. */
 const BALANCE_EPSILON = 0.001;
 
+function getAccountIdLogContext(accountId: string): {
+  readonly accountIdPrefix: string;
+  readonly accountIdLength: number;
+} {
+  return {
+    accountIdPrefix: accountId.slice(0, 6),
+    accountIdLength: accountId.length,
+  };
+}
+
 /**
  * Typed error codes returned via {@link ServiceResult}.error.
  *
@@ -301,7 +311,9 @@ export async function updateAccountWithinWriter(
       error.message === USER_DATA_ACCESS_ERROR_CODES.OWNERSHIP_FAILED
     ) {
       logger.error(
-        `Attempted to update account with mismatched userId (ID: ${accountId})`
+        "Attempted to update account with mismatched userId",
+        undefined,
+        getAccountIdLogContext(accountId)
       );
       throw new Error(EDIT_ACCOUNT_ERROR_CODES.OWNERSHIP_FAILED);
     }
@@ -310,12 +322,16 @@ export async function updateAccountWithinWriter(
       error instanceof Error && error.message
         ? error.message
         : t("account_not_found");
-    logger.error(`Account not found (ID: ${accountId})`);
+    logger.error("Account not found", error, getAccountIdLogContext(accountId));
     throw new Error(message);
   }
 
   if (existingAccount.deleted) {
-    logger.error(`Attempted to update deleted account (ID: ${accountId})`);
+    logger.error(
+      "Attempted to update deleted account",
+      undefined,
+      getAccountIdLogContext(accountId)
+    );
     throw new Error(t("accounts:cannot_update_deleted_account"));
   }
 

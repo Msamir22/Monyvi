@@ -19,6 +19,7 @@ const SENSITIVE_KEYS = new Set([
   "fingerprint",
   "from_account_id",
   "fromaccountid",
+  "notificationid",
   "payment_id",
   "paymentid",
   "profile_id",
@@ -40,6 +41,28 @@ const SENSITIVE_KEYS = new Set([
   "transferid",
   "user_id",
   "userid",
+]);
+
+const SENSITIVE_MEMBER_OWNERS = new Set([
+  "account",
+  "bankaccount",
+  "message",
+  "notification",
+  "payment",
+  "profile",
+  "sender",
+  "sms",
+  "transaction",
+  "transfer",
+  "user",
+]);
+
+const SENSITIVE_MEMBER_PROPERTIES = new Set([
+  "body",
+  "email",
+  "fingerprint",
+  "id",
+  "sender",
 ]);
 
 function normalizePath(fileName) {
@@ -128,6 +151,24 @@ function normalizeSensitiveName(keyName) {
   return keyName.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+function unwrapExpression(expression) {
+  let current = expression;
+
+  while (
+    current?.type === "ChainExpression" ||
+    current?.type === "TSNonNullExpression" ||
+    current?.type === "TSAsExpression" ||
+    current?.type === "TSTypeAssertion" ||
+    current?.type === "TSInstantiationExpression" ||
+    current?.type === "TSSatisfiesExpression" ||
+    current?.type === "ParenthesizedExpression"
+  ) {
+    current = current.expression;
+  }
+
+  return current;
+}
+
 module.exports = {
   meta: {
     type: "problem",
@@ -140,6 +181,8 @@ module.exports = {
     messages: {
       sensitiveLoggerKey:
         "Logger context key '{{keyName}}' may contain sensitive financial, account, or SMS data. Redact it before logging or omit it.",
+      sensitiveLoggerMessage:
+        "Logger message interpolates '{{keyName}}', which may expose sensitive financial, account, or SMS data. Redact it before logging or omit it.",
     },
   },
 
@@ -167,17 +210,52 @@ module.exports = {
       return null;
     }
 
-    function resolveExpression(expression, visitedIdentifiers, scopeNode) {
-      if (expression.type !== "Identifier") {
-        return expression;
+    function getLatestWriteExpression(variable, referenceNode) {
+      const referenceStart =
+        referenceNode.range?.[0] ?? Number.MAX_SAFE_INTEGER;
+      let latestWrite = null;
+
+      for (const reference of variable.references) {
+        const writeExpression = reference.writeExpr;
+        const writeStart = reference.identifier.range?.[0] ?? -1;
+        if (!writeExpression || writeStart > referenceStart) {
+          continue;
+        }
+
+        if (
+          !latestWrite ||
+          writeStart > (latestWrite.identifier.range?.[0] ?? -1)
+        ) {
+          latestWrite = reference;
+        }
       }
 
-      if (visitedIdentifiers.has(expression.name)) {
+      return latestWrite?.writeExpr ?? null;
+    }
+
+    function resolveExpression(expression, visitedIdentifiers, scopeNode) {
+      const unwrappedExpression = unwrapExpression(expression);
+      if (unwrappedExpression.type !== "Identifier") {
+        return unwrappedExpression;
+      }
+
+      if (visitedIdentifiers.has(unwrappedExpression.name)) {
         return null;
       }
 
-      visitedIdentifiers.add(expression.name);
-      const variable = findVariable(expression.name, scopeNode);
+      visitedIdentifiers.add(unwrappedExpression.name);
+      const variable = findVariable(unwrappedExpression.name, scopeNode);
+      if (!variable) {
+        return unwrappedExpression;
+      }
+
+      const latestWrite = variable
+        ? getLatestWriteExpression(variable, unwrappedExpression)
+        : null;
+      if (latestWrite) {
+        return resolveExpression(latestWrite, visitedIdentifiers, scopeNode);
+      }
+
       const definition = variable?.defs.find(
         (def) => def.node.type === "VariableDeclarator" && def.node.init
       );
@@ -186,11 +264,11 @@ module.exports = {
         return null;
       }
 
-      if (init.type === "Identifier") {
+      if (unwrapExpression(init).type === "Identifier") {
         return resolveExpression(init, visitedIdentifiers, scopeNode);
       }
 
-      return init;
+      return unwrapExpression(init);
     }
 
     function inspectObjectExpression(
@@ -221,17 +299,15 @@ module.exports = {
           });
         }
 
-        if (property.value.type === "ObjectExpression") {
-          inspectObjectExpression(
-            property.value,
-            visitedIdentifiers,
-            scopeNode
-          );
+        const value = unwrapExpression(property.value);
+
+        if (value.type === "ObjectExpression") {
+          inspectObjectExpression(value, visitedIdentifiers, scopeNode);
         }
 
-        if (property.value.type === "Identifier") {
+        if (value.type === "Identifier") {
           inspectContextExpression(
-            property.value,
+            value,
             new Set(visitedIdentifiers),
             scopeNode
           );
@@ -244,9 +320,11 @@ module.exports = {
       visitedIdentifiers,
       scopeNode
     ) {
-      if (expression.type === "SpreadElement") {
+      const unwrappedExpression = unwrapExpression(expression);
+
+      if (unwrappedExpression.type === "SpreadElement") {
         inspectContextExpression(
-          expression.argument,
+          unwrappedExpression.argument,
           visitedIdentifiers,
           scopeNode
         );
@@ -254,13 +332,176 @@ module.exports = {
       }
 
       const resolved = resolveExpression(
-        expression,
+        unwrappedExpression,
         visitedIdentifiers,
         scopeNode
       );
-      if (resolved?.type === "ObjectExpression") {
-        inspectObjectExpression(resolved, visitedIdentifiers, scopeNode);
+      const unwrappedResolved = unwrapExpression(resolved);
+      if (unwrappedResolved?.type === "ObjectExpression") {
+        inspectObjectExpression(
+          unwrappedResolved,
+          visitedIdentifiers,
+          scopeNode
+        );
       }
+    }
+
+    function getMemberPathNames(expression) {
+      const unwrapped = unwrapExpression(expression);
+      if (!unwrapped) {
+        return [];
+      }
+
+      if (unwrapped.type === "Identifier") {
+        return [unwrapped.name];
+      }
+
+      if (unwrapped.type !== "MemberExpression") {
+        return [];
+      }
+
+      const objectNames = getMemberPathNames(unwrapped.object);
+      const propertyName = getPropertyName(unwrapped);
+      return propertyName ? [...objectNames, propertyName] : objectNames;
+    }
+
+    function isSensitiveMemberExpression(expression) {
+      const propertyName = getPropertyName(expression);
+      if (!propertyName) {
+        return false;
+      }
+
+      if (isSensitiveKey(propertyName)) {
+        return true;
+      }
+
+      const ownerNames = getMemberPathNames(
+        unwrapExpression(expression).object
+      );
+      return ownerNames.some(
+        (ownerName) =>
+          SENSITIVE_MEMBER_OWNERS.has(normalizeSensitiveName(ownerName)) &&
+          SENSITIVE_MEMBER_PROPERTIES.has(normalizeSensitiveName(propertyName))
+      );
+    }
+
+    function getSensitiveExpressionName(
+      expression,
+      visitedIdentifiers,
+      scopeNode
+    ) {
+      const unwrapped = unwrapExpression(expression);
+      if (!unwrapped) {
+        return null;
+      }
+
+      if (unwrapped.type === "Identifier") {
+        if (isSensitiveKey(unwrapped.name)) {
+          return unwrapped.name;
+        }
+
+        const resolved = resolveExpression(
+          unwrapped,
+          new Set(visitedIdentifiers),
+          scopeNode
+        );
+        if (resolved && resolved !== unwrapped) {
+          return getSensitiveExpressionName(
+            resolved,
+            visitedIdentifiers,
+            scopeNode
+          );
+        }
+
+        return null;
+      }
+
+      if (unwrapped.type === "MemberExpression") {
+        const propertyName = getPropertyName(unwrapped);
+        return propertyName && isSensitiveMemberExpression(unwrapped)
+          ? propertyName
+          : null;
+      }
+
+      if (unwrapped.type === "TemplateLiteral") {
+        for (const nestedExpression of unwrapped.expressions) {
+          const keyName = getSensitiveExpressionName(
+            nestedExpression,
+            new Set(visitedIdentifiers),
+            scopeNode
+          );
+          if (keyName) {
+            return keyName;
+          }
+        }
+
+        return null;
+      }
+
+      if (
+        unwrapped.type === "BinaryExpression" ||
+        unwrapped.type === "LogicalExpression"
+      ) {
+        return (
+          getSensitiveExpressionName(
+            unwrapped.left,
+            new Set(visitedIdentifiers),
+            scopeNode
+          ) ||
+          getSensitiveExpressionName(
+            unwrapped.right,
+            new Set(visitedIdentifiers),
+            scopeNode
+          )
+        );
+      }
+
+      if (unwrapped.type === "ConditionalExpression") {
+        return (
+          getSensitiveExpressionName(
+            unwrapped.consequent,
+            new Set(visitedIdentifiers),
+            scopeNode
+          ) ||
+          getSensitiveExpressionName(
+            unwrapped.alternate,
+            new Set(visitedIdentifiers),
+            scopeNode
+          )
+        );
+      }
+
+      if (unwrapped.type === "CallExpression") {
+        for (const argument of unwrapped.arguments) {
+          const keyName = getSensitiveExpressionName(
+            argument,
+            new Set(visitedIdentifiers),
+            scopeNode
+          );
+          if (keyName) {
+            return keyName;
+          }
+        }
+      }
+
+      return null;
+    }
+
+    function inspectLoggerMessage(argument, scopeNode) {
+      const keyName = getSensitiveExpressionName(
+        argument,
+        new Set(),
+        scopeNode
+      );
+      if (!keyName) {
+        return;
+      }
+
+      context.report({
+        node: argument,
+        messageId: "sensitiveLoggerMessage",
+        data: { keyName },
+      });
     }
 
     return {
@@ -268,6 +509,8 @@ module.exports = {
         if (!isLoggerCall(node)) {
           return;
         }
+
+        inspectLoggerMessage(node.arguments[0], node);
 
         for (const argument of node.arguments) {
           inspectContextExpression(argument, new Set(), node);

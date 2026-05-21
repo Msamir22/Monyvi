@@ -507,7 +507,7 @@ function LiveDetectionSkeletonRow({
   );
 }
 
-function getSmsSyncDescription(
+export function getSmsSyncDescription(
   t: TranslateFn,
   {
     hasSynced,
@@ -519,7 +519,10 @@ function getSmsSyncDescription(
     readonly smsPermissionStatus: SmsPermissionStatus;
   }
 ): string {
-  if (hasSynced && lastSyncTimestamp !== null) {
+  const hasValidLastSyncTimestamp =
+    lastSyncTimestamp !== null && Number.isFinite(lastSyncTimestamp);
+
+  if (hasSynced && hasValidLastSyncTimestamp) {
     return t("last_synced", {
       date: formatToLocalDateString(new Date(lastSyncTimestamp)),
     });

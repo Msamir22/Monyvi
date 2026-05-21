@@ -6,6 +6,7 @@ import {
   getCurrentPeriodBounds,
   getDaysElapsed,
   getDaysLeft,
+  isPeriodExpired,
   type SpendingMetrics,
 } from "@monyvi/logic";
 
@@ -46,6 +47,14 @@ export async function buildBudgetMetrics(
   const results: BudgetWithMetrics[] = [];
 
   for (const budget of budgets) {
+    if (
+      budget.status === "ACTIVE" &&
+      budget.period === "CUSTOM" &&
+      isPeriodExpired(budget.periodEnd)
+    ) {
+      continue;
+    }
+
     const bounds = getCurrentPeriodBounds(
       budget.period,
       budget.periodStart,

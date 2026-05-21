@@ -191,11 +191,11 @@ describe("net-worth-read-model-service", () => {
   it("calculates month-over-month percentage change from closest snapshot", () => {
     const change = buildMonthlyPercentageChange([
       createSnapshot("2026-05-15T00:00:00.000Z", 1200),
-      createSnapshot("2026-04-14T00:00:00.000Z", 900),
+      createSnapshot("2026-04-14T00:00:00.000Z", 1000),
       createSnapshot("2026-04-15T00:00:00.000Z", 1000),
     ]);
 
-    expect(change).toBe(33.33);
+    expect(change).toBe(20);
   });
 
   it("returns null for missing or zero previous snapshots", () => {

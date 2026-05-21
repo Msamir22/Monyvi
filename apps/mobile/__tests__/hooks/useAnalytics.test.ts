@@ -309,6 +309,38 @@ describe("useAnalytics", () => {
     });
   });
 
+  it("refreshes the default comparison period immediately when filters clear", () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date(2026, 4, 15, 12, 0, 0, 0));
+
+    const { rerender } = renderHook(
+      ({ year, month }: { year?: number; month?: number }) =>
+        useComparison("mom", year, month),
+      {
+        initialProps: { year: 2026, month: 4 },
+      }
+    );
+
+    expect(mockObserveComparisonTransactions).toHaveBeenLastCalledWith({
+      userId: "user-1",
+      type: "mom",
+      year: 2026,
+      month: 4,
+      accountIds: [],
+    });
+
+    jest.setSystemTime(new Date(2026, 5, 1, 12, 0, 0, 0));
+    rerender({});
+
+    expect(mockObserveComparisonTransactions).toHaveBeenLastCalledWith({
+      userId: "user-1",
+      type: "mom",
+      year: 2026,
+      month: 6,
+      accountIds: [],
+    });
+  });
+
   it("subscribes monthly summaries through the analytics read model", async () => {
     const { result } = renderHook(() => useMonthlySummaries(3, ["account-1"]));
 

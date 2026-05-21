@@ -42,6 +42,11 @@ ruleTester.run("monyvi-no-sensitive-logger-context", rule, {
       errors: [{ messageId: "sensitiveLoggerKey" }],
     },
     {
+      code: `logger.info("notification.sent", { notificationId: "n1" });`,
+      filename: "apps/mobile/services/profile-service.ts",
+      errors: [{ messageId: "sensitiveLoggerKey" }],
+    },
+    {
       code: `logger.error("nested", error, { metadata: { userId: "u1" } });`,
       filename: "apps/mobile/services/profile-service.ts",
       errors: [{ messageId: "sensitiveLoggerKey" }],
@@ -86,6 +91,90 @@ ruleTester.run("monyvi-no-sensitive-logger-context", rule, {
       `,
       filename: "apps/mobile/services/profile-service.ts",
       errors: [{ messageId: "sensitiveLoggerKey" }],
+    },
+    {
+      code: `
+        let context = { safe: true };
+        context = { amount: 100 };
+        logger.info("account.loaded", context);
+      `,
+      filename: "apps/mobile/services/profile-service.ts",
+      errors: [{ messageId: "sensitiveLoggerKey" }],
+    },
+    {
+      code: `logger.info("account.loaded", ({ amount: 100 } as const));`,
+      filename: "apps/mobile/services/profile-service.ts",
+      errors: [{ messageId: "sensitiveLoggerKey" }],
+    },
+    {
+      code: "logger.error(`Account not found (ID: ${accountId})`);",
+      filename: "apps/mobile/services/edit-account-service.ts",
+      errors: [{ messageId: "sensitiveLoggerMessage" }],
+    },
+    {
+      code: "logger.error(`Account not found (ID: ${account.id})`);",
+      filename: "apps/mobile/services/edit-account-service.ts",
+      errors: [{ messageId: "sensitiveLoggerMessage" }],
+    },
+    {
+      code: "logger.error(`Account not found (ID: ${ctx.account.id})`);",
+      filename: "apps/mobile/services/edit-account-service.ts",
+      errors: [{ messageId: "sensitiveLoggerMessage" }],
+    },
+    {
+      code: "logger.error(`Account not found (ID: ${account?.id})`);",
+      filename: "apps/mobile/services/edit-account-service.ts",
+      errors: [{ messageId: "sensitiveLoggerMessage" }],
+    },
+    {
+      code: "logger.error(`Account not found (ID: ${accountId!})`);",
+      filename: "apps/mobile/services/edit-account-service.ts",
+      errors: [{ messageId: "sensitiveLoggerMessage" }],
+    },
+    {
+      code: "logger.error(`Account not found (ID: ${accountId as string})`);",
+      filename: "apps/mobile/services/edit-account-service.ts",
+      errors: [{ messageId: "sensitiveLoggerMessage" }],
+    },
+    {
+      code: "logger.error(`Account not found (ID: ${accountId satisfies string})`);",
+      filename: "apps/mobile/services/edit-account-service.ts",
+      errors: [{ messageId: "sensitiveLoggerMessage" }],
+    },
+    {
+      code: 'logger.error(`Account not found (ID: ${isKnown ? accountId : "none"})`);',
+      filename: "apps/mobile/services/edit-account-service.ts",
+      errors: [{ messageId: "sensitiveLoggerMessage" }],
+    },
+    {
+      code: 'logger.error(`Account not found (ID: ${accountId || "none"})`);',
+      filename: "apps/mobile/services/edit-account-service.ts",
+      errors: [{ messageId: "sensitiveLoggerMessage" }],
+    },
+    {
+      code: "const safe = accountId; logger.error(`Account not found (ID: ${safe})`);",
+      filename: "apps/mobile/services/edit-account-service.ts",
+      errors: [{ messageId: "sensitiveLoggerMessage" }],
+    },
+    {
+      code: "const message = `Account not found (ID: ${accountId})`; logger.error(message);",
+      filename: "apps/mobile/services/edit-account-service.ts",
+      errors: [{ messageId: "sensitiveLoggerMessage" }],
+    },
+    {
+      code: 'logger.error(`Account not found (${"ID: " + accountId})`);',
+      filename: "apps/mobile/services/edit-account-service.ts",
+      errors: [{ messageId: "sensitiveLoggerMessage" }],
+    },
+    {
+      code: "logger.error(`Account not found (${`ID: ${accountId}`})`);",
+      filename: "apps/mobile/services/edit-account-service.ts",
+      errors: [{ messageId: "sensitiveLoggerMessage" }],
+    },
+    {
+      code: 'logger.error("Account not found: " + accountId);',
+      filename: "apps/mobile/services/edit-account-service.ts",
+      errors: [{ messageId: "sensitiveLoggerMessage" }],
     },
   ],
 });

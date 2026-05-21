@@ -47,6 +47,65 @@ function sourceTargetsDatabase(fileName, source) {
   );
 }
 
+function sourceTargetsWatermelonReact(source) {
+  return source === "@nozbe/watermelondb/react";
+}
+
+function unwrapExpression(node) {
+  let current = node;
+
+  while (
+    current?.type === "ChainExpression" ||
+    current?.type === "TSNonNullExpression" ||
+    current?.type === "TSAsExpression" ||
+    current?.type === "TSTypeAssertion" ||
+    current?.type === "TSInstantiationExpression" ||
+    current?.type === "TSSatisfiesExpression" ||
+    current?.type === "ParenthesizedExpression"
+  ) {
+    current = current.expression;
+  }
+
+  return current;
+}
+
+function getPropertyName(memberExpression) {
+  const unwrapped = unwrapExpression(memberExpression);
+  if (!unwrapped || unwrapped.type !== "MemberExpression") {
+    return null;
+  }
+
+  const property = unwrapExpression(unwrapped.property);
+  if (property.type === "Identifier") {
+    return property.name;
+  }
+
+  if (property.type === "Literal" && typeof property.value === "string") {
+    return property.value;
+  }
+
+  return null;
+}
+
+function isUseDatabaseCall(node, useDatabaseFunctions, useDatabaseNamespaces) {
+  const unwrapped = unwrapExpression(node);
+  if (unwrapped?.type !== "CallExpression") {
+    return false;
+  }
+
+  const callee = unwrapExpression(unwrapped.callee);
+  if (callee.type === "Identifier") {
+    return useDatabaseFunctions.has(callee.name);
+  }
+
+  return (
+    callee.type === "MemberExpression" &&
+    getPropertyName(callee) === "useDatabase" &&
+    unwrapExpression(callee.object).type === "Identifier" &&
+    useDatabaseNamespaces.has(unwrapExpression(callee.object).name)
+  );
+}
+
 function isUiFile(fileName) {
   const normalized = normalizePath(fileName);
   return (
@@ -83,11 +142,35 @@ module.exports = {
     }
 
     const useDatabaseFunctions = new Set(["useDatabase"]);
+    const useDatabaseNamespaces = new Set();
 
     return {
       ImportDeclaration(node) {
         const source =
           typeof node.source.value === "string" ? node.source.value : "";
+        if (sourceTargetsWatermelonReact(source)) {
+          for (const specifier of node.specifiers) {
+            if (
+              specifier.type === "ImportNamespaceSpecifier" &&
+              specifier.local.type === "Identifier"
+            ) {
+              useDatabaseNamespaces.add(specifier.local.name);
+              continue;
+            }
+
+            if (
+              specifier.type === "ImportSpecifier" &&
+              specifier.imported.type === "Identifier" &&
+              specifier.imported.name === "useDatabase" &&
+              specifier.local.type === "Identifier"
+            ) {
+              useDatabaseFunctions.add(specifier.local.name);
+            }
+          }
+
+          return;
+        }
+
         if (!sourceTargetsDatabase(fileName, source)) {
           return;
         }
@@ -109,10 +192,11 @@ module.exports = {
       },
 
       VariableDeclarator(node) {
+        const init = unwrapExpression(node.init);
         if (
           node.id.type === "Identifier" &&
-          node.init?.type === "Identifier" &&
-          useDatabaseFunctions.has(node.init.name)
+          init?.type === "Identifier" &&
+          useDatabaseFunctions.has(init.name)
         ) {
           useDatabaseFunctions.add(node.id.name);
         }
@@ -120,8 +204,7 @@ module.exports = {
 
       CallExpression(node) {
         if (
-          node.callee.type === "Identifier" &&
-          useDatabaseFunctions.has(node.callee.name)
+          isUseDatabaseCall(node, useDatabaseFunctions, useDatabaseNamespaces)
         ) {
           context.report({
             node,

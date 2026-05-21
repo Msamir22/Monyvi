@@ -86,7 +86,15 @@ function isTypeOnlyImport(node) {
 }
 
 function isTypeOnlyExport(node) {
-  return node.exportKind === "type";
+  if (node.exportKind === "type") {
+    return true;
+  }
+
+  return (
+    Array.isArray(node.specifiers) &&
+    node.specifiers.length > 0 &&
+    node.specifiers.every((specifier) => specifier.exportKind === "type")
+  );
 }
 
 module.exports = {

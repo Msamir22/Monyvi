@@ -23,6 +23,7 @@ interface MockBudgetRecord {
   readonly userId: string;
   readonly type: string;
   categoryId: string | null;
+  deleted?: boolean;
   readonly period: string;
   status: string;
   pausedAt?: string;
@@ -70,6 +71,7 @@ function createLifecycleBudget(
     userId: "user-1",
     type: "GLOBAL",
     categoryId: null,
+    deleted: false,
     period: "CUSTOM",
     status: "ACTIVE",
     periodEnd: new Date("2020-01-01T00:00:00.000Z"),
@@ -113,6 +115,7 @@ import {
 
 describe("budget-service", () => {
   beforeEach((): void => {
+    jest.useRealTimers();
     jest.clearAllMocks();
     mockWrite.mockImplementation(
       async (callback: () => Promise<unknown>): Promise<unknown> => callback()
@@ -149,6 +152,10 @@ describe("budget-service", () => {
       queryOwned: mockQueryOwned,
     };
     mockGetCurrentUserDataScope.mockResolvedValue(scope);
+  });
+
+  afterEach((): void => {
+    jest.useRealTimers();
   });
 
   it("resolves a category budget category through the current user scope before create", async (): Promise<void> => {
@@ -298,6 +305,41 @@ describe("budget-service", () => {
     expect(pausedCount).toBe(0);
     expect(expired.update).not.toHaveBeenCalled();
     expect(expired.pausedAt).toBe("2024-01-01T00:00:00.000Z");
+  });
+
+  it("skips a budget deleted before the writer runs", async (): Promise<void> => {
+    const expired = createLifecycleBudget({ id: "expired" });
+    mockQueryOwned.mockReturnValueOnce(createQueryResult([expired]));
+    mockWrite.mockImplementationOnce(
+      async (callback: () => Promise<unknown>): Promise<unknown> => {
+        expired.deleted = true;
+        return callback();
+      }
+    );
+
+    const pausedCount = await pauseExpiredCustomBudgets();
+
+    expect(pausedCount).toBe(0);
+    expect(expired.update).not.toHaveBeenCalled();
+  });
+
+  it("captures pausedAt inside the writer execution window", async (): Promise<void> => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2026-05-20T10:00:00.000Z"));
+    const expired = createLifecycleBudget({ id: "expired" });
+    mockQueryOwned.mockReturnValueOnce(createQueryResult([expired]));
+    mockWrite.mockImplementationOnce(
+      async (callback: () => Promise<unknown>): Promise<unknown> => {
+        jest.setSystemTime(new Date("2026-05-20T10:01:00.000Z"));
+        return callback();
+      }
+    );
+
+    const pausedCount = await pauseExpiredCustomBudgets();
+
+    expect(pausedCount).toBe(1);
+    expect(expired.pausedAt).toBe("2026-05-20T10:01:00.000Z");
+    jest.useRealTimers();
   });
 
   it("preserves an existing pausedAt value when pausing an eligible budget", async (): Promise<void> => {
