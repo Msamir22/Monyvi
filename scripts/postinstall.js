@@ -139,10 +139,7 @@ function patchReactNativeGetSmsAndroid() {
   }
 
   const original = fs.readFileSync(file, "utf8");
-  let patched = original.replace(
-    /^(\s*)jcenter\(\)\s*$/gm,
-    "$1mavenCentral()"
-  );
+  let patched = original.replace(/^(\s*)jcenter\(\)\s*$/gm, "$1mavenCentral()");
 
   if (!patched.includes('namespace "com.react"')) {
     const namespaceSearch = `android {

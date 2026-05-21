@@ -73,6 +73,7 @@ function applyLocalE2eDefaults() {
 }
 
 function assertRequiredEnv() {
+  const shouldSeed = process.env.E2E_SKIP_SEED !== "1";
   const baseRequiredEnv =
     process.env.CI === "true" || getSupabaseMode() === "local"
       ? [
@@ -80,16 +81,16 @@ function assertRequiredEnv() {
           "EXPO_PUBLIC_SUPABASE_ANON_KEY",
           "EXPO_PUBLIC_MONYVI_TEST_MODE",
           "EXPO_PUBLIC_AI_SMS_PARSER_MODE",
-          "MAESTRO_E2E_EMAIL",
-          "MAESTRO_E2E_PASSWORD",
+          ...(shouldBootstrapAuth || shouldSeed
+            ? ["MAESTRO_E2E_EMAIL", "MAESTRO_E2E_PASSWORD"]
+            : []),
         ]
       : shouldBootstrapAuth
         ? ["MAESTRO_E2E_EMAIL", "MAESTRO_E2E_PASSWORD"]
         : [];
-  const requiredEnv =
-    process.env.E2E_SKIP_SEED === "1"
-      ? baseRequiredEnv
-      : [...baseRequiredEnv, "SUPABASE_SERVICE_ROLE_KEY"];
+  const requiredEnv = !shouldSeed
+    ? baseRequiredEnv
+    : [...baseRequiredEnv, "SUPABASE_SERVICE_ROLE_KEY"];
 
   const missing = requiredEnv.filter((name) => !process.env[name]);
   if (missing.length === 0) return;

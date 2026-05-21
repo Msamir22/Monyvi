@@ -14,7 +14,6 @@ import { z } from "zod";
 import { supabase } from "./supabase";
 import { logger } from "@/utils/logger";
 import { shouldUseFixtureSmsParser } from "@/config/e2e-test-config";
-import { parseSmsWithFixtureAi } from "./testing/ai-sms-fixture-parser";
 
 import {
   buildCategoryMap,
@@ -342,6 +341,16 @@ interface ChunkWork {
   readonly isRetry: boolean;
 }
 
+function loadFixtureSmsParser(): typeof import("./testing/ai-sms-fixture-parser").parseSmsWithFixtureAi {
+  // Lazily load fixture-only code so production parser imports do not pull in
+  // the test SMS corpus unless E2E fixture mode is explicitly active.
+  /* eslint-disable @typescript-eslint/no-require-imports */
+  const fixtureParser =
+    require("./testing/ai-sms-fixture-parser") as typeof import("./testing/ai-sms-fixture-parser");
+  /* eslint-enable @typescript-eslint/no-require-imports */
+  return fixtureParser.parseSmsWithFixtureAi;
+}
+
 /**
  * Parse SMS candidates through the AI Edge Function.
  *
@@ -369,6 +378,7 @@ export async function parseSmsWithAi(
 
   try {
     if (shouldUseFixtureSmsParser()) {
+      const parseSmsWithFixtureAi = loadFixtureSmsParser();
       return await parseSmsWithFixtureAi(candidates, context, onProgress);
     }
 

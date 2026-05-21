@@ -176,9 +176,7 @@ export async function readSmsInbox(
       | NativeSmsModule
       | { default: NativeSmsModule };
     const SmsAndroid: NativeSmsModule =
-      "list" in nativeModule
-        ? nativeModule
-        : (nativeModule as { default: NativeSmsModule }).default;
+      "list" in nativeModule ? nativeModule : nativeModule.default;
 
     const filter: SmsFilter = {
       box: "inbox",

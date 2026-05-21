@@ -3,18 +3,42 @@
 -- Description: Make market_rates fields non-nullable
 -- =============================================================================
 
+DO $$
+DECLARE
+  rate_column text;
+BEGIN
+  FOREACH rate_column IN ARRAY ARRAY[
+    'silver_egp_per_gram',
+    'usd_egp',
+    'gold_egp_per_gram',
+    'eur_egp',
+    'silver_usd_per_gram',
+    'egp_usd',
+    'gold_usd_per_gram',
+    'eur_usd'
+  ] LOOP
+    IF EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'market_rates'
+        AND column_name = rate_column
+    ) THEN
+      EXECUTE format(
+        'UPDATE public.market_rates SET %I = COALESCE(%I, 0)',
+        rate_column,
+        rate_column
+      );
+      EXECUTE format(
+        'ALTER TABLE public.market_rates ALTER COLUMN %I SET NOT NULL',
+        rate_column
+      );
+    END IF;
+  END LOOP;
+END $$;
+
 UPDATE public.market_rates
-SET
-  silver_egp_per_gram = COALESCE(silver_egp_per_gram, 0),
-  usd_egp = COALESCE(usd_egp, 0),
-  gold_egp_per_gram = COALESCE(gold_egp_per_gram, 0),
-  eur_egp = COALESCE(eur_egp, 0),
-  created_at = COALESCE(created_at, NOW());
+SET created_at = COALESCE(created_at, NOW());
 
-ALTER TABLE market_rates
-ALTER COLUMN silver_egp_per_gram SET NOT NULL,
-ALTER COLUMN usd_egp SET NOT NULL,
-ALTER COLUMN gold_egp_per_gram SET NOT NULL,
-ALTER COLUMN eur_egp SET NOT NULL,
+ALTER TABLE public.market_rates
 ALTER COLUMN created_at SET NOT NULL;
-
