@@ -143,8 +143,11 @@ until that issue removes them.
 
 ## 7. Sync Architecture
 
-Sync is implemented in `apps/mobile/services/sync.ts` with WatermelonDB
-`synchronize()`.
+Sync is exposed through `apps/mobile/services/sync.ts` with WatermelonDB
+`synchronize()`. The facade owns the active-sync lock, auth skip,
+force-full-sync override, and WatermelonDB wiring; focused modules under
+`apps/mobile/services/sync/` own config, table predicates, pull strategies, push
+behavior, transforms, and ownership guards.
 
 Pull behavior:
 
@@ -310,7 +313,8 @@ Tracked architecture debt:
   hooks.
 - #657 splits oversized UI modules and restores container/presentational
   boundaries.
-- #659 splits sync internals into focused strategies and ownership guards.
+- #659 splits sync internals into focused strategies and ownership guards while
+  keeping `syncDatabase()` and `getActiveSyncPromise()` as the public facade.
 
 ## 13. Guardrail Rollout
 
