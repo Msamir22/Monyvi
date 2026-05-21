@@ -29,7 +29,7 @@ interface UseAccountsResult {
  * A bank account paired with its first non-deleted `BankDetails` row.
  *
  * Note: `account` is the live WatermelonDB `Model` instance — keep it as
- * a Model so getters (`formattedBalance`, `isBank`, etc.) and instance
+ * a Model so getters (`isBank`, etc.) and instance
  * methods (`update`, `markAsDeleted`, `observe`) keep working. The prior
  * spread shape (`{ ...account, bankDetails }`) silently stripped the
  * prototype.

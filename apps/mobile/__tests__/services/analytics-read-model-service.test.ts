@@ -87,6 +87,22 @@ function createCategory(
   } as unknown as Category;
 }
 
+function queryOwnedCallsIncludeAccountFilter(): boolean {
+  const calls = mockQueryOwned.mock.calls as ReadonlyArray<readonly unknown[]>;
+
+  return calls.some((call) =>
+    call.some((arg: unknown) => isColumnCondition(arg, "account_id"))
+  );
+}
+
+function isColumnCondition(value: unknown, column: string): boolean {
+  if (typeof value !== "object" || value === null || !("column" in value)) {
+    return false;
+  }
+
+  return (value as { readonly column: unknown }).column === column;
+}
+
 describe("analytics-read-model-service", () => {
   beforeEach(() => {
     jest.useFakeTimers();
@@ -139,6 +155,16 @@ describe("analytics-read-model-service", () => {
     });
 
     expect(result).toEqual([{ label: "May", value: 300 }]);
+  });
+
+  it("omits account filters when monthly chart account IDs are not provided", () => {
+    observeMonthlyChartTransactions({
+      userId: "user-1",
+      months: 6,
+      type: "EXPENSE",
+    });
+
+    expect(queryOwnedCallsIncludeAccountFilter()).toBe(false);
   });
 
   it("builds scoped category breakdown source queries and delegates aggregation", () => {
@@ -272,5 +298,39 @@ describe("analytics-read-model-service", () => {
         transactionCount: 1,
       },
     ]);
+  });
+
+  it("omits account filters when monthly summary account IDs are not provided", () => {
+    observeMonthlySummaryTransactions({
+      userId: "user-1",
+      months: 2,
+    });
+
+    expect(queryOwnedCallsIncludeAccountFilter()).toBe(false);
+  });
+
+  it("rejects invalid month windows before building queries or summaries", () => {
+    expect(() =>
+      observeMonthlyChartTransactions({
+        userId: "user-1",
+        months: 0,
+        type: "EXPENSE",
+      })
+    ).toThrow("months must be a positive integer");
+    expect(() =>
+      observeMonthlySummaryTransactions({
+        userId: "user-1",
+        months: -1,
+      })
+    ).toThrow("months must be a positive integer");
+    expect(() =>
+      buildMonthlyChartData([], {
+        months: 1.5,
+        type: "EXPENSE",
+      })
+    ).toThrow("months must be a positive integer");
+    expect(() => buildMonthlySummaries([], { months: 0 })).toThrow(
+      "months must be a positive integer"
+    );
   });
 });

@@ -127,3 +127,19 @@ export function parsePauseIntervals(
     return [];
   }
 }
+
+/**
+ * Parse a raw paused_at value into epoch milliseconds.
+ * Returns undefined when the budget is not paused or the value is invalid.
+ *
+ * @param raw - Raw ISO timestamp or nullable DB field value
+ * @returns Epoch milliseconds when valid, otherwise undefined
+ */
+export function parsePausedAtMs(
+  raw: string | undefined | null
+): number | undefined {
+  if (!raw) return undefined;
+
+  const ms = new Date(raw).getTime();
+  return Number.isNaN(ms) ? undefined : ms;
+}

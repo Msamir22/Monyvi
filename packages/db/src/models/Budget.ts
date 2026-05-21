@@ -1,6 +1,5 @@
 import { BaseBudget } from "./base/base-budget";
 import type { AlertFiredLevel } from "../types";
-import { parsePauseIntervals, type PauseInterval } from "@monyvi/logic";
 
 export class Budget extends BaseBudget {
   /**
@@ -10,30 +9,6 @@ export class Budget extends BaseBudget {
    */
   get typedAlertFiredLevel(): AlertFiredLevel | undefined {
     return this.alertFiredLevel;
-  }
-
-  /**
-   * Parse the raw JSON pause_intervals column into a typed array.
-   * Uses runtime validation to filter out malformed entries.
-   */
-  get typedPauseIntervals(): readonly PauseInterval[] {
-    // WatermelonDB decorator fields may not resolve statically; coerce safely
-    const raw: string = String(this.pauseIntervals ?? "[]");
-    return parsePauseIntervals(raw);
-  }
-
-  /**
-   * Parse the raw paused_at string into epoch milliseconds.
-   * Returns undefined if not currently paused.
-   */
-  get pausedAtMs(): number | undefined {
-    // WatermelonDB decorator fields may not resolve statically; coerce safely
-    const raw: string | undefined = this.pausedAt
-      ? String(this.pausedAt)
-      : undefined;
-    if (!raw) return undefined;
-    const ms = new Date(raw).getTime();
-    return Number.isNaN(ms) ? undefined : ms;
   }
 
   get isActive(): boolean {
