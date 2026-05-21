@@ -27,6 +27,7 @@ import {
   toDateKey,
 } from "@/hooks/useHistoricalRates";
 import { useSync } from "@/providers/SyncProvider";
+import { formatSignedTransactionAmount } from "@/utils/financial-display";
 import { logger } from "@/utils/logger";
 import { updateTransaction, updateTransfer } from "@/services";
 import { Ionicons } from "@expo/vector-icons";
@@ -409,7 +410,7 @@ export default function TransactionsPlaceholder(): React.JSX.Element {
       return (
         <TransactionCard
           id={item.id}
-          signedFormatedAmount={item.signedFormatedAmount}
+          signedFormattedAmount={formatSignedTransactionAmount(item)}
           date={item.date}
           isExpense={item.isExpense}
           isIncome={item.isIncome}

@@ -22,10 +22,11 @@ interface QueryOperator {
 interface MockBudgetOptions {
   readonly type?: "GLOBAL" | "CATEGORY";
   readonly categoryId?: string;
-  readonly typedPauseIntervals?: ReadonlyArray<{
+  readonly pauseIntervals?: ReadonlyArray<{
     readonly from: number;
     readonly to: number;
   }>;
+  readonly pausedAt?: string;
 }
 
 interface MockTransactionOptions {
@@ -213,8 +214,8 @@ function createBudget(options: MockBudgetOptions = {}): Budget {
     periodEnd: new Date("2026-05-31T23:59:59.999Z"),
     isCategoryBudget: type === "CATEGORY",
     isGlobal: type === "GLOBAL",
-    typedPauseIntervals: options.typedPauseIntervals ?? [],
-    pausedAtMs: undefined,
+    pauseIntervals: JSON.stringify(options.pauseIntervals ?? []),
+    pausedAt: options.pausedAt,
   } as unknown as Budget;
 }
 
@@ -354,7 +355,7 @@ describe("budget-detail-read-model-service", () => {
   it("excludes pause-window transactions from buckets, breakdown, and recent items", async () => {
     const budget = createBudget({
       type: "CATEGORY",
-      typedPauseIntervals: [
+      pauseIntervals: [
         {
           from: new Date("2026-05-10T00:00:00.000Z").getTime(),
           to: new Date("2026-05-12T23:59:59.999Z").getTime(),

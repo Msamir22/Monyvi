@@ -6,13 +6,7 @@ const { spawnSync } = require("node:child_process");
 
 const appId = process.env.E2E_APP_ID || "com.monyvi.app";
 const deviceId = process.env.ANDROID_SERIAL || "emulator-5554";
-const hostMetroUrl =
-  process.env.E2E_HOST_METRO_URL ||
-  process.env.E2E_METRO_URL ||
-  "http://127.0.0.1:8081";
-const metroUrl = appendAndroidPlatform(
-  process.env.E2E_DEVICE_METRO_URL || process.env.E2E_METRO_URL || hostMetroUrl
-);
+const { hostMetroUrl, metroUrl } = resolveMetroUrls(process.env);
 const isReleaseBuild = process.env.E2E_RELEASE_BUILD === "1";
 const preflightLaunchAttempts = parsePositiveInt(
   process.env.E2E_PREFLIGHT_LAUNCH_ATTEMPTS,
@@ -77,6 +71,19 @@ function appendAndroidPlatform(url) {
   const parsedUrl = new URL(url);
   parsedUrl.searchParams.set("platform", "android");
   return parsedUrl.toString();
+}
+
+function resolveMetroUrls(env = process.env) {
+  const hostUrl =
+    env.E2E_HOST_METRO_URL || env.E2E_METRO_URL || "http://127.0.0.1:8081";
+  const defaultDeviceUrl = env.CI === "true" ? "http://10.0.2.2:8081" : hostUrl;
+  const deviceUrl =
+    env.E2E_DEVICE_METRO_URL || env.E2E_METRO_URL || defaultDeviceUrl;
+
+  return {
+    hostMetroUrl: hostUrl,
+    metroUrl: appendAndroidPlatform(deviceUrl),
+  };
 }
 
 function parsePositiveInt(value, fallback) {
@@ -649,6 +656,7 @@ module.exports = {
   isReleaseBuild,
   hostMetroUrl,
   metroUrl,
+  resolveMetroUrls,
   resolveMaestroBin,
   run,
   startAppWithoutChangingPermissions,

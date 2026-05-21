@@ -159,6 +159,7 @@ export function useCategoryBreakdown(
       error: (err: unknown) => {
         logger.error("analytics.categoryTransactions.observe.failed", err);
         setError(toError(err));
+        setIsLoading(false);
       },
     });
     const categoriesSub = categoriesQuery.observe().subscribe({
@@ -249,6 +250,7 @@ export function useComparison(
       error: (err: unknown) => {
         logger.error("analytics.currentPeriod.observe.failed", err);
         setError(toError(err));
+        setIsLoading(false);
       },
     });
     const previousSub = previousQuery.observe().subscribe({
@@ -376,6 +378,15 @@ function useComparisonTargetPeriod(
     if (year !== undefined && month !== undefined) {
       return;
     }
+
+    setCurrentPeriod((prev) => {
+      const next = getCurrentYearMonth();
+      if (prev.year === next.year && prev.month === next.month) {
+        return prev;
+      }
+
+      return next;
+    });
 
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     let isActive = true;

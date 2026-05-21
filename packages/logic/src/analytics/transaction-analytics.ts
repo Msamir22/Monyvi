@@ -3,7 +3,7 @@
  * Shared calculation functions for transaction data analysis
  */
 
-import { Category, Transaction, TransactionType } from "@monyvi/db";
+import type { TransactionType } from "@monyvi/db";
 import {
   CategoryBreakdown,
   ChartDataPoint,
@@ -11,6 +11,21 @@ import {
   MonthlyTotals,
   PeriodFilter,
 } from "./types";
+
+export interface AnalyticsTransaction {
+  readonly amount: number;
+  readonly type: TransactionType;
+  readonly categoryId: string;
+  readonly dateInMs: number;
+}
+
+export interface AnalyticsCategory {
+  readonly id: string;
+  readonly displayName: string;
+  readonly level: number;
+  readonly parentId?: string | null;
+  readonly color?: string;
+}
 
 export function getMonthBoundaries(year: number, month: number): PeriodFilter {
   // Calculate start and end of month
@@ -24,7 +39,7 @@ export function getMonthBoundaries(year: number, month: number): PeriodFilter {
  * Calculate monthly totals from a list of transactions
  */
 export function calculateMonthlyTotals(
-  transactions: Transaction[]
+  transactions: readonly AnalyticsTransaction[]
 ): MonthlyTotals {
   const totals = transactions.reduce(
     (acc, t) => {
@@ -48,7 +63,7 @@ export function calculateMonthlyTotals(
  * Calculate totals for a specific period
  */
 export function calculatePeriodStats(
-  transactions: Transaction[],
+  transactions: readonly AnalyticsTransaction[],
   filter: PeriodFilter
 ): MonthlyTotals {
   const filtered = transactions.filter(
@@ -61,7 +76,7 @@ export function calculatePeriodStats(
  * Build a map of parent category ID to array of child category IDs
  */
 function buildCategoryChildrenMap(
-  categories: Category[]
+  categories: readonly AnalyticsCategory[]
 ): Map<string, string[]> {
   const childrenMap = new Map<string, string[]>();
 
@@ -87,7 +102,8 @@ function getCategoryDescendants(
   const queue: string[] = [categoryId];
 
   while (queue.length > 0) {
-    const id = queue.shift()!;
+    const id = queue.shift();
+    if (id === undefined) break;
     const children = childrenMap.get(id) || [];
     for (const childId of children) {
       descendants.push(childId);
@@ -102,8 +118,8 @@ function getCategoryDescendants(
  * Group transactions by category and calculate breakdown
  */
 export function aggregateByCategory(
-  transactions: Transaction[],
-  categories: Category[]
+  transactions: readonly AnalyticsTransaction[],
+  categories: readonly AnalyticsCategory[]
 ): CategoryBreakdown[] {
   // Only count expenses for category breakdown
   const expenses = transactions.filter((t) => t.type === "EXPENSE");
@@ -141,7 +157,7 @@ export function aggregateByCategory(
  * Generate monthly chart data from transactions
  */
 export function generateMonthlyChartData(
-  transactions: Transaction[],
+  transactions: readonly AnalyticsTransaction[],
   months: number,
   type: TransactionType = "EXPENSE"
 ): ChartDataPoint[] {

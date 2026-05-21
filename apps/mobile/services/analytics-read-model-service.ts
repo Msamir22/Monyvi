@@ -72,6 +72,7 @@ export interface MonthlySummariesInput {
 export function observeMonthlyChartTransactions(
   input: MonthlyChartTransactionsInput
 ): Query<Transaction> {
+  assertValidMonths(input.months);
   const startDate = getRollingMonthStart(input.months);
 
   return queryOwned(
@@ -146,6 +147,8 @@ export function observeComparisonTransactions(
 export function observeMonthlySummaryTransactions(
   input: MonthlySummaryTransactionsInput
 ): Query<Transaction> {
+  assertValidMonths(input.months);
+
   return queryOwned(
     transactionsCollection(),
     input.userId,
@@ -159,6 +162,8 @@ export function buildMonthlyChartData(
   transactions: readonly Transaction[],
   input: MonthlyChartDataInput
 ): ChartDataPoint[] {
+  assertValidMonths(input.months);
+
   return generateMonthlyChartData([...transactions], input.months, input.type);
 }
 
@@ -186,6 +191,8 @@ export function buildMonthlySummaries(
   transactions: readonly Transaction[],
   input: MonthlySummariesInput
 ): MonthlySummary[] {
+  assertValidMonths(input.months);
+
   const now = new Date();
   const summaries: MonthlySummary[] = [];
 
@@ -223,8 +230,16 @@ function categoriesCollection(): ReturnType<typeof database.get<Category>> {
 }
 
 function getRollingMonthStart(months: number): number {
+  assertValidMonths(months);
+
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth() - months + 1, 1).getTime();
+}
+
+function assertValidMonths(months: number): void {
+  if (!Number.isInteger(months) || months < 1) {
+    throw new Error("months must be a positive integer");
+  }
 }
 
 function getAccountConditions(
