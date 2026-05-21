@@ -263,6 +263,13 @@ export default function SmsScanScreen(): React.JSX.Element {
     () => getTopCategories(transactions),
     [transactions]
   );
+  const categoryNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const category of allCategories) {
+      map.set(category.systemName, category.displayName);
+    }
+    return map;
+  }, [allCategories]);
 
   // ── iOS short-circuit ──
   // SMS import is Android-only (iOS has no equivalent of READ_SMS). Avoid
@@ -343,6 +350,7 @@ export default function SmsScanScreen(): React.JSX.Element {
         totalScanned={result?.totalScanned ?? 0}
         durationMs={result?.durationMs ?? 0}
         topCategories={topCategories}
+        categoryNameMap={categoryNameMap}
         error={error}
         onReviewPress={handleReviewPress}
         onBackPress={handleBackPress}

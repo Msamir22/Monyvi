@@ -16,11 +16,10 @@
 import { palette } from "@/constants/colors";
 import type { SmsScanProgress as SmsScanProgressData } from "@/services/sms-sync-service";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import Animated, { FadeIn, FadeInDown, ZoomIn } from "react-native-reanimated";
 import Svg, { Circle } from "react-native-svg";
-import { useCategories } from "@/hooks/useCategories";
 import { useTheme } from "@/context/ThemeContext";
 import { useTranslation } from "react-i18next";
 
@@ -50,6 +49,8 @@ interface SmsScanProgressProps {
   readonly durationMs: number;
   /** Top category system names detected (for success state) */
   readonly topCategories: readonly string[];
+  /** System category name to display label mapping */
+  readonly categoryNameMap: ReadonlyMap<string, string>;
   /** Error message if scan failed */
   readonly error: string | null;
   /** Called when user taps "Review Transactions" */
@@ -71,6 +72,7 @@ export function SmsScanProgress({
   totalScanned,
   durationMs,
   topCategories,
+  categoryNameMap,
   error,
   onReviewPress,
   onBackPress,
@@ -111,6 +113,7 @@ export function SmsScanProgress({
               totalScanned={totalScanned}
               durationMs={durationMs}
               topCategories={topCategories}
+              categoryNameMap={categoryNameMap}
               onReviewPress={onReviewPress}
               onBackPress={onBackPress}
               t={t}
@@ -459,6 +462,7 @@ function SuccessState({
   totalScanned,
   durationMs,
   topCategories,
+  categoryNameMap,
   onReviewPress,
   onBackPress,
   t,
@@ -467,21 +471,12 @@ function SuccessState({
   readonly totalScanned: number;
   readonly durationMs: number;
   readonly topCategories: readonly string[];
+  readonly categoryNameMap: ReadonlyMap<string, string>;
   readonly onReviewPress: () => void;
   readonly onBackPress: () => void;
   readonly t: (key: string, opts?: Record<string, unknown>) => string;
 }): React.JSX.Element {
   const durationLabel = formatDuration(durationMs, t);
-
-  // Build systemName → displayName map from DB categories
-  const { categories: allCategories } = useCategories({ topLevelOnly: false });
-  const categoryNameMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const cat of allCategories) {
-      map.set(cat.systemName, cat.displayName);
-    }
-    return map;
-  }, [allCategories]);
 
   return (
     <Animated.View entering={ZoomIn.springify()} className="flex-1">

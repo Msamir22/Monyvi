@@ -5,7 +5,6 @@ const path = require("path");
 const KNOWN_DEBT_FILE_SUFFIXES = [
   "apps/mobile/app/(private)/settings.tsx",
   "apps/mobile/app/(private)/startup.tsx",
-  "apps/mobile/components/navigation/AppDrawer.tsx",
 ];
 
 function normalizePath(fileName) {
