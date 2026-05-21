@@ -16,7 +16,7 @@
  * @module BudgetDashboard
  */
 
-import React, { useCallback } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -59,27 +59,39 @@ export function BudgetDashboard(): React.JSX.Element {
     setPeriodFilter,
     budgets,
     refresh,
+    autoPauseCheckKey,
   } = useBudgets();
+  const [isAutoPauseActive, setIsAutoPauseActive] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
-      let isActive = true;
-
-      pauseExpiredCustomBudgets()
-        .then((pausedCount) => {
-          if (isActive && pausedCount > 0) {
-            refresh();
-          }
-        })
-        .catch((error: unknown) => {
-          logger.error("budgetDashboard.pauseExpired.failed", error);
-        });
+      setIsAutoPauseActive(true);
 
       return () => {
-        isActive = false;
+        setIsAutoPauseActive(false);
       };
-    }, [refresh])
+    }, [])
   );
+
+  useEffect(() => {
+    if (!isAutoPauseActive) return;
+
+    let isActive = true;
+
+    pauseExpiredCustomBudgets()
+      .then((pausedCount) => {
+        if (isActive && pausedCount > 0) {
+          refresh();
+        }
+      })
+      .catch((error: unknown) => {
+        logger.error("budgetDashboard.pauseExpired.failed", error);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [autoPauseCheckKey, isAutoPauseActive, refresh]);
 
   const handleCreateBudget = useCallback((): void => {
     router.push("/create-budget");

@@ -20,10 +20,17 @@ import {
 } from "@monyvi/db";
 import { convertCurrency } from "@monyvi/logic";
 import { Q, type Query } from "@nozbe/watermelondb";
-import type { PeriodFilter } from "@/hooks/usePeriodSummary";
 
 export type TransactionTypeFilter = "All" | "Income" | "Expense" | "Transfer";
-export type GroupingPeriod = PeriodFilter;
+export type GroupingPeriod =
+  | "today"
+  | "this_week"
+  | "last_week"
+  | "this_month"
+  | "last_month"
+  | "six_months"
+  | "this_year"
+  | "all_time";
 
 type TransactionWithType = Transaction & { _type: "transaction" };
 type TransferWithType = Transfer & { _type: "transfer" };

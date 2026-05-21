@@ -1,5 +1,7 @@
 "use strict";
 
+const path = require("path");
+
 const KNOWN_DEBT_FILE_SUFFIXES = [];
 
 function normalizePath(fileName) {
@@ -30,6 +32,29 @@ function isMobileService(fileName) {
   return normalizePath(fileName).includes("apps/mobile/services/");
 }
 
+function resolveRelativeSource(fileName, source) {
+  if (!source.startsWith(".")) {
+    return source;
+  }
+
+  return path.posix.normalize(
+    path.posix.join(path.posix.dirname(normalizePath(fileName)), source)
+  );
+}
+
+function sourceTargetsDatabase(fileName, source) {
+  if (source === "@monyvi/db" || source.startsWith("@monyvi/db/")) {
+    return true;
+  }
+
+  const resolved = resolveRelativeSource(fileName, source);
+  return (
+    resolved === "packages/db" ||
+    resolved.startsWith("packages/db/") ||
+    resolved.includes("/packages/db/")
+  );
+}
+
 function getPropertyName(memberExpression) {
   if (!memberExpression || memberExpression.type !== "MemberExpression") {
     return null;
@@ -45,6 +70,54 @@ function getPropertyName(memberExpression) {
   }
 
   return null;
+}
+
+function isUseDatabaseCall(node, useDatabaseFunctions) {
+  return (
+    node?.type === "CallExpression" &&
+    node.callee.type === "Identifier" &&
+    useDatabaseFunctions.has(node.callee.name)
+  );
+}
+
+function isDatabaseNamespaceMember(node, databaseNamespaces) {
+  return (
+    node?.type === "MemberExpression" &&
+    getPropertyName(node) === "database" &&
+    node.object.type === "Identifier" &&
+    databaseNamespaces.has(node.object.name)
+  );
+}
+
+function isDatabaseSource(
+  node,
+  databaseVariables,
+  databaseNamespaces,
+  useDatabaseFunctions
+) {
+  return (
+    (node?.type === "Identifier" && databaseVariables.has(node.name)) ||
+    isUseDatabaseCall(node, useDatabaseFunctions) ||
+    isDatabaseNamespaceMember(node, databaseNamespaces)
+  );
+}
+
+function isDatabaseWriteMember(
+  node,
+  databaseVariables,
+  databaseNamespaces,
+  useDatabaseFunctions
+) {
+  return (
+    node?.type === "MemberExpression" &&
+    getPropertyName(node) === "write" &&
+    isDatabaseSource(
+      node.object,
+      databaseVariables,
+      databaseNamespaces,
+      useDatabaseFunctions
+    )
+  );
 }
 
 module.exports = {
@@ -74,10 +147,74 @@ module.exports = {
     }
 
     const databaseVariables = new Set(["database"]);
+    const databaseNamespaces = new Set();
+    const databaseWriteFunctions = new Set();
+    const useDatabaseFunctions = new Set(["useDatabase"]);
 
     return {
+      ImportDeclaration(node) {
+        const source =
+          typeof node.source.value === "string" ? node.source.value : "";
+        if (!sourceTargetsDatabase(fileName, source)) {
+          return;
+        }
+
+        for (const specifier of node.specifiers) {
+          if (
+            specifier.type === "ImportNamespaceSpecifier" &&
+            specifier.local.type === "Identifier"
+          ) {
+            databaseNamespaces.add(specifier.local.name);
+            continue;
+          }
+
+          if (
+            specifier.type === "ImportSpecifier" &&
+            specifier.imported.type === "Identifier" &&
+            specifier.imported.name === "database" &&
+            specifier.local.type === "Identifier"
+          ) {
+            databaseVariables.add(specifier.local.name);
+          }
+        }
+      },
+
       VariableDeclarator(node) {
-        if (!node.id || node.id.type !== "Identifier") {
+        if (!node.id) {
+          return;
+        }
+
+        if (
+          node.id.type === "ObjectPattern" &&
+          isDatabaseSource(
+            node.init,
+            databaseVariables,
+            databaseNamespaces,
+            useDatabaseFunctions
+          )
+        ) {
+          for (const property of node.id.properties) {
+            if (
+              property.type === "Property" &&
+              property.key.type === "Identifier" &&
+              property.key.name === "write" &&
+              property.value.type === "Identifier"
+            ) {
+              databaseWriteFunctions.add(property.value.name);
+            }
+          }
+          return;
+        }
+
+        if (node.id.type !== "Identifier") {
+          return;
+        }
+
+        if (
+          node.init?.type === "Identifier" &&
+          useDatabaseFunctions.has(node.init.name)
+        ) {
+          useDatabaseFunctions.add(node.id.name);
           return;
         }
 
@@ -90,29 +227,51 @@ module.exports = {
         }
 
         if (
-          node.init?.type === "CallExpression" &&
-          node.init.callee.type === "Identifier" &&
-          node.init.callee.name === "useDatabase"
+          isUseDatabaseCall(node.init, useDatabaseFunctions) ||
+          isDatabaseNamespaceMember(node.init, databaseNamespaces)
         ) {
           databaseVariables.add(node.id.name);
+          return;
+        }
+
+        if (
+          isDatabaseWriteMember(
+            node.init,
+            databaseVariables,
+            databaseNamespaces,
+            useDatabaseFunctions
+          )
+        ) {
+          databaseWriteFunctions.add(node.id.name);
         }
       },
 
       CallExpression(node) {
         const callee = node.callee;
         if (
-          callee.type !== "MemberExpression" ||
-          getPropertyName(callee) !== "write" ||
-          callee.object.type !== "Identifier" ||
-          !databaseVariables.has(callee.object.name)
+          callee.type === "Identifier" &&
+          databaseWriteFunctions.has(callee.name)
         ) {
+          context.report({
+            node,
+            messageId: "dbWriteOutsideService",
+          });
           return;
         }
 
-        context.report({
-          node,
-          messageId: "dbWriteOutsideService",
-        });
+        if (
+          isDatabaseWriteMember(
+            callee,
+            databaseVariables,
+            databaseNamespaces,
+            useDatabaseFunctions
+          )
+        ) {
+          context.report({
+            node,
+            messageId: "dbWriteOutsideService",
+          });
+        }
       },
     };
   },
