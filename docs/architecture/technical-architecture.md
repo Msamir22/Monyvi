@@ -304,7 +304,7 @@ Error/logging patterns:
 Tracked architecture debt:
 
 - #656 extracts read-model services from heavy hooks. Budget detail, analytics,
-  and transaction list/grouping are extracted slices; net worth and remaining
+  transaction list/grouping, and net worth are extracted slices; remaining
   budget list read helpers are still tracked debt.
 - #657 splits oversized UI modules and restores container/presentational
   boundaries.

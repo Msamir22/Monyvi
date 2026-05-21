@@ -1,80 +1,92 @@
-import { renderHook } from "@testing-library/react-native";
+import { act, renderHook, waitFor } from "@testing-library/react-native";
+import type {
+  Account,
+  Asset,
+  AssetMetal,
+  DailySnapshotNetWorth,
+} from "@monyvi/db";
+
+const mockLoggerError = jest.fn();
+const mockObserveNetWorthAccounts = jest.fn();
+const mockObserveNetWorthAssets = jest.fn();
+const mockObserveNetWorthAssetMetals = jest.fn();
+const mockObserveNetWorthSnapshots = jest.fn();
+const mockBuildNetWorthReadModel = jest.fn();
+const mockBuildMonthlyPercentageChange = jest.fn();
+
+let mockUserId: string | null = "user-1";
+let mockIsResolvingUser = false;
 
 interface MockObserver<T> {
-  readonly next: (result: readonly T[]) => void;
+  readonly next: (result: T[]) => void;
   readonly error: (err: unknown) => void;
 }
 
-interface MockObservable<T> {
-  readonly subscribe: jest.Mock<{ unsubscribe: jest.Mock }, [MockObserver<T>]>;
+interface MockQuery<T> {
+  readonly observe: jest.Mock<{
+    readonly subscribe: jest.Mock<
+      { readonly unsubscribe: jest.Mock },
+      [MockObserver<T>]
+    >;
+  }>;
+  readonly observeWithColumns: jest.Mock<{
+    readonly subscribe: jest.Mock<
+      { readonly unsubscribe: jest.Mock },
+      [MockObserver<T>]
+    >;
+  }>;
+  readonly observerRef: { current: MockObserver<T> | null };
+  readonly unsubscribe: jest.Mock;
 }
 
-const mockAccountsObserveWithColumns = jest.fn();
-const mockAssetMetalsObserve = jest.fn();
-const mockAssetsObserveWithColumns = jest.fn();
-const mockQueryChildrenOfOwnedParents = jest.fn<unknown, unknown[]>(
-  () => mockAssetMetalsQuery
-);
-const mockAccountsQuery = {
-  observeWithColumns: mockAccountsObserveWithColumns,
-};
-const mockAssetsQuery = {
-  observeWithColumns: mockAssetsObserveWithColumns,
-};
-const mockAssetMetalsQuery = {
-  observe: mockAssetMetalsObserve,
-};
-const mockAccountsCollection = {
-  query: jest.fn(() => mockAccountsQuery),
-};
-const mockAssetMetalsCollection = {
-  query: jest.fn(() => mockAssetMetalsQuery),
-};
-const mockAssetsCollection = {
-  query: jest.fn(() => mockAssetsQuery),
-};
-const mockDatabaseGet = jest.fn((collectionName: string) => {
-  if (collectionName === "accounts") return mockAccountsCollection;
-  if (collectionName === "assets") return mockAssetsCollection;
-  if (collectionName === "asset_metals") return mockAssetMetalsCollection;
-  throw new Error(`Unexpected collection: ${collectionName}`);
-});
-const mockQueryOwned = jest.fn<unknown, unknown[]>((collection) => {
-  if (collection === mockAssetsCollection) return mockAssetsQuery;
-  return mockAccountsQuery;
-});
+function createQuery<T>(): MockQuery<T> {
+  const observerRef: { current: MockObserver<T> | null } = { current: null };
+  const unsubscribe = jest.fn();
+  const subscribe = jest.fn((observer: MockObserver<T>) => {
+    observerRef.current = observer;
+    return { unsubscribe };
+  });
 
-jest.mock("@monyvi/db", () => ({
-  database: {
-    get: (collectionName: string): unknown => mockDatabaseGet(collectionName),
+  return {
+    observerRef,
+    unsubscribe,
+    observe: jest.fn(() => ({ subscribe })),
+    observeWithColumns: jest.fn(() => ({ subscribe })),
+  };
+}
+
+const accountsQuery = createQuery<Account>();
+const assetsQuery = createQuery<Asset>();
+const assetMetalsQuery = createQuery<AssetMetal>();
+const snapshotsQuery = createQuery<DailySnapshotNetWorth>();
+const netWorthModel = {
+  totalNetWorth: 2500,
+  totalNetWorthUsd: 50,
+  totalAccounts: 1500,
+  totalAssets: 1000,
+};
+
+jest.mock("@/services/net-worth-read-model-service", () => ({
+  buildMonthlyPercentageChange: (...args: readonly unknown[]): unknown =>
+    mockBuildMonthlyPercentageChange(...args),
+  buildNetWorthReadModel: (...args: readonly unknown[]): unknown =>
+    mockBuildNetWorthReadModel(...args),
+  observeNetWorthAccounts: (...args: readonly unknown[]): unknown =>
+    mockObserveNetWorthAccounts(...args),
+  observeNetWorthAssetMetals: (...args: readonly unknown[]): unknown =>
+    mockObserveNetWorthAssetMetals(...args),
+  observeNetWorthAssets: (...args: readonly unknown[]): unknown =>
+    mockObserveNetWorthAssets(...args),
+  observeNetWorthSnapshots: (...args: readonly unknown[]): unknown =>
+    mockObserveNetWorthSnapshots(...args),
+}));
+
+jest.mock("@/utils/logger", () => ({
+  logger: {
+    error: (...args: readonly unknown[]): void => {
+      mockLoggerError(...args);
+    },
   },
-}));
-
-jest.mock("@nozbe/watermelondb", () => ({
-  Q: {
-    desc: "desc",
-    oneOf: (...args: readonly unknown[]) => ({ kind: "oneOf", args }),
-    sortBy: (...args: readonly unknown[]) => ({ kind: "sortBy", args }),
-    where: (...args: readonly unknown[]) => ({ kind: "where", args }),
-  },
-}));
-
-jest.mock("@/services/user-data-access", () => ({
-  queryChildrenOfOwnedParents: (...args: readonly unknown[]): unknown =>
-    mockQueryChildrenOfOwnedParents(args),
-  queryOwned: (...args: readonly unknown[]): unknown => mockQueryOwned(...args),
-}));
-
-jest.mock("@monyvi/logic", () => ({
-  calculateAccountsTotalBalance: jest.fn(() => 0),
-  calculateNetWorth: jest.fn((totalAccounts: number, totalAssets: number) => ({
-    totalAccounts,
-    totalAssets,
-    totalNetWorth: totalAccounts + totalAssets,
-  })),
-  calculateTotalAssets: jest.fn(() => 0),
-  convertCurrency: jest.fn((amount: number) => amount),
-  getSameDayLastMonth: jest.fn(() => new Date("2025-12-01T00:00:00Z")),
 }));
 
 jest.mock("../../hooks/useMarketRates", () => ({
@@ -91,9 +103,9 @@ jest.mock("../../hooks/usePreferredCurrency", () => ({
 }));
 
 jest.mock("../../hooks/useCurrentUser", () => ({
-  useCurrentUser: (): { userId: string; isResolvingUser: boolean } => ({
-    userId: "user-1",
-    isResolvingUser: false,
+  useCurrentUser: (): { userId: string | null; isResolvingUser: boolean } => ({
+    userId: mockUserId,
+    isResolvingUser: mockIsResolvingUser,
   }),
   runUserScopedEffect: ({
     userId,
@@ -121,39 +133,117 @@ jest.mock("../../hooks/useCurrentUser", () => ({
 }));
 
 // eslint-disable-next-line import/first
-import { useNetWorth } from "../../hooks/useNetWorth";
-
-function buildObservable<T>(): MockObservable<T> {
-  return {
-    subscribe: jest.fn((observer: MockObserver<T>) => {
-      void observer;
-      return { unsubscribe: jest.fn() };
-    }),
-  };
-}
+import {
+  useMonthlyPercentageChange,
+  useNetWorth,
+} from "../../hooks/useNetWorth";
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockAccountsObserveWithColumns.mockReturnValue(buildObservable());
-  mockAssetMetalsObserve.mockReturnValue(buildObservable());
-  mockAssetsObserveWithColumns.mockReturnValue(buildObservable());
+  mockUserId = "user-1";
+  mockIsResolvingUser = false;
+  mockObserveNetWorthAccounts.mockReturnValue(accountsQuery);
+  mockObserveNetWorthAssets.mockReturnValue(assetsQuery);
+  mockObserveNetWorthAssetMetals.mockReturnValue(assetMetalsQuery);
+  mockObserveNetWorthSnapshots.mockReturnValue(snapshotsQuery);
+  mockBuildNetWorthReadModel.mockReturnValue(netWorthModel);
+  mockBuildMonthlyPercentageChange.mockReturnValue(12.5);
 });
 
 describe("useNetWorth", () => {
-  it("scopes account and asset reads to the current user", () => {
-    const { unmount } = renderHook(() => useNetWorth());
+  it("subscribes through the net-worth read-model service", async () => {
+    const { result } = renderHook(() => useNetWorth());
 
-    expect(mockQueryOwned).toHaveBeenCalledWith(
-      mockAccountsCollection,
-      "user-1",
-      { kind: "where", args: ["deleted", false] }
-    );
-    expect(mockQueryOwned).toHaveBeenCalledWith(
-      mockAssetsCollection,
-      "user-1",
-      { kind: "where", args: ["deleted", false] }
-    );
+    act(() => {
+      accountsQuery.observerRef.current?.next([
+        { id: "account-1" } as unknown as Account,
+      ]);
+      assetsQuery.observerRef.current?.next([
+        { id: "asset-1" } as unknown as Asset,
+      ]);
+    });
 
-    unmount();
+    await waitFor(() => {
+      expect(mockObserveNetWorthAssetMetals).toHaveBeenCalledWith({
+        userId: "user-1",
+        assets: [{ id: "asset-1" }],
+      });
+    });
+
+    act(() => {
+      assetMetalsQuery.observerRef.current?.next([
+        { id: "metal-1" } as unknown as AssetMetal,
+      ]);
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(mockObserveNetWorthAccounts).toHaveBeenCalledWith("user-1");
+    expect(mockObserveNetWorthAssets).toHaveBeenCalledWith("user-1");
+    expect(mockBuildNetWorthReadModel).toHaveBeenCalledWith({
+      accounts: [{ id: "account-1" }],
+      assetMetals: [{ id: "metal-1" }],
+      latestRates: {},
+      preferredCurrency: "USD",
+    });
+    expect(result.current).toMatchObject(netWorthModel);
+  });
+
+  it("does not query while current user state is resolving or signed out", async () => {
+    mockIsResolvingUser = true;
+    const { result, rerender } = renderHook(() => useNetWorth());
+
+    expect(result.current.isLoading).toBe(true);
+    expect(mockObserveNetWorthAccounts).not.toHaveBeenCalled();
+
+    mockIsResolvingUser = false;
+    mockUserId = null;
+    rerender(undefined);
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+    expect(mockObserveNetWorthAccounts).not.toHaveBeenCalled();
+  });
+
+  it("logs account observation failures and exposes the error", async () => {
+    const error = new Error("accounts failed");
+    const { result } = renderHook(() => useNetWorth());
+
+    act(() => {
+      accountsQuery.observerRef.current?.error(error);
+    });
+
+    await waitFor(() => {
+      expect(result.current.error).toBe(error);
+    });
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      "netWorth.accounts.observe.failed",
+      error
+    );
+  });
+});
+
+describe("useMonthlyPercentageChange", () => {
+  it("subscribes through the snapshot read-model service", async () => {
+    const { result } = renderHook(() => useMonthlyPercentageChange());
+
+    act(() => {
+      snapshotsQuery.observerRef.current?.next([
+        { id: "snapshot-1" } as unknown as DailySnapshotNetWorth,
+      ]);
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(mockObserveNetWorthSnapshots).toHaveBeenCalledWith("user-1");
+    expect(mockBuildMonthlyPercentageChange).toHaveBeenCalledWith([
+      { id: "snapshot-1" },
+    ]);
+    expect(result.current.monthlyPercentageChange).toBe(12.5);
   });
 });
