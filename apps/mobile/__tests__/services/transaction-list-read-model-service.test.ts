@@ -1,0 +1,360 @@
+import type { Account, Category, Transaction, Transfer } from "@monyvi/db";
+
+const mockTransactionsCollection = { table: "transactions" };
+const mockTransfersCollection = { table: "transfers" };
+const mockAccountsCollection = { table: "accounts" };
+const mockDatabaseGet = jest.fn((tableName: string): unknown => {
+  if (tableName === "transactions") return mockTransactionsCollection;
+  if (tableName === "transfers") return mockTransfersCollection;
+  if (tableName === "accounts") return mockAccountsCollection;
+  throw new Error(`Unexpected table: ${tableName}`);
+});
+const mockQueryOwned = jest.fn();
+
+interface QueryCondition {
+  readonly kind: "where" | "gte" | "lte" | "gt" | "oneOf" | "notEq" | "sortBy";
+  readonly column?: string;
+  readonly value: unknown;
+}
+
+interface MockQuery<TRecord> {
+  readonly fetch: jest.Mock<Promise<TRecord[]>, []>;
+  readonly observeWithColumns: jest.Mock;
+}
+
+jest.mock("@monyvi/db", () => ({
+  database: {
+    get: (tableName: string): unknown => mockDatabaseGet(tableName),
+  },
+}));
+
+jest.mock("@nozbe/watermelondb", () => ({
+  Q: {
+    desc: "desc",
+    gt: (value: unknown): QueryCondition => ({ kind: "gt", value }),
+    gte: (value: unknown): QueryCondition => ({ kind: "gte", value }),
+    lte: (value: unknown): QueryCondition => ({ kind: "lte", value }),
+    notEq: (value: unknown): QueryCondition => ({ kind: "notEq", value }),
+    oneOf: (value: unknown): QueryCondition => ({ kind: "oneOf", value }),
+    sortBy: (column: string, value: unknown): QueryCondition => ({
+      kind: "sortBy",
+      column,
+      value,
+    }),
+    where: (column: string, value: unknown): QueryCondition => ({
+      kind: "where",
+      column,
+      value,
+    }),
+  },
+}));
+
+jest.mock("@/services/user-data-access", () => ({
+  queryOwned: (...args: readonly unknown[]): unknown => mockQueryOwned(...args),
+}));
+
+import {
+  buildTransactionGroups,
+  type DisplayTransaction,
+  getTransactionListReadModel,
+  observeTransactionListInvalidationSources,
+} from "@/services/transaction-list-read-model-service";
+
+function createQuery<TRecord>(records: readonly TRecord[]): MockQuery<TRecord> {
+  return {
+    fetch: jest.fn((): Promise<TRecord[]> => Promise.resolve([...records])),
+    observeWithColumns: jest.fn(),
+  };
+}
+
+function createAccount(
+  id: string,
+  name: string,
+  currency: string,
+  deleted = false
+): Account {
+  return { id, name, currency, deleted } as unknown as Account;
+}
+
+function createCategory(
+  displayName: string,
+  iconName = "restaurant",
+  iconLibrary = "Ionicons"
+): Category {
+  return {
+    displayName,
+    iconConfig: { iconName, iconLibrary },
+  } as unknown as Category;
+}
+
+interface MockTransactionOverrides {
+  readonly id: string;
+  readonly amount: number;
+  readonly type: "INCOME" | "EXPENSE";
+  readonly date: Date;
+  readonly currency?: "EGP" | "USD";
+  readonly note?: string;
+  readonly counterparty?: string;
+  readonly account?: Account;
+  readonly category?: Category | null;
+}
+
+function createTransaction(overrides: MockTransactionOverrides): Transaction {
+  const account =
+    overrides.account ?? createAccount("account-1", "Cash", "EGP");
+  const category = overrides.category ?? createCategory("Food");
+
+  return {
+    ...overrides,
+    currency: overrides.currency ?? "EGP",
+    dateInMs: overrides.date.getTime(),
+    isIncome: overrides.type === "INCOME",
+    isExpense: overrides.type === "EXPENSE",
+    account: {
+      fetch: jest.fn(() => Promise.resolve(account)),
+    },
+    category: {
+      fetch: jest.fn(() => Promise.resolve(category)),
+    },
+  } as unknown as Transaction;
+}
+
+interface MockTransferOverrides {
+  readonly id: string;
+  readonly amount: number;
+  readonly date: Date;
+  readonly fromAccount?: Account;
+  readonly toAccount?: Account;
+  readonly notes?: string;
+}
+
+function createTransfer(overrides: MockTransferOverrides): Transfer {
+  const fromAccount =
+    overrides.fromAccount ?? createAccount("account-1", "Cash", "EGP");
+  const toAccount =
+    overrides.toAccount ?? createAccount("account-2", "Savings", "EGP");
+
+  return {
+    ...overrides,
+    currency: "EGP",
+    dateInMs: overrides.date.getTime(),
+    fromAccount: {
+      fetch: jest.fn(() => Promise.resolve(fromAccount)),
+    },
+    toAccount: {
+      fetch: jest.fn(() => Promise.resolve(toAccount)),
+    },
+  } as unknown as Transfer;
+}
+
+describe("transaction-list-read-model-service", () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2026-05-15T12:00:00.000Z"));
+    jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it("builds invalidation queries scoped to the current user", () => {
+    const transactionsQuery = createQuery<Transaction>([]);
+    const transfersQuery = createQuery<Transfer>([]);
+    mockQueryOwned
+      .mockReturnValueOnce(transactionsQuery)
+      .mockReturnValueOnce(transfersQuery);
+
+    const queries = observeTransactionListInvalidationSources({
+      userId: "user-1",
+    });
+
+    expect(queries).toEqual({ transactionsQuery, transfersQuery });
+    expect(mockQueryOwned).toHaveBeenCalledWith(
+      mockTransactionsCollection,
+      "user-1"
+    );
+    expect(mockQueryOwned).toHaveBeenCalledWith(
+      mockTransfersCollection,
+      "user-1"
+    );
+  });
+
+  it("fetches selected transaction types, transfers, future transactions, and display account names", async () => {
+    const cashEgp = createAccount("account-1", "Cash", "EGP");
+    const cashUsd = createAccount("account-2", "Cash", "USD");
+    const expense = createTransaction({
+      id: "expense",
+      amount: 100,
+      type: "EXPENSE",
+      date: new Date("2026-05-14T10:00:00.000Z"),
+      account: cashEgp,
+      category: createCategory("Food", "fast-food", "Ionicons"),
+      note: "Lunch",
+    });
+    const income = createTransaction({
+      id: "income",
+      amount: 500,
+      type: "INCOME",
+      date: new Date("2026-05-13T10:00:00.000Z"),
+      account: cashUsd,
+      category: createCategory("Salary"),
+    });
+    const future = createTransaction({
+      id: "future",
+      amount: 50,
+      type: "EXPENSE",
+      date: new Date("2026-06-01T10:00:00.000Z"),
+      account: cashEgp,
+    });
+    const transfer = createTransfer({
+      id: "transfer",
+      amount: 75,
+      date: new Date("2026-05-12T10:00:00.000Z"),
+      fromAccount: cashEgp,
+      toAccount: cashUsd,
+      notes: "Move cash",
+    });
+    const futureQuery = createQuery([future]);
+    const transfersQuery = createQuery([transfer]);
+    const displayTransactionsQuery = createQuery([expense, income]);
+    const accountsQuery = createQuery([cashEgp, cashUsd]);
+    mockQueryOwned
+      .mockReturnValueOnce(futureQuery)
+      .mockReturnValueOnce(transfersQuery)
+      .mockReturnValueOnce(displayTransactionsQuery)
+      .mockReturnValueOnce(accountsQuery);
+
+    const model = await getTransactionListReadModel({
+      userId: "user-1",
+      period: "this_month",
+      selectedTypes: ["Income", "Expense", "Transfer"],
+      searchQuery: "",
+    });
+
+    expect(model.futureTransactions).toEqual([future]);
+    expect(model.displayedItems.map((item) => item.id)).toEqual([
+      "expense",
+      "income",
+      "transfer",
+    ]);
+    expect(model.displayedItems[0]).toMatchObject({
+      accountName: "Cash (EGP)",
+      categoryName: "Food",
+      categoryIconName: "fast-food",
+      categoryIconLibrary: "Ionicons",
+    });
+    expect(model.displayedItems[2]).toMatchObject({
+      fromAccountName: "Cash (EGP)",
+      toAccountName: "Cash (USD)",
+    });
+    expect(mockQueryOwned).toHaveBeenNthCalledWith(
+      3,
+      mockTransactionsCollection,
+      "user-1",
+      { kind: "where", column: "deleted", value: false },
+      expect.objectContaining({ column: "date" }),
+      expect.objectContaining({ column: "date" }),
+      { kind: "sortBy", column: "date", value: "desc" }
+    );
+  });
+
+  it("filters display items by search query after enrichment", async () => {
+    const food = createTransaction({
+      id: "food",
+      amount: 100,
+      type: "EXPENSE",
+      date: new Date("2026-05-14T10:00:00.000Z"),
+      category: createCategory("Food"),
+    });
+    const rent = createTransaction({
+      id: "rent",
+      amount: 3000,
+      type: "EXPENSE",
+      date: new Date("2026-05-13T10:00:00.000Z"),
+      category: createCategory("Rent"),
+    });
+    mockQueryOwned
+      .mockReturnValueOnce(createQuery<Transaction>([]))
+      .mockReturnValueOnce(createQuery<Transaction>([food, rent]))
+      .mockReturnValueOnce(
+        createQuery<Account>([createAccount("a1", "Cash", "EGP")])
+      );
+
+    const model = await getTransactionListReadModel({
+      userId: "user-1",
+      period: "this_month",
+      selectedTypes: ["Expense"],
+      searchQuery: "rent",
+    });
+
+    expect(model.displayedItems.map((item) => item.id)).toEqual(["rent"]);
+  });
+
+  it("builds net-worth groups without mutating source display items", () => {
+    const expense = Object.assign(
+      Object.create(
+        createTransaction({
+          id: "expense",
+          amount: 100,
+          type: "EXPENSE",
+          date: new Date("2026-05-14T10:00:00.000Z"),
+        })
+      ),
+      {
+        _type: "transaction" as const,
+        accountName: "Cash",
+        categoryName: "Food",
+        categoryIconName: "restaurant",
+        categoryIconLibrary: "Ionicons",
+      }
+    ) as DisplayTransaction;
+    const income = Object.assign(
+      Object.create(
+        createTransaction({
+          id: "income",
+          amount: 300,
+          type: "INCOME",
+          date: new Date("2026-05-13T10:00:00.000Z"),
+        })
+      ),
+      {
+        _type: "transaction" as const,
+        accountName: "Cash",
+        categoryName: "Salary",
+        categoryIconName: "cash",
+        categoryIconLibrary: "Ionicons",
+      }
+    ) as DisplayTransaction;
+    const future = createTransaction({
+      id: "expense",
+      amount: 50,
+      type: "EXPENSE",
+      date: new Date("2026-06-01T10:00:00.000Z"),
+    });
+
+    const groups = buildTransactionGroups({
+      futureTransactions: [future],
+      displayedItems: [expense, income],
+      totalNetWorth: 1000,
+      preferredCurrency: "EGP",
+      latestRates: null,
+      period: "this_month",
+      searchQuery: "",
+    });
+
+    expect(
+      (expense as { displayNetWorth?: number }).displayNetWorth
+    ).toBeUndefined();
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({
+      title: "May 11 - May 17",
+      groupNetWorth: 1050,
+      groupTotalIncome: 300,
+      groupTotalExpense: 100,
+    });
+    expect(groups[0].transactions.map((item) => item.displayNetWorth)).toEqual([
+      1050, 1150,
+    ]);
+  });
+});
