@@ -26,7 +26,7 @@ jest.mock("@/services/supabase", () => ({
 
 // Mock global fetch for audio mode
 const mockFetch = jest.fn();
-global.fetch = mockFetch as unknown as typeof fetch;
+global.fetch = mockFetch;
 
 // Mock @monyvi/logic — keep real implementations except parseCategory/buildCategoryMap
 jest.mock("@monyvi/logic", () => {
@@ -369,10 +369,10 @@ describe("ai-voice-parser-service", () => {
       }
     });
 
-    it("should return 'network' error on Edge Function error", async () => {
+    it("should return a friendly 'network' error on Edge Function error", async () => {
       mockInvoke.mockResolvedValueOnce({
         data: null,
-        error: { message: "Function invocation failed" },
+        error: { message: "Failed to send a request to the Edge Function" },
       });
 
       const result = await parseVoiceWithAi(makeDefaultOptions());
@@ -380,7 +380,10 @@ describe("ai-voice-parser-service", () => {
       expect(isVoiceParserError(result)).toBe(true);
       if (isVoiceParserError(result)) {
         expect(result.kind).toBe("network");
-        expect(result.message).toBe("Function invocation failed");
+        expect(result.message).not.toContain("Edge Function");
+        expect(result.message).toBe(
+          "We couldn't reach voice analysis right now. Please check your connection and try again."
+        );
       }
     });
 

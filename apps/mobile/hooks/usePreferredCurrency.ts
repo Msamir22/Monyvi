@@ -9,7 +9,9 @@ import { Q } from "@nozbe/watermelondb";
 import { useEffect, useMemo, useState } from "react";
 import { useCurrentUser } from "./useCurrentUser";
 import { queryOwned } from "@/services/user-data-access";
+import { setPreferredCurrency as persistPreferredCurrency } from "@/services/profile-service";
 import { logger } from "@/utils/logger";
+import { redactIdentifierForLog } from "@/utils/logger-redaction";
 
 interface UsePreferredCurrencyResult {
   /** The user's preferred display currency */
@@ -64,7 +66,7 @@ export function usePreferredCurrency(): UsePreferredCurrencyResult {
         },
         error: (err: unknown) => {
           logger.error("preferredCurrency.profile.observe.failed", err, {
-            userId,
+            redactedUserId: redactIdentifierForLog(userId),
           });
           setIsLoading(false);
         },
@@ -92,11 +94,7 @@ export function usePreferredCurrency(): UsePreferredCurrencyResult {
   ): Promise<void> => {
     if (!profile) return;
     try {
-      await database.write(async () => {
-        await profile.update((p) => {
-          p.preferredCurrency = currency;
-        });
-      });
+      await persistPreferredCurrency(currency);
     } catch (error) {
       logger.error("preferredCurrency.save.failed", error);
       showToast({

@@ -2,6 +2,7 @@ import { palette } from "@/constants/colors";
 import { RecentTransactionsSkeleton } from "@/components/dashboard/skeletons/RecentTransactionsSkeleton";
 import { useCategoryLookup } from "@/context/CategoriesContext";
 import { getCategoryIconConfig } from "@/utils/category-icon-config";
+import { formatSignedTransactionAmount } from "@/utils/financial-display";
 import { formatTransactionDate } from "@/utils/transactions";
 import { Category, Transaction } from "@monyvi/db";
 import { router } from "expo-router";
@@ -80,7 +81,7 @@ function TransactionItem({
             isExpense ? "text-red-500" : "text-nileGreen-500"
           }`}
         >
-          {transaction.signedFormatedAmount}
+          {formatSignedTransactionAmount(transaction)}
         </Text>
       </TouchableOpacity>
 

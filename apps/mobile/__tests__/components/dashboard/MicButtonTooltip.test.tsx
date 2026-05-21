@@ -32,13 +32,14 @@ const RTR: ReactTestRendererModule = require("react-test-renderer");
 // Mocks
 // =============================================================================
 
-const mockMicRef: React.RefObject<View> = { current: null };
-const mockRefState: { current: React.RefObject<View> | null } = {
+const mockMicRef: React.RefObject<View | null> = { current: null };
+const mockRefState: { current: React.RefObject<View | null> | null } = {
   current: mockMicRef,
 };
 
 jest.mock("@/context/MicButtonRefContext", () => ({
-  useMicButtonRef: (): React.RefObject<View> | null => mockRefState.current,
+  useMicButtonRef: (): React.RefObject<View | null> | null =>
+    mockRefState.current,
 }));
 
 interface MockTooltipState {

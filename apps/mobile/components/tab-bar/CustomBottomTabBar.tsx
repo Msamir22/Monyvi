@@ -31,7 +31,7 @@ interface CustomBottomTabBarProps extends BottomTabBarProps {
   /** Whether voice recording is currently active. */
   readonly isRecording?: boolean;
   /** Optional ref to the mic button View for tooltip anchoring. */
-  readonly micButtonRef?: React.RefObject<View>;
+  readonly micButtonRef?: React.RefObject<View | null>;
 }
 
 /**

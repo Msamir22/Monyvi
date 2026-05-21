@@ -83,7 +83,7 @@ class SmsEventModule(reactContext: ReactApplicationContext) :
                 .getBoolean(requestedPreferenceKey(permission), false)
             val canShowNativePrompt =
                 !wasRequested ||
-                    currentActivity?.shouldShowRequestPermissionRationale(permission) == true
+                    getCurrentActivity()?.shouldShowRequestPermissionRationale(permission) == true
 
             promise.resolve(if (canShowNativePrompt) "requestable" else "blocked")
         } catch (error: Exception) {
@@ -218,9 +218,68 @@ class SmsEventPackage : ReactPackage {
  * 1. Emit via SmsEventModule (DeviceEventEmitter) when app is foregrounded
  * 2. Use HeadlessJS via SmsHeadlessTaskService when app is backgrounded/killed
  */
+const APP_FOREGROUND_TRACKER_KT = `package {{PACKAGE_NAME}}
+
+import android.app.Activity
+import android.app.Application
+import android.os.Bundle
+import java.util.concurrent.atomic.AtomicInteger
+
+/**
+ * Tracks whether at least one app Activity is visible to the user.
+ *
+ * BroadcastReceiver foreground checks via ActivityManager are unreliable under
+ * React Native New Architecture/dev-client because HeadlessJS can briefly alter
+ * process importance while the Activity is still focused.
+ */
+object MonyviAppForegroundTracker : Application.ActivityLifecycleCallbacks {
+    private val startedActivityCount = AtomicInteger(0)
+
+    @Volatile
+    private var isRegistered = false
+
+    @Volatile
+    var isForeground: Boolean = false
+        private set
+
+    fun register(application: Application) {
+        if (isRegistered) {
+            return
+        }
+
+        synchronized(this) {
+            if (isRegistered) {
+                return
+            }
+
+            application.registerActivityLifecycleCallbacks(this)
+            isRegistered = true
+        }
+    }
+
+    override fun onActivityStarted(activity: Activity) {
+        startedActivityCount.incrementAndGet()
+        isForeground = true
+    }
+
+    override fun onActivityStopped(activity: Activity) {
+        val remaining = startedActivityCount.decrementAndGet()
+        if (remaining <= 0) {
+            startedActivityCount.set(0)
+            isForeground = false
+        }
+    }
+
+    override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
+    override fun onActivityResumed(activity: Activity) = Unit
+    override fun onActivityPaused(activity: Activity) = Unit
+    override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
+    override fun onActivityDestroyed(activity: Activity) = Unit
+}
+`;
+
 const BROADCAST_RECEIVER_KT = `package {{PACKAGE_NAME}}
 
-import android.app.ActivityManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -263,7 +322,7 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
 
         Log.d(TAG, "SMS received")
 
-        if (isAppInForeground(context)) {
+        if (MonyviAppForegroundTracker.isForeground) {
             val emitted = SmsEventModule.emitSmsReceived(sender, body, timestamp.toDouble())
             if (emitted) {
                 Log.d(TAG, "SMS forwarded via DeviceEventEmitter")
@@ -271,19 +330,8 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
             }
         }
 
-        Log.d(TAG, "App not foreground, starting HeadlessJS task")
+        Log.d(TAG, "No foreground JS listener, starting HeadlessJS task")
         startHeadlessTask(context, sender, body, timestamp)
-    }
-
-    private fun isAppInForeground(context: Context): Boolean {
-        val activityManager =
-            context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
-                ?: return false
-
-        return activityManager.runningAppProcesses?.any { processInfo ->
-            processInfo.processName == context.packageName &&
-                processInfo.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
-        } == true
     }
 
     private fun startHeadlessTask(
@@ -391,6 +439,10 @@ function withKotlinSourceFiles(config) {
       const kotlinFiles = [
         { name: "SmsBroadcastReceiver.kt", content: BROADCAST_RECEIVER_KT },
         {
+          name: "MonyviAppForegroundTracker.kt",
+          content: APP_FOREGROUND_TRACKER_KT,
+        },
+        {
           name: "SmsHeadlessTaskService.kt",
           content: HEADLESS_TASK_SERVICE_KT,
         },
@@ -440,24 +492,22 @@ function withSmsEventPackageRegistration(config) {
       );
 
       if (!fs.existsSync(mainApplicationPath)) {
-        console.warn(
-          "[withSmsBroadcastReceiver] MainApplication.kt not found, skipping package registration"
+        throw new Error(
+          `[withSmsBroadcastReceiver] MainApplication.kt not found at ${mainApplicationPath}`
         );
-        return modConfig;
       }
 
       let content = fs.readFileSync(mainApplicationPath, "utf-8");
-
-      // Check if already registered
-      if (content.includes("SmsEventPackage")) {
-        return modConfig;
-      }
 
       // Detect the line ending used in the file
       const eol = content.includes("\r\n") ? "\r\n" : "\n";
 
       // Find the getPackages() method and add SmsEventPackage to the list.
       // CRLF-tolerant patterns: use \r?\n to match either LF or CRLF.
+
+      // Expo SDK 55+ style: PackageList(this).packages.apply { ... }
+      const reactHostApplyPattern =
+        /(PackageList\(this\)\.packages\.apply\s*\{\r?\n)/;
 
       // Expo SDK 52+ style: val packages = PackageList(this).packages
       const newStylePattern =
@@ -467,27 +517,56 @@ function withSmsEventPackageRegistration(config) {
       const oldStylePattern =
         /override fun getPackages\(\): List<ReactPackage>\s*\{[\s\S]*?return PackageList\(this\)\.packages/;
 
-      if (newStylePattern.test(content)) {
+      if (
+        !content.includes("SmsEventPackage") &&
+        reactHostApplyPattern.test(content)
+      ) {
+        content = content.replace(
+          reactHostApplyPattern,
+          (match) =>
+            `${match}          add(${packageName}.SmsEventPackage())${eol}`
+        );
+      } else if (
+        !content.includes("SmsEventPackage") &&
+        newStylePattern.test(content)
+      ) {
         // Expo SDK 52+ style: insert add() after the val declaration
         content = content.replace(
           newStylePattern,
           (match) =>
             `${match}            packages.add(${packageName}.SmsEventPackage())${eol}`
         );
-        fs.writeFileSync(mainApplicationPath, content, "utf-8");
-      } else if (oldStylePattern.test(content)) {
+      } else if (
+        !content.includes("SmsEventPackage") &&
+        oldStylePattern.test(content)
+      ) {
         // Older Expo style: inline return
         content = content.replace(
           oldStylePattern,
           (match) =>
             `${match}.apply {${eol}              add(${packageName}.SmsEventPackage())${eol}            }`
         );
-        fs.writeFileSync(mainApplicationPath, content, "utf-8");
-      } else {
-        console.warn(
+      } else if (!content.includes("SmsEventPackage")) {
+        throw new Error(
           "[withSmsBroadcastReceiver] Could not find PackageList pattern in MainApplication.kt"
         );
       }
+
+      if (!content.includes("MonyviAppForegroundTracker.register(this)")) {
+        const onCreatePattern = /(\s+super\.onCreate\(\)\r?\n)/;
+        if (!onCreatePattern.test(content)) {
+          throw new Error(
+            "[withSmsBroadcastReceiver] Could not inject MonyviAppForegroundTracker.register(this) into MainApplication.kt"
+          );
+        }
+        content = content.replace(
+          onCreatePattern,
+          (match) =>
+            `${match}    ${packageName}.MonyviAppForegroundTracker.register(this)${eol}`
+        );
+      }
+
+      fs.writeFileSync(mainApplicationPath, content, "utf-8");
 
       return modConfig;
     },

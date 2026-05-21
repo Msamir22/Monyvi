@@ -9,10 +9,15 @@ export interface E2eSeedConfig {
   readonly userId?: string;
 }
 
+export interface E2eSeedConfigOptions {
+  readonly readLocalSupabaseStatusEnv?: () => string;
+}
+
 export const E2E_TABLE_DELETE_ORDER: readonly string[];
 
 export function getE2eSeedConfig(
-  env?: Record<string, string | undefined>
+  env?: Record<string, string | undefined>,
+  options?: E2eSeedConfigOptions
 ): E2eSeedConfig;
 
 export function seedE2eData(

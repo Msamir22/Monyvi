@@ -1,6 +1,6 @@
 <!--
 Sync Impact Report
-- Version change: 0.0.0 → 1.0.0 → 1.1.0 → 1.2.0 → 1.3.0 → 1.4.0
+- Version change: 0.0.0 → 1.0.0 → 1.1.0 → 1.2.0 → 1.3.0 → 1.4.0 → 1.5.0
 - Added principles:
   - I. Offline-First Data Architecture (NEW in 1.0.0, AMENDED in 1.2.0)
   - II. Documented Business Logic (NEW in 1.0.0)
@@ -27,6 +27,14 @@ Sync Impact Report
     violations so they are not treated as precedent.
   - Development Workflow: Added documentation freshness and implementation-debt
     disclosure rules.
+- Amendments in 1.5.0:
+  - Principle IV: Clarified command services, read-model services, hook facades,
+    route/container components, and presentational components.
+  - Principle VI: Clarified that DB models must not own presentation formatting,
+    parsed helper state, app workflows, or shared calculations.
+  - Development Workflow: Clarified that guardrails should push developers
+    toward approved scoped helpers, command services, read models, or established
+    repositories.
 - Added sections:
   - Technology Constraints (NEW)
   - Development Workflow (NEW)
@@ -36,8 +44,8 @@ Sync Impact Report
   - spec-template.md ✅ — User Scenarios and Requirements sections compatible
   - tasks-template.md ✅ — Phase structure and path conventions compatible
 - Follow-up TODOs:
-  - TODO(PACKAGE_BOUNDARY_REPAIR): remove existing reverse imports from
-    packages/db into apps/mobile or @monyvi/logic.
+  - TODO(PACKAGE_BOUNDARY_REPAIR): remove remaining allowlisted package-boundary
+    debt tracked by the architecture audit issues.
   - TODO(UI_DEBT_AUDIT): replace remaining content-loading ActivityIndicator
     usage, raw console calls, and unjustified raw hex/style exceptions.
 -->
@@ -104,19 +112,29 @@ exceptions.
 Business logic MUST be separated from UI and React lifecycle concerns.
 
 - **`packages/logic/`**: Shared calculations and parsers used by both mobile and
-  API (e.g., net worth calculations, voice parser, currency utils). Packages
-  MUST NOT import from `apps/`.
-- **`apps/mobile/services/`**: Mobile-specific service functions that interact
-  with WatermelonDB (e.g., `transaction-service.ts`, `account-service.ts`).
+  API (e.g., net worth calculations, voice parser, currency utils). Logic
+  functions operate on plain interfaces and MUST NOT import from `apps/`.
+- **`apps/mobile/services/` command services**: Mobile-specific command
+  functions that interact with WatermelonDB writes, platform APIs, sync, auth,
+  or external clients (e.g., `transaction-service.ts`, `account-service.ts`).
   These are plain async functions, not hooks.
+- **`apps/mobile/services/` read-model services**: Scoped local queries, joins,
+  grouping, and display/read aggregation that should be testable outside React.
+  Read-model services own multi-table WatermelonDB query construction and
+  screen-specific read shaping.
 - **Hooks (`apps/mobile/hooks/`)**: React hooks handle **lifecycle and
   subscriptions only** — observing data, managing local UI state, triggering
-  re-renders. Hooks MUST NOT contain database write logic or business
+  re-renders, cancellation, refetch, and service invocation. Hooks MUST NOT
+  contain database write logic, raw multi-table query construction, or business
   calculations.
-- **Components**: Zero business logic. Components receive data via props or
-  hooks and render UI. Components MUST NOT import the raw `database` object or
-  construct WatermelonDB queries/subscriptions directly. Move all calculations
-  to the service or logic layer.
+- **Route/container components**: May connect hooks/facades to UI and may call
+  command services for simple user actions or explicit lifecycle orchestration.
+  If loading/error/cancellation state, subscriptions, or reuse are needed, wrap
+  the service call in a hook. Components MUST NOT import the raw `database`
+  object or construct WatermelonDB queries/subscriptions directly.
+- **Presentational components**: Zero business logic. Receive already-shaped
+  data via props and render UI. They MUST NOT import services, query helpers, or
+  business logic.
 - The `Alert.alert()` pattern and all UI-specific concerns MUST stay in the
   calling component or hook, never in the service layer.
 
@@ -152,19 +170,24 @@ The Monyvi monorepo uses npm workspaces + Nx with strict dependency direction.
 
 - **`packages/db` (`@monyvi/db`)**: WatermelonDB models, schema definitions,
   type exports, and sync configuration. MUST NOT import from `apps/` or other
-  packages.
+  packages. DB models own persisted fields, relationships, and DB-local
+  convenience only. They MUST NOT own presentation formatting, parsed helper
+  state, app workflows, or shared calculations.
 - **`packages/logic` (`@monyvi/logic`)**: Shared business logic (asset
-  calculations, voice parser, notification parser, currency utils). May import
-  from `@monyvi/db` for types only. MUST NOT import from `apps/`.
+  calculations, voice parser, notification parser, currency utils). Logic owns
+  pure calculations, parsers, and formatters over plain interfaces. Runtime
+  imports from `@monyvi/db` are forbidden; type-only imports are allowed only
+  when unavoidable. MUST NOT import from `apps/`.
 - **`apps/mobile`**: The React Native Expo app. May import from any package.
 
 - Dependency direction: `apps/ → packages/logic → packages/db`. Never reverse.
 - Prefer named exports over default exports for better refactoring tooling.
 - Each package MUST have its own `tsconfig.json` extending the root config.
 - Existing reverse imports from `packages/db` into `apps/mobile` or
-  `@monyvi/logic` are documented architecture debt, not accepted precedent. New
-  work MUST NOT add more reverse dependencies. When touching affected model
-  getters, prefer moving presentation formatting and app-specific helpers out of
+  `@monyvi/logic`, and runtime imports from `packages/logic` into `@monyvi/db`,
+  are documented architecture debt, not accepted precedent. New work MUST NOT
+  add more reverse dependencies. When touching affected model getters, move
+  presentation formatting, parsed helper state, and app-specific helpers out of
   `packages/db`.
 
 ### VII. Local-First Migrations
@@ -280,9 +303,10 @@ account's private data.
   raw console calls), document or reduce the violation when touching that area.
   Do not copy the pattern into new code.
 - **Static-analysis guardrails**: Custom ESLint or static-analysis rules MUST
-  push developers toward approved scoped helper APIs and repositories. Wire
-  every lint entry point consistently, including package scripts, Nx targets,
-  lint-staged, IDE settings, CI, and scripts that invoke ESLint directly.
+  push developers toward approved scoped helper APIs, command services,
+  read-model services, or established repositories. Wire every lint entry point
+  consistently, including package scripts, Nx targets, lint-staged, IDE
+  settings, CI, and scripts that invoke ESLint directly.
 
 ### Naming Conventions
 
@@ -333,4 +357,4 @@ account's private data.
   `/speckit.plan`, `/speckit.tasks`, `/speckit.implement`) MUST reference this
   constitution and verify compliance before producing output.
 
-**Version**: 1.4.0 | **Ratified**: 2026-02-14 | **Last Amended**: 2026-05-10
+**Version**: 1.5.0 | **Ratified**: 2026-02-14 | **Last Amended**: 2026-05-21

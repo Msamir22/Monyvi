@@ -3,34 +3,182 @@
 End-to-end tests for the Monyvi mobile app using
 [Maestro](https://maestro.mobile.dev/).
 
-## Quick Start
+## What Runs Locally
+
+The local E2E environment uses:
+
+- local Supabase for auth, database, and Edge Function URLs
+- an Android emulator with a Monyvi development build installed
+- Metro running in E2E fixture mode
+- deterministic seeded data and fixture SMS parsing
+- Maestro for driving the app UI
+
+Run commands from the repository root. Commands that call mobile package scripts
+directly use `-w @monyvi/mobile`.
+
+## Prerequisites
+
+- Docker Desktop running
+- Android emulator running and visible to `adb devices`
+- a Monyvi development build installed on the emulator; Expo Go is not enough
+- Maestro installed, or `MAESTRO_BIN` set to the Maestro executable
+- root dependencies installed with `npm install`
+
+The local runner derives safe local Supabase keys automatically from
+`npx supabase status`, so normal local runs should not require hand-written
+Supabase keys.
+
+## Start The Local E2E Environment
 
 ```powershell
 # 1. Start local Supabase from the repo root
-npx supabase start
+npm run supabase:start:local
 
-# 2. Export local E2E credentials (same terminal/session)
-$env:E2E_LOCAL_JWT_SECRET="<JWT_SECRET from: npx supabase status -o env>"
-$env:MAESTRO_E2E_EMAIL="e2e@monyvi.test"
-$env:MAESTRO_E2E_PASSWORD="<local test password>"
+# 2. Start the emulator if it is not already running
+adb devices
 
-# 3. Start emulator + Metro in E2E fixture mode (separate terminal)
-$env:EXPO_PUBLIC_MONYVI_TEST_MODE="e2e"
-$env:EXPO_PUBLIC_AI_SMS_PARSER_MODE="fixture"
-$env:EXPO_PUBLIC_SUPABASE_URL="http://10.0.2.2:54321"
-npm run start:android
-
-# 4. Seed deterministic E2E data, then run a test through the wrapper
-npm run e2e:seed -w @monyvi/mobile
-npm run e2e:flow -w @monyvi/mobile -- e2e/maestro/transactions/create-transaction.yaml
+# 3. Start Metro in E2E fixture mode (separate terminal)
+npm run mobile:e2e-fixture
 ```
 
-The project wrapper runs an Android preflight before each `maestro test`: it
-checks Metro, reverses port `8081`, opens the Monyvi dev client, and waits until
-the app reaches a recognized screen.
+`mobile:e2e-fixture` points Android at local Supabase and enables deterministic
+fixture parsing for SMS/AI flows. Keep that terminal open while tests run.
 
-> **First time?** See the full setup in
-> [/.agent/workflows/maestro.md](/.agent/workflows/maestro.md)
+## Run All E2E Suites
+
+```powershell
+npm run e2e:local -w @monyvi/mobile
+```
+
+This runs the same local CI-style path as `scripts/run-ci-e2e.js`:
+
+1. seed local E2E data
+2. bootstrap the authenticated test user in the app
+3. run transaction flows
+4. run SMS sync flows
+5. run live SMS journeys `01` through `14` plus `16`
+
+Journey `15` is excluded from the default local/dev-client run because it covers
+killed-app HeadlessJS and needs a release or preview APK with embedded JS.
+
+## Run A Specific Suite
+
+Use `E2E_CI_SUITES` to select one or more CI-style suites.
+
+```powershell
+# Bash/Git Bash
+E2E_CI_SUITES=transactions npm run e2e:local -w @monyvi/mobile
+E2E_CI_SUITES=sms-sync npm run e2e:local -w @monyvi/mobile
+E2E_CI_SUITES=live-sms npm run e2e:local -w @monyvi/mobile
+E2E_CI_SUITES=transactions,sms-sync npm run e2e:local -w @monyvi/mobile
+```
+
+PowerShell:
+
+```powershell
+$env:E2E_CI_SUITES = "live-sms"
+npm run e2e:local -w @monyvi/mobile
+Remove-Item Env:E2E_CI_SUITES
+```
+
+Valid suite names:
+
+| Suite          | What it runs                                                        |
+| -------------- | ------------------------------------------------------------------- |
+| `transactions` | Create, edit, quick-edit, swap account, change type, search, delete |
+| `sms-sync`     | SMS sync permission flow plus fixture batch scan/rescan journeys    |
+| `live-sms`     | Live SMS enable/permission/background/action journeys               |
+
+Use `E2E_CI_SUITES=skip` to verify the runner wiring without launching any
+Maestro flows.
+
+## Run One Maestro Flow
+
+Use this when you are debugging a single YAML flow.
+
+```powershell
+npm run e2e:flow:local -w @monyvi/mobile -- e2e/maestro/transactions/create-transaction.yaml
+```
+
+The `e2e:flow:local` wrapper runs Android preflight before Maestro starts: it
+checks Metro, reverses port `8081`, opens or recovers the Monyvi dev client, and
+waits until the app reaches a recognized loaded screen. Maestro YAML flows
+should not launch the app themselves; they should take over only after preflight
+has opened a ready app screen.
+
+## Run Focused SMS Suites
+
+SMS sync:
+
+```powershell
+npm run e2e:sms-sync:local -w @monyvi/mobile
+```
+
+Live SMS, all default dev-client journeys:
+
+```powershell
+npm run e2e:live-sms:local -w @monyvi/mobile
+```
+
+Live SMS, specific journeys:
+
+```powershell
+npm run e2e:live-sms:local -w @monyvi/mobile -- 16
+npm run e2e:live-sms:local -w @monyvi/mobile -- 09 10
+```
+
+Release-only killed-app journey:
+
+```powershell
+npm run e2e:live-sms:release -w @monyvi/mobile
+```
+
+Use the release runner only after installing a release or preview APK. Journey
+`15` validates killed-app HeadlessJS and should not be trusted from a dev-client
+Metro-only run.
+
+## Auth Bootstrap Only
+
+To verify the local seeded auth path only:
+
+```powershell
+npm run e2e:auth:local -w @monyvi/mobile
+```
+
+That command clears app state, seeds the local E2E user, opens the dev client
+through the preflight wrapper, signs in, and handles first-run prompts.
+
+## Target A Specific Emulator Or Device
+
+```powershell
+$env:DEVICE = "emulator-5554"
+npm run e2e:device -w @monyvi/mobile -- e2e/maestro/transactions/create-transaction.yaml
+Remove-Item Env:DEVICE
+```
+
+Equivalent explicit flag:
+
+```powershell
+npm run e2e:device -w @monyvi/mobile -- --device emulator-5554 e2e/maestro/transactions/create-transaction.yaml
+```
+
+## Manual Seed And Flow Loop
+
+If you want to control seeding manually:
+
+```powershell
+# Seed deterministic E2E data
+npm run e2e:seed -w @monyvi/mobile
+
+# Run a test through the wrapper
+npm run e2e:flow:local -w @monyvi/mobile -- e2e/maestro/transactions/create-transaction.yaml
+```
+
+To reset seeded local data:
+
+```powershell
+npm run e2e:reset -w @monyvi/mobile
+```
 
 ## CI
 
@@ -59,36 +207,36 @@ credentials.
 | `EXPO_PUBLIC_AI_SMS_PARSER_MODE` | Set to `fixture` to avoid live AI parsing in E2E   |
 | `MAESTRO_E2E_EMAIL`              | Seeded E2E test account email                      |
 | `MAESTRO_E2E_PASSWORD`           | Seeded E2E test account password                   |
-| `E2E_LOCAL_JWT_SECRET`           | Local Supabase JWT secret for generated local keys |
+| `E2E_LOCAL_JWT_SECRET`           | Optional fallback for generated local keys         |
 | `SUPABASE_SERVICE_ROLE_KEY`      | Seed/reset access; local mode has a safe local key |
 
-By default the CI suite runs live SMS journeys `01` through `14`. Journey `15`
-needs a release/preview APK with an embedded JS bundle, so keep it in the
-release-specific path until that build is reliable in CI. Override the set with
-`E2E_CI_LIVE_SMS_JOURNEYS=01,02,...` when debugging a smaller slice.
+By default the CI suite runs live SMS journeys `01` through `14` plus `16`.
+Journey `15` needs a release/preview APK with an embedded JS bundle, so keep it
+in the release-specific path until that build is reliable in CI. Override the
+set with `E2E_CI_LIVE_SMS_JOURNEYS=01,02,...` when debugging a smaller slice.
 
 ## Test Layout
 
 | Folder                | Purpose                                     |
 | --------------------- | ------------------------------------------- |
-| `helpers/`            | Shared setup and deep-link helper flows     |
+| `helpers/`            | Shared setup and visible navigation helpers |
 | `transactions/`       | Transaction create/edit/delete/search flows |
 | `sms-sync/`           | SMS sync permission and recovery flows      |
 | `live-sms-detection/` | Live SMS detection journeys and helpers     |
 
 ## Transaction Flows
 
-| Flow                                    | Description                              | Preconditions            |
-| --------------------------------------- | ---------------------------------------- | ------------------------ |
-| `helpers/setup.yaml`                    | Shared: launches app -> Transactions tab | -                        |
-| `transactions/create-transaction.yaml`  | Create expense via FAB                   | Account exists           |
-| `transactions/edit-transaction.yaml`    | Edit transaction amount                  | Transaction exists       |
-| `transactions/edit-category-quick.yaml` | Quick-edit category from card            | Transaction exists       |
-| `transactions/edit-amount-quick.yaml`   | Quick-edit amount from card              | Transaction exists       |
-| `transactions/swap-account.yaml`        | Change account on edit screen            | 2+ accounts, transaction |
-| `transactions/change-type.yaml`         | Change type Expense -> Income            | Expense exists           |
-| `transactions/delete-transaction.yaml`  | Delete with confirmation                 | Transaction exists       |
-| `transactions/search-filter.yaml`       | Search + type filter                     | Multiple transactions    |
+| Flow                                    | Description                           | Preconditions            |
+| --------------------------------------- | ------------------------------------- | ------------------------ |
+| `helpers/setup.yaml`                    | Shared: ready app -> Transactions tab | -                        |
+| `transactions/create-transaction.yaml`  | Create expense via FAB                | Account exists           |
+| `transactions/edit-transaction.yaml`    | Edit transaction amount               | Transaction exists       |
+| `transactions/edit-category-quick.yaml` | Quick-edit category from card         | Transaction exists       |
+| `transactions/edit-amount-quick.yaml`   | Quick-edit amount from card           | Transaction exists       |
+| `transactions/swap-account.yaml`        | Change account on edit screen         | 2+ accounts, transaction |
+| `transactions/change-type.yaml`         | Change type Expense -> Income         | Expense exists           |
+| `transactions/delete-transaction.yaml`  | Delete with confirmation              | Transaction exists       |
+| `transactions/search-filter.yaml`       | Search + type filter                  | Multiple transactions    |
 
 ## testID Reference
 
@@ -113,14 +261,17 @@ release-specific path until that build is reliable in CI. Override the set with
 
 | Flow                                                                             | Description                                                       | Preconditions                |
 | -------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ---------------------------- |
-| `helpers/open-settings.yaml`                                                     | Shared helper: opens Settings via deep link                       | Authenticated/onboarded user |
+| `helpers/open-settings.yaml`                                                     | Shared helper: opens Settings from the loaded app shell           | Authenticated/onboarded user |
 | `sms-sync/sms-sync-permission-requestable.yaml`                                  | SMS sync custom permission modal before the OS prompt             | Authenticated/onboarded user |
+| `sms-sync/sms-sync-batch-duplicates-atm.yaml`                                    | Batch scan saves repeated identical SMS and an ATM withdrawal     | E2E fixture inbox            |
+| `sms-sync/sms-sync-rescan-skips-saved.yaml`                                      | Batch rescan skips saved SMS fingerprints                         | Previous SMS sync journey    |
 | `live-sms-detection/live-sms-detection-sms-permission-requestable.yaml`          | Live SMS custom SMS permission modal                              | Authenticated/onboarded user |
 | `live-sms-detection/live-sms-detection-notification-permission-requestable.yaml` | Live SMS notification permission modal                            | Authenticated/onboarded user |
 | `live-sms-detection/live-sms-detection-enable-disable.yaml`                      | Enable/disable live SMS when permissions are granted              | Authenticated/onboarded user |
 | `live-sms-detection/live-sms-detection-auto-disable-revoked-notifications.yaml`  | Auto-disable live SMS after notification permission is revoked    | Authenticated/onboarded user |
 | `live-sms-detection/live-sms-journey-14-background-confirm-real-sms.yaml`        | Real SMS while app is backgrounded, Confirm notification action   | Authenticated/onboarded user |
 | `live-sms-detection/live-sms-journey-15-killed-app-confirm-real-sms.yaml`        | Real SMS after app process is killed, Confirm notification action | Authenticated/onboarded user |
+| `live-sms-detection/live-sms-journey-16-foreground-real-sms.yaml`                | Real SMS while the app is foregrounded                            | Authenticated/onboarded user |
 
 Additional live SMS testIDs:
 

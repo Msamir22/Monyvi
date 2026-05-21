@@ -57,6 +57,7 @@
           "color": "#0F172A"
         }
       ],
+      ["expo-dev-client", { "toolsButton": false }],
       "./plugins/withSmsBroadcastReceiver",
       "./plugins/withDisableBackup",
       [
@@ -66,12 +67,10 @@
           "project": "react-native",
           "organization": "mohamed-samir-de"
         }
-      ],
-      "./plugins/withSentryGradleAndroidExtension"
+      ]
     ],
     "experiments": {
       "typedRoutes": true
-    },
-    "newArchEnabled": true
+    }
   }
 }

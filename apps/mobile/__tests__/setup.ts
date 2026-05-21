@@ -95,6 +95,43 @@ jest.mock("@sentry/react-native", () => ({
   ),
 }));
 
+// Reanimated 4 uses the separate react-native-worklets package. In Jest there
+// is no native Worklets runtime, so load both official mocks before animated
+// components are imported by tests.
+jest.mock("react-native-worklets", () =>
+  jest.requireActual<Record<string, unknown>>(
+    "react-native-worklets/lib/module/mock"
+  )
+);
+jest.mock("react-native-reanimated", () =>
+  jest.requireActual<Record<string, unknown>>("react-native-reanimated/mock")
+);
+
+// React 19 schedules react-test-renderer mounts asynchronously unless they are
+// wrapped in act(). Existing tests use a small project-local RTR pattern, so
+// keep that pattern working by wrapping create() at the test boundary.
+jest.mock("react-test-renderer", () => {
+  const actual = jest.requireActual("react-test-renderer") as unknown as {
+    readonly act: (callback: () => void) => void;
+    readonly create: (...args: readonly unknown[]) => unknown;
+  };
+  const originalCreate = actual.create;
+
+  return {
+    ...actual,
+    create: (...args: readonly unknown[]): unknown => {
+      let renderer: unknown;
+      actual.act(() => {
+        renderer = originalCreate(...args);
+      });
+      if (!renderer) {
+        throw new Error("react-test-renderer create() did not return renderer");
+      }
+      return renderer;
+    },
+  };
+});
+
 // Mock @expo/vector-icons — module-level load checks expo-font's
 // loadedNativeFonts which is not initialized under the jest-expo preset.
 // Tests that render components using these icons would otherwise crash
@@ -114,11 +151,19 @@ jest.mock("@expo/vector-icons", () => {
 // stick, so we mock the underlying module directly. We cannot `jest.mock`
 // the whole "react-native" module (breaks jest-expo's component mocks which
 // read `displayName` on every exported component during setup).
-jest.mock("react-native/Libraries/AppState/AppState", () => ({
-  currentState: "active",
-  addEventListener: jest.fn(() => ({ remove: jest.fn() })),
-  removeEventListener: jest.fn(),
-}));
+jest.mock("react-native/Libraries/AppState/AppState", () => {
+  const appState = {
+    currentState: "active",
+    addEventListener: jest.fn(() => ({ remove: jest.fn() })),
+    removeEventListener: jest.fn(),
+  };
+
+  return {
+    __esModule: true,
+    default: appState,
+    ...appState,
+  };
+});
 
 // Ditto — the individual icon-family entrypoints used directly by some files.
 jest.mock("@expo/vector-icons/Ionicons", () => {

@@ -28,7 +28,8 @@ with Angular equivalents in chat (never in code comments).
 - Prioritize composition over inheritance, use dependency injection.
 - Use appropriate GoF design patterns (Strategy, Factory, Observer, Repository,
   Adapter).
-- Encapsulate data access behind Repository pattern with standard operations.
+- Encapsulate data access behind approved scoped helper APIs, read-model
+  services, command services, or repositories where that pattern already exists.
 - Use consistent API response envelope: success indicator, data payload, error
   message, pagination metadata.
 - No "quick and dirty" fixes unless explicitly asked. No magic numbers or
@@ -37,12 +38,44 @@ with Angular equivalents in chat (never in code comments).
 - Reference `docs/business/business-decisions.md` before implementing any
   business logic. No assumptions — ask if a rule is ambiguous or missing.
 
+## Architecture Hard Rules
+
+- DB models own persisted fields, relationships, and DB-local convenience only.
+  They MUST NOT own presentation formatting, parsed helper state, app workflows,
+  or shared calculations.
+- `packages/logic` owns pure shared calculations, parsers, and formatters over
+  plain interfaces. Runtime imports from `@monyvi/db` are forbidden; type-only
+  imports are allowed only when unavoidable.
+- `apps/mobile/services` owns WatermelonDB writes, scoped read queries,
+  read-model aggregation, sync, platform adapters, and workflow command
+  services.
+- Hooks are React facades: subscriptions, loading/error/cancellation state, and
+  service invocation. Hooks MUST NOT own DB writes, raw multi-table query
+  construction, or business calculations.
+- Route/container components may invoke command services only for simple user
+  actions or explicit lifecycle orchestration. If loading/error/cancellation
+  state, subscriptions, or reuse are needed, wrap the service call in a hook.
+- Presentational components MUST NOT import services, `database`, query helpers,
+  or business logic. They render shaped props and callbacks only.
+- Known architecture debt and ESLint allowlists are exceptions to remove, not
+  examples to copy.
+
+| Need                                                           | Put It In                                     |
+| -------------------------------------------------------------- | --------------------------------------------- |
+| Shared pure formatter/calculation/parser                       | `packages/logic`                              |
+| WatermelonDB write or platform workflow command                | `apps/mobile/services/*-service.ts`           |
+| Scoped query, join, grouping, or screen read model             | `apps/mobile/services/*read-model-service.ts` |
+| React subscription, loading/error state, cancellation, refetch | `apps/mobile/hooks`                           |
+| Navigation, UI feedback, route composition                     | route/container component or hook             |
+| Rendering already-shaped props                                 | presentational component                      |
+
 ## Monorepo Package Boundaries
 
 Dependency direction: `apps/ → packages/logic → packages/db`. **Never reverse.**
 
 - **`packages/db` (`@monyvi/db`)**: WatermelonDB models, schema, types, sync
-  config. MUST NOT import from `apps/` or other packages.
+  config. MUST NOT import from `apps/` or other packages. Models MUST NOT own
+  presentation formatting or parsed helper state.
 - **`packages/logic` (`@monyvi/logic`)**: Shared calculations and parsers (net
   worth, voice parser, currency utils). May import from `@monyvi/db` for types
   only. MUST NOT import from `apps/`.
@@ -52,25 +85,32 @@ Dependency direction: `apps/ → packages/logic → packages/db`. **Never revers
 
 - **`packages/logic/`**: Shared calculations used by both mobile and API. MUST
   NOT import from `apps/`.
-- **`apps/mobile/services/`**: Mobile-specific service functions that interact
-  with WatermelonDB (e.g., `transaction-service.ts`). Plain async functions, NOT
+- **`apps/mobile/services/` command services**: Mobile-specific service
+  functions that interact with WatermelonDB, platform APIs, sync, auth, or
+  external clients (e.g., `transaction-service.ts`). Plain async functions, NOT
   hooks.
+- **`apps/mobile/services/` read-model services**: Scoped local queries, joins,
+  grouping, and display/read aggregation that should be testable outside React.
 - **Orchestrator/handler services** (e.g., live SMS handlers, notification
   action handlers) coordinate workflow only. They SHOULD NOT own raw
   WatermelonDB query details; delegate persistence and lookup logic to focused
   domain services or repositories so the handler remains easy to reason about
   and mock.
 - **Hooks (`apps/mobile/hooks/`)**: Lifecycle and subscriptions ONLY — observing
-  data, managing local UI state, triggering re-renders. MUST NOT contain
-  database write logic or business calculations.
+  data, managing local UI state, triggering re-renders, and invoking services.
+  MUST NOT contain database write logic or business calculations.
 - Design hooks around UI data/lifecycle needs, not one hook per database
   function. Prefer cohesive hooks such as `useBudgets()` for list state,
   `useBudget(budgetId)` for detail state, and optional action hooks only when
   reusable UI command state is needed. Avoid god hooks that bundle unrelated
   queries, mutations, validation, calculations, and sync orchestration.
-- **Components**: Zero business logic. Receive data via props or hooks and
-  render UI. `Alert.alert()` and UI concerns stay in calling component/hook,
-  never in services.
+- **Route/container components**: May connect hooks/facades to UI and may call
+  command services for simple user actions or explicit lifecycle orchestration.
+  They MUST NOT construct WatermelonDB queries, subscribe directly to models, or
+  shape business read models.
+- **Presentational components**: Zero business logic. Receive already-shaped
+  data via props and render UI. `Alert.alert()` and UI concerns stay in calling
+  component/hook, never in services.
 
 ## Authenticated Runtime & User-Scoped Data
 
@@ -301,6 +341,34 @@ All schema changes MUST go through local SQL migration files in
 
 Commit format: `<type>: <description>` — Types: feat, fix, refactor, docs, test,
 chore, perf, ci.
+
+## Pull Request Review Comments
+
+- Before addressing a PR review comment, verify it against the current branch
+  and current code. Treat outdated, already-resolved, duplicated, or no-longer
+  applicable comments as non-actionable, and state why instead of changing code.
+- Classify each still-valid comment before fixing it. Technical correctness,
+  type-safety, test stability, CI reliability, and code-style comments may be
+  fixed directly when the change is minimal and clearly within the PR scope.
+- Do not implement review comments that require a product/business decision
+  without first returning to Mohamed for direction. This includes changes to how
+  a feature should behave, what the user experience should be, how financial
+  data should be interpreted, or which user journey is preferred.
+- Do not implement review comments that request database schema changes,
+  migrations, data backfills, sync-contract changes, or mutations to existing
+  business data without first returning to Mohamed for approval.
+- If a comment mixes a valid technical issue with a product or schema decision,
+  fix only the clearly technical part if it can be separated safely; otherwise
+  stop and ask for the decision explicitly.
+- If a still-valid review finding is deferred, create a GitHub issue for it
+  before final handoff. The issue must describe the deferred work, why it was
+  deferred, the source PR/review context, and clear acceptance criteria. Apply
+  suitable existing labels such as `tech-debt`, `refactor`, `code-quality`,
+  `testing`, `performance`, `database`, or the relevant `area:*` label so the
+  work can be found and prioritized later.
+- Keep PR-review fixes surgical. Do not bundle unrelated cleanup, do not use
+  review comments as permission to redesign the feature, and validate every fix
+  with the smallest reliable check that would catch the reviewed issue.
 
 ## Security
 

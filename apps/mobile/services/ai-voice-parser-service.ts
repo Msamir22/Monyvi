@@ -45,6 +45,10 @@ const VOICE_INPUT_SENDER = "Voice";
 /** Client-side timeout for AI analysis request (FR-024). */
 const AI_TIMEOUT_MS = 30_000;
 
+/** User-safe message for voice analysis connectivity failures. */
+const VOICE_ANALYSIS_NETWORK_ERROR_MESSAGE =
+  "We couldn't reach voice analysis right now. Please check your connection and try again.";
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -221,7 +225,7 @@ export async function parseVoiceWithAi(
       );
       return {
         kind: "network",
-        message: response.error.message,
+        message: VOICE_ANALYSIS_NETWORK_ERROR_MESSAGE,
       };
     }
 
@@ -259,7 +263,7 @@ export async function parseVoiceWithAi(
       );
       return {
         kind: "network",
-        message: data.error,
+        message: VOICE_ANALYSIS_NETWORK_ERROR_MESSAGE,
       };
     }
 

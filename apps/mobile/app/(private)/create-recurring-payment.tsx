@@ -19,6 +19,7 @@ import { useAccounts } from "@/hooks/useAccounts";
 import { useCategories } from "@/hooks/useCategories";
 import { createRecurringPayment } from "@/services/recurring-payment-service";
 import { formatDate as formatLocalizedDate } from "@/utils/dateHelpers";
+import { formatAccountBalance } from "@/utils/financial-display";
 import {
   RecurringPaymentValidationErrors,
   validateRecurringPaymentForm,
@@ -403,7 +404,7 @@ export default function CreateRecurringPaymentScreen(): React.JSX.Element {
                   </Text>
                   {selectedAccount && (
                     <Text className={`text-xs ${labelColor}`}>
-                      {selectedAccount.formattedBalance}
+                      {formatAccountBalance(selectedAccount)}
                     </Text>
                   )}
                 </View>

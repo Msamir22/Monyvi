@@ -1,5 +1,6 @@
 import { palette } from "@/constants/colors";
 import { Ionicons } from "@expo/vector-icons";
+import type { JSX } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { TextField } from "../ui/TextField";
 import { useTranslation } from "react-i18next";

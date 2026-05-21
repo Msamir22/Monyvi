@@ -22,7 +22,7 @@
     "plugin:import/recommended",
     "plugin:import/typescript",
     "plugin:react/recommended",
-    "plugin:react-hooks/recommended",
+    "plugin:react-hooks/recommended-legacy",
     "prettier"
   ],
   "plugins": [
@@ -35,6 +35,10 @@
   "rules": {
     // TypeScript
     "@typescript-eslint/no-non-null-assertion": "warn",
+    "monyvi-no-hook-db-write": "error",
+    "monyvi-no-raw-db-in-ui": "error",
+    "monyvi-no-sensitive-logger-context": "error",
+    "monyvi-package-boundaries": "error",
     "user-scoped-db-access": "error",
 
     // React
@@ -60,6 +64,14 @@
       }
     ],
     "no-debugger": "warn",
+    "max-lines": [
+      "error",
+      {
+        "max": 800,
+        "skipBlankLines": true,
+        "skipComments": true
+      }
+    ],
     "no-var": "error",
     // Requires the use of `===` and `!==`.
     "eqeqeq": ["error"],
@@ -232,6 +244,15 @@
       ],
       "rules": {
         "react-native/no-inline-styles": "off"
+      }
+    },
+    {
+      "files": [
+        "apps/mobile/__tests__/services/edit-account-service.test.ts",
+        "packages/db/src/supabase-types.ts"
+      ],
+      "rules": {
+        "max-lines": "off"
       }
     }
   ]

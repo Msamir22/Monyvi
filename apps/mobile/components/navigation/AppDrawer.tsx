@@ -15,6 +15,7 @@ import {
 } from "@/components/navigation/DrawerMenuSection";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
+import { useLogoutFlow } from "@/hooks/useLogoutFlow";
 import { useProfile } from "@/hooks/useProfile";
 import {
   getProfileDisplayName,
@@ -44,8 +45,6 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useDatabase } from "@/providers/DatabaseProvider";
-import { performLogout } from "@/services/logout-service";
 import { useTranslation } from "react-i18next";
 
 // =============================================================================
@@ -155,7 +154,6 @@ export function AppDrawer({
     [profile, user?.email]
   );
 
-  const database = useDatabase();
   const insets = useSafeAreaInsets();
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
 
@@ -167,9 +165,15 @@ export function AppDrawer({
     setAvatarError(false);
   }, [avatarUrl]);
 
-  // Logout UI state
-  const [showSyncWarning, setShowSyncWarning] = useState(false);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const {
+    isLoggingOut,
+    showSyncWarning,
+    requestLogout,
+    forceLogout,
+    dismissSyncWarning,
+  } = useLogoutFlow({
+    onSuccess: onClose,
+  });
 
   useEffect(() => {
     Animated.timing(slideAnim, {
@@ -188,50 +192,6 @@ export function AppDrawer({
     },
     [onClose]
   );
-
-  const handleLogoutPress = useCallback(async (): Promise<void> => {
-    setIsLoggingOut(true);
-
-    try {
-      const result = await performLogout(database);
-
-      if (result.success) {
-        onClose();
-        return;
-      }
-
-      if (result.error === "no_network") {
-        return;
-      }
-
-      if (result.error === "sync_failed") {
-        setShowSyncWarning(true);
-      }
-    } catch {
-      // TODO: Replace with structured logging (e.g., Sentry)
-    } finally {
-      setIsLoggingOut(false);
-    }
-  }, [database, onClose]);
-
-  const handleForceLogout = useCallback(async (): Promise<void> => {
-    setShowSyncWarning(false);
-    setIsLoggingOut(true);
-
-    try {
-      const result = await performLogout(database, true);
-
-      if (result.success) {
-        onClose();
-      }
-      // If force logout fails, there's not much we can do in the drawer
-      // TODO: Replace with structured logging (e.g., Sentry)
-    } catch {
-      // TODO: Replace with structured logging (e.g., Sentry)
-    } finally {
-      setIsLoggingOut(false);
-    }
-  }, [database, onClose]);
 
   return (
     <Modal
@@ -348,7 +308,11 @@ export function AppDrawer({
 
               {/* Logout */}
               <TouchableOpacity
-                onPress={handleLogoutPress}
+                onPress={() => {
+                  requestLogout().catch(() => {
+                    // The hook logs and handles failures internally.
+                  });
+                }}
                 disabled={isLoggingOut}
                 className="flex-row items-center py-3"
               >
@@ -380,11 +344,11 @@ export function AppDrawer({
         confirmLabel={t("proceed_anyway")}
         cancelLabel={tCommon("cancel")}
         onConfirm={() => {
-          handleForceLogout().catch(() => {
-            // TODO: Replace with structured logging (e.g., Sentry)
+          forceLogout().catch(() => {
+            // The hook logs and handles failures internally.
           });
         }}
-        onCancel={() => setShowSyncWarning(false)}
+        onCancel={dismissSyncWarning}
       />
     </Modal>
   );

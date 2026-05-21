@@ -11,9 +11,8 @@ import {
   type CalculatorKey,
   CalculatorKeypad,
 } from "@/components/add-transaction/CalculatorKeypad";
-import { OptionalSection } from "@/components/add-transaction/OptionalSection";
-import { CategoryPicker } from "@/components/add-transaction/CategoryPicker";
 import { TypeTabs } from "@/components/add-transaction/TypeTabs";
+import { EditTransactionFields } from "@/components/edit-transaction/EditTransactionFields";
 import { ConfirmationModal } from "@/components/modals/ConfirmationModal";
 import { AccountSelectorModal } from "@/components/modals/AccountSelectorModal";
 import { CategorySelectorModal } from "@/components/modals/CategorySelectorModal";
@@ -52,24 +51,12 @@ import React, {
 import {
   ActivityIndicator,
   LayoutAnimation,
-  Platform,
   ScrollView,
   Text,
   TouchableOpacity,
-  UIManager,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-// =============================================================================
-// Android LayoutAnimation Enablement
-// =============================================================================
-if (
-  Platform.OS === "android" &&
-  UIManager.setLayoutAnimationEnabledExperimental
-) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 // =============================================================================
 // Types
@@ -551,268 +538,47 @@ export default function EditTransaction(): React.ReactNode {
           )}
         </>
 
-        {/* Form Content */}
-        <View className="px-6 mt-4">
-          {isTransferMode ? (
-            /* ---- Transfer Mode: From/To Account Selectors ---- */
-            <>
-              <View className="flex-row gap-4 mb-4">
-                {/* From Account */}
-                <View className="flex-1">
-                  <Text className="input-label">
-                    {t("transfer_from").toUpperCase()}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setFormErrors((prev) => ({
-                        ...prev,
-                        accountId: undefined,
-                      }));
-                      setIsAccountModalOpen(true);
-                    }}
-                    activeOpacity={0.7}
-                    className="flex-row items-center bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700"
-                  >
-                    <View className="w-8 h-8 rounded-xl items-center justify-center me-2 bg-slate-100 dark:bg-slate-700/50">
-                      <Ionicons
-                        name={
-                          selectedAccount?.type === "BANK"
-                            ? "business-outline"
-                            : selectedAccount?.type === "DIGITAL_WALLET"
-                              ? "card-outline"
-                              : "wallet-outline"
-                        }
-                        size={18}
-                        color={isDark ? palette.slate[400] : palette.slate[500]}
-                      />
-                    </View>
-                    <Text
-                      numberOfLines={1}
-                      className="flex-1 text-sm font-semibold text-slate-900 dark:text-white"
-                    >
-                      {selectedAccount?.name || tCommon("select")}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Swap Button */}
-                <View className="justify-end pb-1">
-                  <TouchableOpacity
-                    onPress={() => {
-                      const tempFrom = selectedAccountId;
-                      setSelectedAccountId(toAccountId);
-                      setToAccountId(tempFrom);
-                    }}
-                    className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 items-center justify-center border border-slate-200 dark:border-slate-700"
-                  >
-                    <Ionicons
-                      name="swap-horizontal"
-                      size={20}
-                      color={isDark ? palette.slate[400] : palette.slate[500]}
-                    />
-                  </TouchableOpacity>
-                </View>
-
-                {/* To Account */}
-                <View className="flex-1">
-                  <Text className="input-label">
-                    {t("transfer_to").toUpperCase()}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setFormErrors((prev) => ({
-                        ...prev,
-                        accountId: undefined,
-                      }));
-                      setIsToAccountModalOpen(true);
-                    }}
-                    activeOpacity={0.7}
-                    className="flex-row items-center bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700"
-                  >
-                    <View className="w-8 h-8 rounded-xl items-center justify-center me-2 bg-slate-100 dark:bg-slate-700/50">
-                      <Ionicons
-                        name={
-                          selectedToAccount?.type === "BANK"
-                            ? "business-outline"
-                            : selectedToAccount?.type === "DIGITAL_WALLET"
-                              ? "card-outline"
-                              : "wallet-outline"
-                        }
-                        size={18}
-                        color={isDark ? palette.slate[400] : palette.slate[500]}
-                      />
-                    </View>
-                    <Text
-                      numberOfLines={1}
-                      className="flex-1 text-sm font-semibold text-slate-900 dark:text-white"
-                    >
-                      {selectedToAccount?.name || tCommon("select")}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {formErrors.accountId && (
-                <Text className="text-red-500 text-xs mt-1 mb-2">
-                  {formErrors.accountId}
-                </Text>
-              )}
-            </>
-          ) : (
-            /* ---- Transaction Mode: Single Account + Category ---- */
-            <>
-              <View className="flex-row gap-4 mb-4">
-                {/* Account Field */}
-                <View className="flex-1">
-                  <Text className="input-label">
-                    {t("account").toUpperCase()}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setFormErrors((prev) => ({
-                        ...prev,
-                        accountId: undefined,
-                      }));
-                      setIsAccountModalOpen(true);
-                    }}
-                    activeOpacity={0.7}
-                    className="flex-row items-center bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700"
-                  >
-                    <View
-                      className="w-8 h-8 rounded-xl items-center justify-center me-2 bg-slate-100 dark:bg-slate-700/50"
-                      style={{
-                        backgroundColor: selectedCategory?.color
-                          ? `${selectedCategory.color}20`
-                          : undefined,
-                      }}
-                    >
-                      <Ionicons
-                        name={
-                          selectedAccount?.type === "BANK"
-                            ? "business-outline"
-                            : selectedAccount?.type === "DIGITAL_WALLET"
-                              ? "card-outline"
-                              : "wallet-outline"
-                        }
-                        size={18}
-                        color={
-                          selectedCategory?.color ||
-                          (isDark ? palette.slate[400] : palette.slate[500])
-                        }
-                      />
-                    </View>
-                    <Text
-                      numberOfLines={1}
-                      className="flex-1 text-sm font-semibold text-slate-900 dark:text-white"
-                    >
-                      {selectedAccount?.name || tCommon("select")}
-                    </Text>
-                  </TouchableOpacity>
-                  {formErrors.accountId && (
-                    <Text className="text-red-500 text-xs mt-1">
-                      {formErrors.accountId}
-                    </Text>
-                  )}
-                </View>
-
-                {/* Category Field */}
-                <View className="flex-1">
-                  <Text className="input-label">
-                    {t("category").toUpperCase()}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setFormErrors((prev) => ({
-                        ...prev,
-                        categoryId: undefined,
-                      }));
-                      setIsCategoryModalOpen(true);
-                    }}
-                    activeOpacity={0.7}
-                    className="flex-row items-center bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700"
-                  >
-                    <View
-                      className="w-8 h-8 rounded-xl items-center justify-center me-2"
-                      style={{
-                        backgroundColor: selectedCategory?.color
-                          ? `${selectedCategory.color}20`
-                          : isDark
-                            ? palette.slate[700]
-                            : palette.slate[100],
-                      }}
-                    >
-                      {selectedCategory?.icon ? (
-                        <Ionicons
-                          name={
-                            selectedCategory.icon as keyof typeof Ionicons.glyphMap
-                          }
-                          size={18}
-                          color={
-                            selectedCategory.color ||
-                            (isDark ? palette.slate[400] : palette.slate[500])
-                          }
-                        />
-                      ) : (
-                        <Ionicons
-                          name="grid-outline"
-                          size={18}
-                          color={
-                            isDark ? palette.slate[400] : palette.slate[500]
-                          }
-                        />
-                      )}
-                    </View>
-                    <Text
-                      numberOfLines={1}
-                      className="flex-1 text-sm font-semibold text-slate-900 dark:text-white"
-                    >
-                      {selectedCategory?.displayName || tCommon("select")}
-                    </Text>
-                  </TouchableOpacity>
-                  {formErrors.categoryId && (
-                    <Text className="text-red-500 text-xs mt-1">
-                      {formErrors.categoryId}
-                    </Text>
-                  )}
-                </View>
-              </View>
-
-              {/* Category Chips (shared component) */}
-              <CategoryPicker
-                selectedCategory={selectedCategory}
-                categories={chipCategories}
-                onOpenPicker={() => setIsCategoryModalOpen(true)}
-                onSelectCategory={(cat) => setSelectedCategoryId(cat.id)}
-                hideMainSelector={true}
-              />
-            </>
-          )}
-
-          {/* Optional Section — not shown in transfer mode */}
-          {isOptionalExpanded && !isTransferMode && (
-            <OptionalSection
-              expanded={isOptionalExpanded}
-              onToggleExpand={() => setIsOptionalExpanded(false)}
-              transactionType={type}
-              fields={{
-                counterparty,
-                note,
-                date,
-                isRecurring: false,
-                recurringName: "",
-                recurringFrequency: "MONTHLY" as const,
-                recurringAutoCreate: false,
-              }}
-              onChange={(updates) => {
-                if (updates.counterparty !== undefined)
-                  setCounterparty(updates.counterparty);
-                if (updates.note !== undefined) setNote(updates.note);
-                if (updates.date !== undefined) setDate(updates.date);
-              }}
-              hideRecurring
-            />
-          )}
-        </View>
+        <EditTransactionFields
+          isTransferMode={isTransferMode}
+          type={type}
+          selectedAccount={selectedAccount}
+          selectedToAccount={selectedToAccount}
+          selectedCategory={selectedCategory}
+          chipCategories={chipCategories}
+          formErrors={formErrors}
+          isDark={isDark}
+          isOptionalExpanded={isOptionalExpanded}
+          counterparty={counterparty}
+          note={note}
+          date={date}
+          t={t}
+          tCommon={tCommon}
+          onOpenAccountPicker={() => {
+            setFormErrors((prev) => ({ ...prev, accountId: undefined }));
+            setIsAccountModalOpen(true);
+          }}
+          onOpenToAccountPicker={() => {
+            setFormErrors((prev) => ({ ...prev, accountId: undefined }));
+            setIsToAccountModalOpen(true);
+          }}
+          onOpenCategoryPicker={() => {
+            setFormErrors((prev) => ({ ...prev, categoryId: undefined }));
+            setIsCategoryModalOpen(true);
+          }}
+          onSwapAccounts={() => {
+            const tempFrom = selectedAccountId;
+            setSelectedAccountId(toAccountId);
+            setToAccountId(tempFrom);
+          }}
+          onSelectCategory={setSelectedCategoryId}
+          onToggleOptional={() => setIsOptionalExpanded(false)}
+          onOptionalChange={(updates) => {
+            if (updates.counterparty !== undefined)
+              setCounterparty(updates.counterparty);
+            if (updates.note !== undefined) setNote(updates.note);
+            if (updates.date !== undefined) setDate(updates.date);
+          }}
+        />
       </ScrollView>
 
       {/* "More details" bar — hidden in transfer mode */}

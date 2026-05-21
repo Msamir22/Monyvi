@@ -96,6 +96,18 @@ import { CurrencyPickerStep } from "@/components/onboarding/CurrencyPickerStep";
 // Helpers
 // =============================================================================
 
+const activeRenderers: ReactTestRendererInstance[] = [];
+
+function renderCurrencyPicker(
+  onCurrencySelected: (currency: string) => void
+): ReactTestRendererInstance {
+  const renderer = RTR.create(
+    React.createElement(CurrencyPickerStep, { onCurrencySelected })
+  );
+  activeRenderers.push(renderer);
+  return renderer;
+}
+
 // =============================================================================
 // Tests
 // =============================================================================
@@ -106,18 +118,26 @@ describe("CurrencyPickerStep", () => {
     mockDetectCurrency.mockReturnValue("EGP");
   });
 
+  afterEach(() => {
+    for (const renderer of activeRenderers.splice(0)) {
+      RTR.act(() => {
+        renderer.unmount();
+      });
+    }
+  });
+
   it("forwards the pre-selected (detected) currency via onCurrencySelected when Continue is tapped", () => {
     mockDetectCurrency.mockReturnValue("EGP");
     const onCurrencySelected = jest.fn();
 
-    const renderer = RTR.create(
-      React.createElement(CurrencyPickerStep, { onCurrencySelected })
-    );
+    const renderer = renderCurrencyPicker(onCurrencySelected);
 
     // Continue is the last TouchableOpacity (after each currency row).
     const buttons = renderer.root.findAllByType(TouchableOpacity);
     const continueBtn = buttons[buttons.length - 1];
-    (continueBtn?.props.onPress as () => void | undefined)?.();
+    RTR.act(() => {
+      (continueBtn?.props.onPress as () => void | undefined)?.();
+    });
 
     expect(onCurrencySelected).toHaveBeenCalledTimes(1);
     expect(onCurrencySelected).toHaveBeenCalledWith("EGP");
@@ -127,13 +147,13 @@ describe("CurrencyPickerStep", () => {
     mockDetectCurrency.mockReturnValue("USD");
     const onCurrencySelected = jest.fn();
 
-    const renderer = RTR.create(
-      React.createElement(CurrencyPickerStep, { onCurrencySelected })
-    );
+    const renderer = renderCurrencyPicker(onCurrencySelected);
 
     const buttons = renderer.root.findAllByType(TouchableOpacity);
     const continueBtn = buttons[buttons.length - 1];
-    (continueBtn?.props.onPress as () => void | undefined)?.();
+    RTR.act(() => {
+      (continueBtn?.props.onPress as () => void | undefined)?.();
+    });
 
     expect(onCurrencySelected).toHaveBeenCalledWith("USD");
   });
@@ -147,9 +167,7 @@ describe("CurrencyPickerStep", () => {
     mockDetectCurrency.mockReturnValue("EGP");
     const onCurrencySelected = jest.fn();
 
-    const renderer = RTR.create(
-      React.createElement(CurrencyPickerStep, { onCurrencySelected })
-    );
+    const renderer = renderCurrencyPicker(onCurrencySelected);
 
     const buttons = renderer.root.findAllByType(TouchableOpacity);
     // Find the first row whose children don't include the suggested code.
@@ -180,7 +198,9 @@ describe("CurrencyPickerStep", () => {
       );
       const code = texts.find((t) => /^[A-Z]{3}$/.test(t) && t !== "EGP");
       if (code) {
-        (btn.props.onPress as () => void)();
+        RTR.act(() => {
+          (btn.props.onPress as () => void)();
+        });
         tappedCode = code;
         break;
       }
@@ -188,7 +208,9 @@ describe("CurrencyPickerStep", () => {
     expect(tappedCode).toBeDefined();
 
     const continueBtn = buttons[buttons.length - 1];
-    (continueBtn?.props.onPress as () => void | undefined)?.();
+    RTR.act(() => {
+      (continueBtn?.props.onPress as () => void | undefined)?.();
+    });
 
     expect(onCurrencySelected).toHaveBeenCalledTimes(1);
     expect(onCurrencySelected).toHaveBeenCalledWith(tappedCode);
@@ -197,16 +219,14 @@ describe("CurrencyPickerStep", () => {
   it("never calls confirmCurrencyAndOnboard directly — persistence is the parent's job", () => {
     mockDetectCurrency.mockReturnValue("EGP");
 
-    const renderer = RTR.create(
-      React.createElement(CurrencyPickerStep, {
-        onCurrencySelected: jest.fn(),
-      })
-    );
+    const renderer = renderCurrencyPicker(jest.fn());
 
     // Tap Continue.
     const buttons = renderer.root.findAllByType(TouchableOpacity);
     const continueBtn = buttons[buttons.length - 1];
-    (continueBtn?.props.onPress as () => void | undefined)?.();
+    RTR.act(() => {
+      (continueBtn?.props.onPress as () => void | undefined)?.();
+    });
 
     expect(mockConfirmCurrencyAndOnboard).not.toHaveBeenCalled();
   });

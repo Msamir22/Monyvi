@@ -13,7 +13,6 @@ import {
   Transaction,
   Category,
   type BudgetPeriod,
-  type BudgetStatus,
   type BudgetType,
   type CurrencyType,
   type AlertFiredLevel,
@@ -21,9 +20,11 @@ import {
 import { Q, type Collection } from "@nozbe/watermelondb";
 import {
   getCurrentPeriodBounds,
+  isPeriodExpired,
   filterExcludedTransactions,
   buildPauseInterval,
   parsePauseIntervals,
+  parsePausedAtMs,
 } from "@monyvi/logic";
 import {
   getCurrentUserDataScope,
@@ -77,6 +78,15 @@ export class BudgetServiceError extends Error {
 
 function budgetsCollection(): Collection<Budget> {
   return database.get<Budget>("budgets");
+}
+
+function isExpiredCustomBudgetEligibleForPause(budget: Budget): boolean {
+  return (
+    !budget.deleted &&
+    budget.status === "ACTIVE" &&
+    budget.period === "CUSTOM" &&
+    isPeriodExpired(budget.periodEnd)
+  );
 }
 
 function transactionsCollection(): Collection<Transaction> {
@@ -164,12 +174,12 @@ export async function createBudget(input: CreateBudgetInput): Promise<Budget> {
       b.type = input.type;
       b.categoryId = categoryId;
       b.amount = input.amount;
-      b.currency = input.currency as CurrencyType;
+      b.currency = input.currency;
       b.period = input.period;
       b.periodStart = input.periodStart ?? undefined;
       b.periodEnd = input.periodEnd ?? undefined;
       b.alertThreshold = input.alertThreshold;
-      b.status = "ACTIVE" as BudgetStatus;
+      b.status = "ACTIVE";
       b.deleted = false;
     });
     return budget;
@@ -283,7 +293,7 @@ export async function pauseBudget(budgetId: string): Promise<void> {
 
   await database.write(async () => {
     await budget.update((b) => {
-      b.status = "PAUSED" as BudgetStatus;
+      b.status = "PAUSED";
       b.pausedAt = new Date().toISOString();
     });
   });
@@ -303,12 +313,12 @@ export async function resumeBudget(budgetId: string): Promise<void> {
     throw new Error("Cannot resume a budget that is not paused");
   }
 
-  const pausedAtMs = budget.pausedAtMs;
+  const pausedAtMs = parsePausedAtMs(budget.pausedAt);
   const nowMs = Date.now();
 
   await database.write(async () => {
     await budget.update((b) => {
-      b.status = "ACTIVE" as BudgetStatus;
+      b.status = "ACTIVE";
 
       // Build and append the completed pause interval
       if (pausedAtMs !== undefined) {
@@ -370,10 +380,53 @@ export async function autoPauseBudget(budgetId: string): Promise<void> {
 
   await database.write(async () => {
     await budget.update((b) => {
-      b.status = "PAUSED" as BudgetStatus;
+      b.status = "PAUSED";
       b.pausedAt = new Date().toISOString();
     });
   });
+}
+
+/**
+ * Pause all active custom budgets whose period has expired.
+ *
+ * This is an explicit lifecycle command. Hooks/read models should call this
+ * from a clear orchestration point instead of mutating while computing reads.
+ */
+export async function pauseExpiredCustomBudgets(): Promise<number> {
+  const scope = await getCurrentUserDataScope();
+  const candidates = await scope
+    .queryOwned(
+      budgetsCollection(),
+      Q.where("deleted", false),
+      Q.where("status", "ACTIVE"),
+      Q.where("period", "CUSTOM")
+    )
+    .fetch();
+
+  const expiredBudgets = candidates.filter((budget) =>
+    isPeriodExpired(budget.periodEnd)
+  );
+
+  if (expiredBudgets.length === 0) {
+    return 0;
+  }
+
+  let pausedCount = 0;
+
+  await database.write(async () => {
+    const pausedAt = new Date().toISOString();
+    for (const budget of expiredBudgets) {
+      if (!isExpiredCustomBudgetEligibleForPause(budget)) continue;
+
+      await budget.update((b) => {
+        b.status = "PAUSED";
+        b.pausedAt = b.pausedAt ?? pausedAt;
+      });
+      pausedCount += 1;
+    }
+  });
+
+  return pausedCount;
 }
 
 // =============================================================================
@@ -429,10 +482,14 @@ export async function getSpendingForBudget(budget: Budget): Promise<number> {
   }
 
   // Exclude transactions that fall within any pause interval
+  const pauseIntervals = parsePauseIntervals(
+    String(budget.pauseIntervals ?? "[]")
+  );
+  const pausedAtMs = parsePausedAtMs(budget.pausedAt);
   const filtered = filterExcludedTransactions(
     transactions,
-    budget.typedPauseIntervals,
-    budget.pausedAtMs
+    pauseIntervals,
+    pausedAtMs
   );
 
   return filtered.reduce((sum, tx) => sum + tx.amount, 0);

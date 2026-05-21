@@ -1,6 +1,6 @@
 import { palette } from "@/constants/colors";
 import { useTheme } from "@/context/ThemeContext";
-import React, { useEffect } from "react";
+import { type JSX, type ReactNode, useEffect } from "react";
 import { View } from "react-native";
 import Animated, {
   Easing,
@@ -19,7 +19,7 @@ import { logger } from "@/utils/logger";
 import Svg, { Circle, Defs, RadialGradient, Stop } from "react-native-svg";
 
 interface Props {
-  children?: React.ReactNode;
+  children?: ReactNode;
 }
 
 interface StarConfig {

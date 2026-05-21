@@ -7,7 +7,8 @@ import { Account, Category, database, Transaction } from "@monyvi/db";
 import { Collection, Database } from "@nozbe/watermelondb";
 import {
   createContext,
-  ReactNode,
+  type JSX,
+  type ReactNode,
   useContext,
   useEffect,
   useMemo,

@@ -1,52 +1,30 @@
 /**
  * useBudgets Hook
  *
- * Observes all ACTIVE, non-deleted budgets via WatermelonDB,
- * computes spending per budget, and supports period filtering.
- *
- * Also handles:
- * - Period rollover: resets alert_fired_level to null
- * - Auto-pause: pauses custom budgets whose period_end has passed
- *
- * Architecture & Design Rationale:
- * - Pattern: Custom Hook (data subscription + side effects)
- * - Why: Encapsulates WatermelonDB reactive queries, spending calculations,
- *   and lifecycle management in a single reusable hook.
- * - SOLID: SRP — provides budget list data; components handle rendering.
+ * Observes all active/non-deleted budgets, computes spending per budget, and
+ * supports period filtering. Lifecycle mutations, such as pausing expired
+ * custom budgets, are explicit service commands invoked by containers.
  *
  * @module useBudgets
  */
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Budget, database } from "@monyvi/db";
-import { Q } from "@nozbe/watermelondb";
-
-import {
-  getSpendingForBudget,
-  autoPauseBudget,
-} from "@/services/budget-service";
-import { queryOwned } from "@/services/user-data-access";
+import type { Budget } from "@monyvi/db";
 import type { PeriodFilter } from "@/components/budget/PeriodFilterChips";
 import {
-  SpendingMetrics,
-  isPeriodExpired,
-  getCurrentPeriodBounds,
-  getDaysElapsed,
-  getDaysLeft,
-  computeSpendingMetrics,
-} from "@monyvi/logic";
-import { useCurrentUser } from "./useCurrentUser";
+  buildBudgetListReadModel,
+  buildBudgetMetrics,
+  observeBudgetList,
+  type BudgetWithMetrics,
+} from "@/services/budget-list-read-model-service";
+import { logger } from "@/utils/logger";
+import { runUserScopedEffect, useCurrentUser } from "./useCurrentUser";
+
+export type { BudgetWithMetrics } from "@/services/budget-list-read-model-service";
 
 // =============================================================================
 // TYPES
 // =============================================================================
-
-export interface BudgetWithMetrics {
-  readonly budget: Budget;
-  readonly metrics: SpendingMetrics;
-  readonly daysLeft: number;
-  readonly daysElapsed: number;
-}
 
 interface UseBudgetsResult {
   /** All budgets with computed metrics, filtered by period */
@@ -67,6 +45,8 @@ interface UseBudgetsResult {
   readonly setPeriodFilter: (filter: PeriodFilter) => void;
   /** Force refresh spending calculations */
   readonly refresh: () => void;
+  /** Changes when budget fields relevant to lifecycle auto-pause change */
+  readonly autoPauseCheckKey: string;
 }
 
 // =============================================================================
@@ -76,87 +56,67 @@ interface UseBudgetsResult {
 export function useBudgets(): UseBudgetsResult {
   const [rawBudgets, setRawBudgets] = useState<Budget[]>([]);
   const [budgetsWithMetrics, setBudgetsWithMetrics] = useState<
-    BudgetWithMetrics[]
+    readonly BudgetWithMetrics[]
   >([]);
   const [isLoading, setIsLoading] = useState(true);
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("ALL");
   const [refreshCounter, setRefreshCounter] = useState(0);
   const { userId, isResolvingUser } = useCurrentUser();
 
-  // ── Subscribe to active, non-deleted budgets ──
   useEffect(() => {
-    if (isResolvingUser) {
-      setRawBudgets([]);
-      setIsLoading(true);
-      return;
-    }
-
-    if (!userId) {
-      setRawBudgets([]);
-      setIsLoading(false);
-      return;
-    }
-
-    const subscription = queryOwned(
-      database.get<Budget>("budgets"),
+    return runUserScopedEffect({
       userId,
-      Q.and(
-        Q.where("deleted", false),
-        Q.where("status", Q.oneOf(["ACTIVE", "PAUSED"]))
-      )
-    )
-      .observe()
-      .subscribe((budgets) => {
-        setRawBudgets(budgets);
-      });
+      isResolvingUser,
+      onResolving: () => {
+        setRawBudgets([]);
+        setBudgetsWithMetrics([]);
+        setIsLoading(true);
+      },
+      onSignedOut: () => {
+        setRawBudgets([]);
+        setBudgetsWithMetrics([]);
+        setIsLoading(false);
+      },
+      onAuthenticated: (currentUserId) => {
+        const subscription = observeBudgetList(currentUserId)
+          .observe()
+          .subscribe({
+            next: (budgets) => {
+              setRawBudgets(budgets);
+            },
+            error: (error: unknown) => {
+              logger.error("budgets.observe.failed", error);
+              setRawBudgets([]);
+              setBudgetsWithMetrics([]);
+              setIsLoading(false);
+            },
+          });
 
-    return () => subscription.unsubscribe();
+        return () => subscription.unsubscribe();
+      },
+    });
   }, [userId, isResolvingUser]);
 
-  // ── Compute spending metrics when budgets change ──
   useEffect(() => {
     let cancelled = false;
 
     async function computeAll(): Promise<void> {
       setIsLoading(true);
 
-      const results: BudgetWithMetrics[] = [];
+      try {
+        const results = await buildBudgetMetrics(rawBudgets);
 
-      for (const budget of rawBudgets) {
-        // Auto-pause expired custom budgets (F2 remediation)
-        if (
-          budget.status === "ACTIVE" &&
-          budget.isCustomPeriod &&
-          isPeriodExpired(budget.periodEnd)
-        ) {
-          await autoPauseBudget(budget.id);
-          continue; // Skip this budget — it's now paused
+        if (!cancelled) {
+          setBudgetsWithMetrics(results);
+          setIsLoading(false);
         }
+      } catch (error: unknown) {
+        logger.error("budgets.readModel.failed", error);
 
-        const bounds = getCurrentPeriodBounds(
-          budget.period,
-          budget.periodStart,
-          budget.periodEnd
-        );
-
-        // NOTE: Period-rollover alert reset is handled in budget-alert-service.ts (C-03)
-
-        const spent = await getSpendingForBudget(budget);
-        const daysElapsed = getDaysElapsed(bounds.start);
-        const daysLeft = getDaysLeft(bounds.end);
-        const metrics = computeSpendingMetrics(
-          spent,
-          budget.amount,
-          daysElapsed,
-          budget.alertThreshold
-        );
-
-        results.push({ budget, metrics, daysLeft, daysElapsed });
-      }
-
-      if (!cancelled) {
-        setBudgetsWithMetrics(results);
-        setIsLoading(false);
+        if (!cancelled) {
+          setBudgetsWithMetrics([]);
+          setIsLoading(false);
+        }
       }
     }
 
@@ -167,29 +127,24 @@ export function useBudgets(): UseBudgetsResult {
     };
   }, [rawBudgets, refreshCounter]);
 
-  // ── Filter by period ──
-  const filteredBudgets = useMemo(() => {
-    if (periodFilter === "ALL") return budgetsWithMetrics;
-    return budgetsWithMetrics.filter((bm) => bm.budget.period === periodFilter);
-  }, [budgetsWithMetrics, periodFilter]);
-
-  // ── Split global vs category ──
-  const globalBudget = useMemo(
-    () => filteredBudgets.find((bm) => bm.budget.isGlobal),
-    [filteredBudgets]
+  const readModel = useMemo(
+    () => buildBudgetListReadModel(budgetsWithMetrics, periodFilter),
+    [budgetsWithMetrics, periodFilter]
   );
 
-  const categoryBudgets = useMemo(
+  const autoPauseCheckKey = useMemo(
     () =>
-      filteredBudgets.filter(
-        (bm) => bm.budget.isCategoryBudget && bm.budget.status === "ACTIVE"
-      ),
-    [filteredBudgets]
-  );
-
-  const pausedBudgets = useMemo(
-    () => filteredBudgets.filter((bm) => bm.budget.status === "PAUSED"),
-    [filteredBudgets]
+      rawBudgets
+        .map((budget) =>
+          [
+            budget.id,
+            budget.status,
+            budget.period,
+            budget.periodEnd?.getTime() ?? "none",
+          ].join(":")
+        )
+        .join("|"),
+    [rawBudgets]
   );
 
   const refresh = useCallback(() => {
@@ -197,14 +152,15 @@ export function useBudgets(): UseBudgetsResult {
   }, []);
 
   return {
-    budgets: filteredBudgets,
-    globalBudget,
-    categoryBudgets,
-    pausedBudgets,
+    budgets: readModel.budgets,
+    globalBudget: readModel.globalBudget,
+    categoryBudgets: readModel.categoryBudgets,
+    pausedBudgets: readModel.pausedBudgets,
     isLoading,
-    totalCount: budgetsWithMetrics.length,
+    totalCount: readModel.totalCount,
     periodFilter,
     setPeriodFilter,
     refresh,
+    autoPauseCheckKey,
   };
 }

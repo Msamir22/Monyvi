@@ -35,6 +35,7 @@ import { getCurrentUserId } from "./supabase";
 import { createTransaction } from "./transaction-service";
 import { createSmsAtmTransfer } from "./transfer-service";
 import { logger } from "@/utils/logger";
+import { redactIdentifierForLog } from "@/utils/logger-redaction";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -238,7 +239,7 @@ async function saveDetectedTransactionWithoutLock(
 ): Promise<boolean> {
   if (await hasExistingSmsFingerprint(parsed.smsFingerprint)) {
     logger.info("smsDetection.duplicateSkipped", {
-      smsFingerprint: parsed.smsFingerprint,
+      redactedSmsFingerprint: redactIdentifierForLog(parsed.smsFingerprint),
     });
     return false;
   }
@@ -261,9 +262,8 @@ async function saveDetectedTransactionWithoutLock(
     }
 
     logger.info("smsDetection.atmTransferSaved", {
-      amount: parsed.amount,
       currency: parsed.currency,
-      smsFingerprint: parsed.smsFingerprint,
+      redactedSmsFingerprint: redactIdentifierForLog(parsed.smsFingerprint),
     });
     return true;
   }
@@ -283,10 +283,9 @@ async function saveDetectedTransactionWithoutLock(
   });
 
   logger.info("smsDetection.transactionSaved", {
-    amount: parsed.amount,
     currency: parsed.currency,
     type: parsed.type,
-    smsFingerprint: parsed.smsFingerprint,
+    redactedSmsFingerprint: redactIdentifierForLog(parsed.smsFingerprint),
   });
   return true;
 }
@@ -316,9 +315,8 @@ export async function handleDetectedSms(
   if (reviewingActive) {
     transactionQueue.push(parsed);
     logger.info("smsDetection.transactionQueued", {
-      amount: parsed.amount,
       type: parsed.type,
-      smsFingerprint: parsed.smsFingerprint,
+      redactedSmsFingerprint: redactIdentifierForLog(parsed.smsFingerprint),
     });
     return;
   }
@@ -334,9 +332,9 @@ export async function handleDetectedSms(
     if (!resolved) {
       // No account configured: show notification asking to set up.
       logger.warn("smsDetection.accountResolutionMissing", {
-        senderDisplayName: parsed.senderDisplayName,
         currency: parsed.currency,
-        smsFingerprint: parsed.smsFingerprint,
+        hasSenderDisplayName: parsed.senderDisplayName.trim().length > 0,
+        redactedSmsFingerprint: redactIdentifierForLog(parsed.smsFingerprint),
       });
       await showTransactionNeedsAccountNotification(parsed);
       return;
@@ -361,7 +359,7 @@ export async function handleDetectedSms(
     }
   } catch (err) {
     logger.error("smsDetection.handleFailed", err, {
-      smsFingerprint: parsed.smsFingerprint,
+      redactedSmsFingerprint: redactIdentifierForLog(parsed.smsFingerprint),
     });
   }
 }

@@ -34,7 +34,7 @@ const MAX_POLL_DURATION_MS = 1500;
 
 interface CashAccountTooltipProps {
   /** Ref to the rendered cash-account card for anchor measurement. */
-  readonly anchorRef: React.RefObject<View>;
+  readonly anchorRef: React.RefObject<View | null>;
   /**
    * Whether the SMS permission prompt is currently visible. Passed in by the
    * dashboard so both the SMS prompt and this tooltip share a SINGLE
@@ -53,7 +53,7 @@ interface CashAccountTooltipProps {
    * card looks like a floating message with no visual connection to
    * what it's describing (user-reported 2026-04-26).
    */
-  readonly scrollViewRef?: React.RefObject<ScrollView>;
+  readonly scrollViewRef?: React.RefObject<ScrollView | null>;
 }
 
 export function CashAccountTooltip({

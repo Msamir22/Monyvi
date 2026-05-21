@@ -1,0 +1,34 @@
+interface StartE2eFixtureModule {
+  buildE2eFixtureEnv(
+    baseEnv?: Readonly<Record<string, string | undefined>>
+  ): Record<string, string | undefined>;
+}
+
+const startE2eFixture = jest.requireActual(
+  "../../scripts/start-e2e-fixture"
+) as StartE2eFixtureModule;
+
+describe("start-e2e-fixture script helpers", () => {
+  it("derives local Supabase env for Metro fixture startup", () => {
+    const env = startE2eFixture.buildE2eFixtureEnv({
+      E2E_LOCAL_JWT_SECRET: "local-test-jwt-secret-with-enough-length",
+    });
+
+    expect(env.E2E_SUPABASE_MODE).toBe("local");
+    expect(env.EXPO_PUBLIC_MONYVI_TEST_MODE).toBe("e2e");
+    expect(env.EXPO_PUBLIC_AI_SMS_PARSER_MODE).toBe("fixture");
+    expect(env.EXPO_PUBLIC_SUPABASE_URL).toBe("http://10.0.2.2:54321");
+    expect(env.EXPO_PUBLIC_SUPABASE_ANON_KEY).toContain("eyJ");
+  });
+
+  it("keeps explicitly provided Supabase env values", () => {
+    const env = startE2eFixture.buildE2eFixtureEnv({
+      EXPO_PUBLIC_SUPABASE_URL: "http://custom-supabase.test",
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: "custom-anon-key",
+      SUPABASE_SERVICE_ROLE_KEY: "custom-service-role-key",
+    });
+
+    expect(env.EXPO_PUBLIC_SUPABASE_URL).toBe("http://custom-supabase.test");
+    expect(env.EXPO_PUBLIC_SUPABASE_ANON_KEY).toBe("custom-anon-key");
+  });
+});
