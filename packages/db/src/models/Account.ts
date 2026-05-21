@@ -1,14 +1,6 @@
-import { formatCurrency } from "@monyvi/logic";
 import { BaseAccount } from "./base/base-account";
 
 export class Account extends BaseAccount {
-  get formattedBalance(): string {
-    return formatCurrency({
-      amount: this.balance,
-      currency: this.currency,
-    });
-  }
-
   get isBank(): boolean {
     return this.type === "BANK";
   }

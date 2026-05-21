@@ -6,7 +6,7 @@ import { BaseCard } from "./BaseCard";
 
 interface TransactionCardProps {
   id: string;
-  signedFormatedAmount: string;
+  signedFormattedAmount: string;
   date: Date;
   isExpense: boolean;
   isIncome: boolean;
@@ -31,7 +31,7 @@ interface TransactionCardProps {
  * Render a transaction card configured for a specific transaction.
  *
  * @param id - Unique transaction identifier
- * @param signedFormatedAmount - The already-formatted amount string including sign (e.g., "-$12.34" or "+$10.00")
+ * @param signedFormattedAmount - The already-formatted amount string including sign (e.g., "-$12.34" or "+$10.00")
  * @param date - Transaction date
  * @param isExpense - Whether the transaction is an expense
  * @param isIncome - Whether the transaction is an income
@@ -55,7 +55,7 @@ interface TransactionCardProps {
  */
 export const TransactionCard = React.memo(function TransactionCard({
   id,
-  signedFormatedAmount,
+  signedFormattedAmount,
   date,
   isExpense,
   isIncome,
@@ -101,7 +101,7 @@ export const TransactionCard = React.memo(function TransactionCard({
       iconName={categoryIconName}
       iconLibrary={categoryIconLibrary}
       title={categoryName}
-      amount={signedFormatedAmount}
+      amount={signedFormattedAmount}
       subtitle={accountName}
       counterparty={counterparty}
       isExpense={isExpense}
