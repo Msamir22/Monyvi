@@ -54,6 +54,8 @@ interface UseBudgetsResult {
   readonly setPeriodFilter: (filter: PeriodFilter) => void;
   /** Force refresh spending calculations */
   readonly refresh: () => void;
+  /** Changes when budget fields relevant to lifecycle auto-pause change */
+  readonly autoPauseCheckKey: string;
 }
 
 // =============================================================================
@@ -163,6 +165,21 @@ export function useBudgets(): UseBudgetsResult {
     [filteredBudgets]
   );
 
+  const autoPauseCheckKey = useMemo(
+    () =>
+      rawBudgets
+        .map((budget) =>
+          [
+            budget.id,
+            budget.status,
+            budget.period,
+            budget.periodEnd?.getTime() ?? "none",
+          ].join(":")
+        )
+        .join("|"),
+    [rawBudgets]
+  );
+
   const refresh = useCallback(() => {
     setRefreshCounter((c) => c + 1);
   }, []);
@@ -177,5 +194,6 @@ export function useBudgets(): UseBudgetsResult {
     periodFilter,
     setPeriodFilter,
     refresh,
+    autoPauseCheckKey,
   };
 }
