@@ -251,7 +251,6 @@
         "apps/mobile/__tests__/services/edit-account-service.test.ts",
         "apps/mobile/app/(private)/edit-transaction.tsx",
         "apps/mobile/app/(private)/settings.tsx",
-        "apps/mobile/components/sms-sync/SmsScanProgress.tsx",
         "packages/db/src/supabase-types.ts"
       ],
       "rules": {

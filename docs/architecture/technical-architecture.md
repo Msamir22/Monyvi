@@ -310,7 +310,8 @@ Tracked architecture debt:
 - #657 splits oversized UI modules and restores container/presentational
   boundaries. The first slice extracts shared logout orchestration into a hook
   facade and makes the SMS scan progress component presentational by passing
-  category labels from the route container. Settings, edit routes, and remaining
+  category labels from the route container. The SMS scan progress renderer is
+  now split below the max-lines threshold. Settings, edit routes, and remaining
   oversized screen sections stay tracked debt until their slices land.
 - #659 splits sync internals into focused strategies and ownership guards.
 
