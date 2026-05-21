@@ -13,7 +13,6 @@ import {
   Transaction,
   Category,
   type BudgetPeriod,
-  type BudgetStatus,
   type BudgetType,
   type CurrencyType,
   type AlertFiredLevel,
@@ -24,6 +23,7 @@ import {
   filterExcludedTransactions,
   buildPauseInterval,
   parsePauseIntervals,
+  parsePausedAtMs,
 } from "@monyvi/logic";
 import {
   getCurrentUserDataScope,
@@ -164,12 +164,12 @@ export async function createBudget(input: CreateBudgetInput): Promise<Budget> {
       b.type = input.type;
       b.categoryId = categoryId;
       b.amount = input.amount;
-      b.currency = input.currency as CurrencyType;
+      b.currency = input.currency;
       b.period = input.period;
       b.periodStart = input.periodStart ?? undefined;
       b.periodEnd = input.periodEnd ?? undefined;
       b.alertThreshold = input.alertThreshold;
-      b.status = "ACTIVE" as BudgetStatus;
+      b.status = "ACTIVE";
       b.deleted = false;
     });
     return budget;
@@ -283,7 +283,7 @@ export async function pauseBudget(budgetId: string): Promise<void> {
 
   await database.write(async () => {
     await budget.update((b) => {
-      b.status = "PAUSED" as BudgetStatus;
+      b.status = "PAUSED";
       b.pausedAt = new Date().toISOString();
     });
   });
@@ -303,12 +303,12 @@ export async function resumeBudget(budgetId: string): Promise<void> {
     throw new Error("Cannot resume a budget that is not paused");
   }
 
-  const pausedAtMs = budget.pausedAtMs;
+  const pausedAtMs = parsePausedAtMs(budget.pausedAt);
   const nowMs = Date.now();
 
   await database.write(async () => {
     await budget.update((b) => {
-      b.status = "ACTIVE" as BudgetStatus;
+      b.status = "ACTIVE";
 
       // Build and append the completed pause interval
       if (pausedAtMs !== undefined) {
@@ -370,7 +370,7 @@ export async function autoPauseBudget(budgetId: string): Promise<void> {
 
   await database.write(async () => {
     await budget.update((b) => {
-      b.status = "PAUSED" as BudgetStatus;
+      b.status = "PAUSED";
       b.pausedAt = new Date().toISOString();
     });
   });
@@ -429,10 +429,14 @@ export async function getSpendingForBudget(budget: Budget): Promise<number> {
   }
 
   // Exclude transactions that fall within any pause interval
+  const pauseIntervals = parsePauseIntervals(
+    String(budget.pauseIntervals ?? "[]")
+  );
+  const pausedAtMs = parsePausedAtMs(budget.pausedAt);
   const filtered = filterExcludedTransactions(
     transactions,
-    budget.typedPauseIntervals,
-    budget.pausedAtMs
+    pauseIntervals,
+    pausedAtMs
   );
 
   return filtered.reduce((sum, tx) => sum + tx.amount, 0);

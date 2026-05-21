@@ -17,6 +17,8 @@ import {
   getWeeklyBuckets,
   computeSpendingMetrics,
   filterExcludedTransactions,
+  parsePauseIntervals,
+  parsePausedAtMs,
   type SpendingMetrics,
   type WeeklyBucket,
 } from "@monyvi/logic";
@@ -156,6 +158,10 @@ export function useBudgetDetail(budgetId: string): UseBudgetDetailResult {
           budget.periodStart,
           budget.periodEnd
         );
+        const pauseIntervals = parsePauseIntervals(
+          String(budget.pauseIntervals ?? "[]")
+        );
+        const pausedAtMs = parsePausedAtMs(budget.pausedAt);
 
         // Spending
         const spent = await getSpendingForBudget(budget);
@@ -202,8 +208,8 @@ export function useBudgetDetail(budgetId: string): UseBudgetDetailResult {
           // Exclude paused-window transactions
           const activeTxs = filterExcludedTransactions(
             weeklyTransactions,
-            budget.typedPauseIntervals,
-            budget.pausedAtMs
+            pauseIntervals,
+            pausedAtMs
           );
 
           weeklyData.push({
@@ -244,8 +250,8 @@ export function useBudgetDetail(budgetId: string): UseBudgetDetailResult {
             // Exclude paused-window transactions
             const activeChildTxs = filterExcludedTransactions(
               allChildTxs,
-              budget.typedPauseIntervals,
-              budget.pausedAtMs
+              pauseIntervals,
+              pausedAtMs
             );
 
             const childAmount = activeChildTxs.reduce(
@@ -290,8 +296,8 @@ export function useBudgetDetail(budgetId: string): UseBudgetDetailResult {
         // Exclude paused-window transactions, then trim to the desired limit
         const recentFiltered = filterExcludedTransactions(
           recentRaw,
-          budget.typedPauseIntervals,
-          budget.pausedAtMs
+          pauseIntervals,
+          pausedAtMs
         ).slice(0, RECENT_TRANSACTIONS_LIMIT);
 
         if (!cancelled) {

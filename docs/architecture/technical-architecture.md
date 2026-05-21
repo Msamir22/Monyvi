@@ -1,6 +1,6 @@
 # Monyvi Technical Architecture
 
-**Last updated:** 2026-05-20 **Status:** Implementation-aligned architecture map
+**Last updated:** 2026-05-21 **Status:** Implementation-aligned architecture map
 
 This document describes how the app is currently built. The constitution remains
 the authority for required engineering principles; this file explains the
@@ -59,10 +59,11 @@ Rules:
 - `apps/mobile` may import from both packages.
 - `packages/logic` may import DB types only when unavoidable.
 - `packages/db` must not import from `apps/mobile` or `packages/logic`.
+- `packages/db` models must not own presentation formatting or parsed helper
+  state; format at the mobile view/container boundary and parse with explicit
+  logic helpers at the service or hook callsite.
 
-Tracked exception: issue #654 repairs existing reverse imports from
-`packages/db` model getters into `@monyvi/logic`. Those imports are allowlisted
-only while the repair issue is open; they are not a pattern for new work.
+These boundaries are enforced by `monyvi-package-boundaries`.
 
 ## 4. App Runtime And Routing
 
@@ -299,8 +300,8 @@ Error/logging patterns:
 
 Tracked architecture debt:
 
-- #654 repairs package-boundary reversals between `packages/db` and
-  `packages/logic`.
+- #653 repairs sensitive SMS and financial logging.
+- #654 repairs package-boundary reversals between `packages/db` and `packages/logic`.
 - #655 moves hook-owned writes into command services.
 - #656 extracts read-model services from heavy hooks.
 - #657 splits oversized UI modules and restores container/presentational
