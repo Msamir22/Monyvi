@@ -120,5 +120,52 @@ ruleTester.run("monyvi-no-hook-db-write", rule, {
       filename: "apps/mobile/components/Thing.tsx",
       errors: [{ messageId: "dbWriteOutsideService" }],
     },
+    {
+      code: `
+        import * as wm from "@nozbe/watermelondb/react";
+        const db = wm.useDatabase();
+        await db.write(async () => {});
+      `,
+      filename: "apps/mobile/components/Thing.tsx",
+      errors: [{ messageId: "dbWriteOutsideService" }],
+    },
+    {
+      code: `
+        import * as wm from "@nozbe/watermelondb/react";
+        const db = (wm as unknown as typeof wm).useDatabase();
+        await db.write(async () => {});
+      `,
+      filename: "apps/mobile/components/Thing.tsx",
+      errors: [{ messageId: "dbWriteOutsideService" }],
+    },
+    {
+      code: `
+        import * as wm from "@nozbe/watermelondb/react";
+        const lib = wm;
+        await lib.useDatabase().write(async () => {});
+      `,
+      filename: "apps/mobile/components/Thing.tsx",
+      errors: [{ messageId: "dbWriteOutsideService" }],
+    },
+    {
+      code: `
+        import * as wm from "@nozbe/watermelondb/react";
+        const { useDatabase: getDb } = wm;
+        const db = getDb();
+        await db.write(async () => {});
+      `,
+      filename: "apps/mobile/components/Thing.tsx",
+      errors: [{ messageId: "dbWriteOutsideService" }],
+    },
+    {
+      code: `await (database as unknown as { write: Function }).write(async () => {});`,
+      filename: "apps/mobile/components/Thing.tsx",
+      errors: [{ messageId: "dbWriteOutsideService" }],
+    },
+    {
+      code: `await database.write!(async () => {});`,
+      filename: "apps/mobile/components/Thing.tsx",
+      errors: [{ messageId: "dbWriteOutsideService" }],
+    },
   ],
 });

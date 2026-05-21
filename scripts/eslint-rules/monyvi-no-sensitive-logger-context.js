@@ -146,6 +146,24 @@ function normalizeSensitiveName(keyName) {
   return keyName.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+function unwrapExpression(expression) {
+  let current = expression;
+
+  while (
+    current?.type === "ChainExpression" ||
+    current?.type === "TSNonNullExpression" ||
+    current?.type === "TSAsExpression" ||
+    current?.type === "TSTypeAssertion" ||
+    current?.type === "TSInstantiationExpression" ||
+    current?.type === "TSSatisfiesExpression" ||
+    current?.type === "ParenthesizedExpression"
+  ) {
+    current = current.expression;
+  }
+
+  return current;
+}
+
 module.exports = {
   meta: {
     type: "problem",
@@ -187,17 +205,56 @@ module.exports = {
       return null;
     }
 
-    function resolveExpression(expression, visitedIdentifiers, scopeNode) {
-      if (expression.type !== "Identifier") {
-        return expression;
+    function getLatestWriteExpression(variable, referenceNode) {
+      const referenceStart =
+        referenceNode.range?.[0] ?? Number.MAX_SAFE_INTEGER;
+      let latestWrite = null;
+
+      for (const reference of variable.references) {
+        const writeExpression = reference.writeExpr;
+        const writeStart = reference.identifier.range?.[0] ?? -1;
+        if (!writeExpression || writeStart > referenceStart) {
+          continue;
+        }
+
+        if (
+          !latestWrite ||
+          writeStart > (latestWrite.identifier.range?.[0] ?? -1)
+        ) {
+          latestWrite = reference;
+        }
       }
 
-      if (visitedIdentifiers.has(expression.name)) {
+      return latestWrite?.writeExpr ?? null;
+    }
+
+    function resolveExpression(expression, visitedIdentifiers, scopeNode) {
+      const unwrappedExpression = unwrapExpression(expression);
+      if (!unwrappedExpression) {
         return null;
       }
 
-      visitedIdentifiers.add(expression.name);
-      const variable = findVariable(expression.name, scopeNode);
+      if (unwrappedExpression.type !== "Identifier") {
+        return unwrappedExpression;
+      }
+
+      if (visitedIdentifiers.has(unwrappedExpression.name)) {
+        return null;
+      }
+
+      visitedIdentifiers.add(unwrappedExpression.name);
+      const variable = findVariable(unwrappedExpression.name, scopeNode);
+      if (!variable) {
+        return unwrappedExpression;
+      }
+
+      const latestWrite = variable
+        ? getLatestWriteExpression(variable, unwrappedExpression)
+        : null;
+      if (latestWrite) {
+        return resolveExpression(latestWrite, visitedIdentifiers, scopeNode);
+      }
+
       const definition = variable?.defs.find(
         (def) => def.node.type === "VariableDeclarator" && def.node.init
       );
@@ -206,11 +263,11 @@ module.exports = {
         return null;
       }
 
-      if (init.type === "Identifier") {
+      if (unwrapExpression(init).type === "Identifier") {
         return resolveExpression(init, visitedIdentifiers, scopeNode);
       }
 
-      return init;
+      return unwrapExpression(init);
     }
 
     function inspectObjectExpression(
@@ -241,17 +298,15 @@ module.exports = {
           });
         }
 
-        if (property.value.type === "ObjectExpression") {
-          inspectObjectExpression(
-            property.value,
-            visitedIdentifiers,
-            scopeNode
-          );
+        const value = unwrapExpression(property.value);
+
+        if (value.type === "ObjectExpression") {
+          inspectObjectExpression(value, visitedIdentifiers, scopeNode);
         }
 
-        if (property.value.type === "Identifier") {
+        if (value.type === "Identifier") {
           inspectContextExpression(
-            property.value,
+            value,
             new Set(visitedIdentifiers),
             scopeNode
           );
@@ -264,9 +319,14 @@ module.exports = {
       visitedIdentifiers,
       scopeNode
     ) {
-      if (expression.type === "SpreadElement") {
+      const unwrappedExpression = unwrapExpression(expression);
+      if (!unwrappedExpression) {
+        return;
+      }
+
+      if (unwrappedExpression.type === "SpreadElement") {
         inspectContextExpression(
-          expression.argument,
+          unwrappedExpression.argument,
           visitedIdentifiers,
           scopeNode
         );
@@ -274,38 +334,64 @@ module.exports = {
       }
 
       const resolved = resolveExpression(
-        expression,
+        unwrappedExpression,
         visitedIdentifiers,
         scopeNode
       );
-      if (resolved?.type === "ObjectExpression") {
-        inspectObjectExpression(resolved, visitedIdentifiers, scopeNode);
+      const unwrappedResolved = unwrapExpression(resolved);
+      if (unwrappedResolved?.type === "ObjectExpression") {
+        inspectObjectExpression(
+          unwrappedResolved,
+          visitedIdentifiers,
+          scopeNode
+        );
       }
     }
 
-    function unwrapExpression(expression) {
-      let current = expression;
-
-      while (
-        current?.type === "ChainExpression" ||
-        current?.type === "TSNonNullExpression" ||
-        current?.type === "TSAsExpression" ||
-        current?.type === "TSTypeAssertion" ||
-        current?.type === "TSInstantiationExpression" ||
-        current?.type === "ParenthesizedExpression"
-      ) {
-        current = current.expression;
-      }
-
-      return current;
-    }
-
-    function getIdentifierName(expression) {
+    function getMemberPathNames(expression, visitedIdentifiers, scopeNode) {
       const unwrapped = unwrapExpression(expression);
-      return unwrapped?.type === "Identifier" ? unwrapped.name : null;
+      if (!unwrapped) {
+        return [];
+      }
+
+      if (unwrapped.type === "Identifier") {
+        const resolved = resolveExpression(
+          unwrapped,
+          new Set(visitedIdentifiers),
+          scopeNode
+        );
+        if (resolved && resolved !== unwrapped) {
+          const resolvedNames = getMemberPathNames(
+            resolved,
+            new Set(visitedIdentifiers),
+            scopeNode
+          );
+          if (resolvedNames.length > 0) {
+            return resolvedNames;
+          }
+        }
+
+        return [unwrapped.name];
+      }
+
+      if (unwrapped.type !== "MemberExpression") {
+        return [];
+      }
+
+      const objectNames = getMemberPathNames(
+        unwrapped.object,
+        visitedIdentifiers,
+        scopeNode
+      );
+      const propertyName = getPropertyName(unwrapped);
+      return propertyName ? [...objectNames, propertyName] : objectNames;
     }
 
-    function isSensitiveMemberExpression(expression) {
+    function isSensitiveMemberExpression(
+      expression,
+      visitedIdentifiers,
+      scopeNode
+    ) {
       const propertyName = getPropertyName(expression);
       if (!propertyName) {
         return false;
@@ -315,58 +401,140 @@ module.exports = {
         return true;
       }
 
-      const ownerName = getIdentifierName(expression.object);
-      if (!ownerName) {
-        return false;
-      }
-
-      return (
-        SENSITIVE_MEMBER_OWNERS.has(normalizeSensitiveName(ownerName)) &&
-        SENSITIVE_MEMBER_PROPERTIES.has(normalizeSensitiveName(propertyName))
+      const ownerNames = getMemberPathNames(
+        unwrapExpression(expression).object,
+        visitedIdentifiers,
+        scopeNode
+      );
+      return ownerNames.some(
+        (ownerName) =>
+          SENSITIVE_MEMBER_OWNERS.has(normalizeSensitiveName(ownerName)) &&
+          SENSITIVE_MEMBER_PROPERTIES.has(normalizeSensitiveName(propertyName))
       );
     }
 
-    function getSensitiveExpressionName(expression) {
+    function getSensitiveExpressionName(
+      expression,
+      visitedIdentifiers,
+      scopeNode
+    ) {
       const unwrapped = unwrapExpression(expression);
-
-      if (unwrapped.type === "Identifier") {
-        return isSensitiveKey(unwrapped.name) ? unwrapped.name : null;
+      if (!unwrapped) {
+        return null;
       }
 
-      if (
-        unwrapped.type === "CallExpression" &&
-        unwrapped.callee.type === "Identifier" &&
-        ["String", "Number"].includes(unwrapped.callee.name) &&
-        unwrapped.arguments.length === 1
-      ) {
-        return getSensitiveExpressionName(unwrapped.arguments[0]);
+      if (unwrapped.type === "Identifier") {
+        if (isSensitiveKey(unwrapped.name)) {
+          return unwrapped.name;
+        }
+
+        const resolved = resolveExpression(
+          unwrapped,
+          new Set(visitedIdentifiers),
+          scopeNode
+        );
+        if (resolved && resolved !== unwrapped) {
+          return getSensitiveExpressionName(
+            resolved,
+            visitedIdentifiers,
+            scopeNode
+          );
+        }
+
+        return null;
       }
 
       if (unwrapped.type === "MemberExpression") {
         const propertyName = getPropertyName(unwrapped);
-        return propertyName && isSensitiveMemberExpression(unwrapped)
+        return propertyName &&
+          isSensitiveMemberExpression(unwrapped, visitedIdentifiers, scopeNode)
           ? propertyName
           : null;
+      }
+
+      if (unwrapped.type === "TemplateLiteral") {
+        for (const nestedExpression of unwrapped.expressions) {
+          const keyName = getSensitiveExpressionName(
+            nestedExpression,
+            new Set(visitedIdentifiers),
+            scopeNode
+          );
+          if (keyName) {
+            return keyName;
+          }
+        }
+
+        return null;
+      }
+
+      if (
+        unwrapped.type === "BinaryExpression" ||
+        unwrapped.type === "LogicalExpression"
+      ) {
+        return (
+          getSensitiveExpressionName(
+            unwrapped.left,
+            new Set(visitedIdentifiers),
+            scopeNode
+          ) ||
+          getSensitiveExpressionName(
+            unwrapped.right,
+            new Set(visitedIdentifiers),
+            scopeNode
+          )
+        );
+      }
+
+      if (unwrapped.type === "ConditionalExpression") {
+        return (
+          getSensitiveExpressionName(
+            unwrapped.consequent,
+            new Set(visitedIdentifiers),
+            scopeNode
+          ) ||
+          getSensitiveExpressionName(
+            unwrapped.alternate,
+            new Set(visitedIdentifiers),
+            scopeNode
+          )
+        );
+      }
+
+      if (unwrapped.type === "CallExpression") {
+        for (const argument of unwrapped.arguments) {
+          const keyName = getSensitiveExpressionName(
+            argument,
+            new Set(visitedIdentifiers),
+            scopeNode
+          );
+          if (keyName) {
+            return keyName;
+          }
+        }
       }
 
       return null;
     }
 
-    function inspectLoggerMessage(argument) {
-      if (!argument || argument.type !== "TemplateLiteral") {
+    function inspectLoggerMessage(argument, scopeNode) {
+      if (!argument) {
         return;
       }
 
-      for (const expression of argument.expressions) {
-        const keyName = getSensitiveExpressionName(expression);
-        if (keyName) {
-          context.report({
-            node: expression,
-            messageId: "sensitiveLoggerMessage",
-            data: { keyName },
-          });
-        }
+      const keyName = getSensitiveExpressionName(
+        argument,
+        new Set(),
+        scopeNode
+      );
+      if (!keyName) {
+        return;
       }
+
+      context.report({
+        node: argument,
+        messageId: "sensitiveLoggerMessage",
+        data: { keyName },
+      });
     }
 
     return {
@@ -375,7 +543,7 @@ module.exports = {
           return;
         }
 
-        inspectLoggerMessage(node.arguments[0]);
+        inspectLoggerMessage(node.arguments[0], node);
 
         for (const argument of node.arguments) {
           inspectContextExpression(argument, new Set(), node);

@@ -70,5 +70,47 @@ ruleTester.run("monyvi-no-raw-db-in-ui", rule, {
       filename: "apps/mobile/components/NewDrawer.tsx",
       errors: [{ messageId: "rawUseDatabase" }],
     },
+    {
+      code: `
+        import * as wm from "@nozbe/watermelondb/react";
+        const database = wm.useDatabase();
+      `,
+      filename: "apps/mobile/components/NewDrawer.tsx",
+      errors: [{ messageId: "rawUseDatabase" }],
+    },
+    {
+      code: `
+        import * as wm from "@nozbe/watermelondb/react";
+        const database = (wm as unknown as typeof wm).useDatabase();
+      `,
+      filename: "apps/mobile/components/NewDrawer.tsx",
+      errors: [{ messageId: "rawUseDatabase" }],
+    },
+    {
+      code: `
+        import * as wm from "@nozbe/watermelondb/react";
+        const lib = wm;
+        const database = lib.useDatabase();
+      `,
+      filename: "apps/mobile/components/NewDrawer.tsx",
+      errors: [{ messageId: "rawUseDatabase" }],
+    },
+    {
+      code: `
+        import * as wm from "@nozbe/watermelondb/react";
+        const { useDatabase: getDb } = wm;
+        const database = getDb();
+      `,
+      filename: "apps/mobile/components/NewDrawer.tsx",
+      errors: [{ messageId: "rawUseDatabase" }],
+    },
+    {
+      code: `
+        const getDatabase = useDatabase as unknown as (() => unknown);
+        getDatabase();
+      `,
+      filename: "apps/mobile/components/NewDrawer.tsx",
+      errors: [{ messageId: "rawUseDatabase" }],
+    },
   ],
 });

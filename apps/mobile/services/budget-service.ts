@@ -82,6 +82,7 @@ function budgetsCollection(): Collection<Budget> {
 
 function isExpiredCustomBudgetEligibleForPause(budget: Budget): boolean {
   return (
+    !budget.deleted &&
     budget.status === "ACTIVE" &&
     budget.period === "CUSTOM" &&
     isPeriodExpired(budget.periodEnd)
@@ -410,10 +411,10 @@ export async function pauseExpiredCustomBudgets(): Promise<number> {
     return 0;
   }
 
-  const pausedAt = new Date().toISOString();
   let pausedCount = 0;
 
   await database.write(async () => {
+    const pausedAt = new Date().toISOString();
     for (const budget of expiredBudgets) {
       if (!isExpiredCustomBudgetEligibleForPause(budget)) continue;
 

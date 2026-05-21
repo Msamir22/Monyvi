@@ -55,12 +55,35 @@ function sourceTargetsDatabase(fileName, source) {
   );
 }
 
+function sourceTargetsWatermelonReact(source) {
+  return source === "@nozbe/watermelondb/react";
+}
+
+function unwrapExpression(node) {
+  let current = node;
+
+  while (
+    current?.type === "ChainExpression" ||
+    current?.type === "TSNonNullExpression" ||
+    current?.type === "TSAsExpression" ||
+    current?.type === "TSTypeAssertion" ||
+    current?.type === "TSInstantiationExpression" ||
+    current?.type === "TSSatisfiesExpression" ||
+    current?.type === "ParenthesizedExpression"
+  ) {
+    current = current.expression;
+  }
+
+  return current;
+}
+
 function getPropertyName(memberExpression) {
-  if (!memberExpression || memberExpression.type !== "MemberExpression") {
+  const unwrapped = unwrapExpression(memberExpression);
+  if (!unwrapped || unwrapped.type !== "MemberExpression") {
     return null;
   }
 
-  const property = memberExpression.property;
+  const property = unwrapExpression(unwrapped.property);
   if (property.type === "Identifier") {
     return property.name;
   }
@@ -72,20 +95,41 @@ function getPropertyName(memberExpression) {
   return null;
 }
 
-function isUseDatabaseCall(node, useDatabaseFunctions) {
+function getIdentifierName(node) {
+  const unwrapped = unwrapExpression(node);
+  return unwrapped?.type === "Identifier" ? unwrapped.name : null;
+}
+
+function isUseDatabaseNamespace(node, useDatabaseNamespaces) {
+  const identifierName = getIdentifierName(node);
+  return Boolean(identifierName && useDatabaseNamespaces.has(identifierName));
+}
+
+function isUseDatabaseCall(node, useDatabaseFunctions, useDatabaseNamespaces) {
+  const unwrapped = unwrapExpression(node);
+  if (unwrapped?.type !== "CallExpression") {
+    return false;
+  }
+
+  const callee = unwrapExpression(unwrapped.callee);
+  if (callee.type === "Identifier") {
+    return useDatabaseFunctions.has(callee.name);
+  }
+
   return (
-    node?.type === "CallExpression" &&
-    node.callee.type === "Identifier" &&
-    useDatabaseFunctions.has(node.callee.name)
+    callee.type === "MemberExpression" &&
+    getPropertyName(callee) === "useDatabase" &&
+    isUseDatabaseNamespace(callee.object, useDatabaseNamespaces)
   );
 }
 
 function isDatabaseNamespaceMember(node, databaseNamespaces) {
+  const unwrapped = unwrapExpression(node);
   return (
-    node?.type === "MemberExpression" &&
-    getPropertyName(node) === "database" &&
-    node.object.type === "Identifier" &&
-    databaseNamespaces.has(node.object.name)
+    unwrapped?.type === "MemberExpression" &&
+    getPropertyName(unwrapped) === "database" &&
+    unwrapExpression(unwrapped.object).type === "Identifier" &&
+    databaseNamespaces.has(unwrapExpression(unwrapped.object).name)
   );
 }
 
@@ -93,12 +137,15 @@ function isDatabaseSource(
   node,
   databaseVariables,
   databaseNamespaces,
-  useDatabaseFunctions
+  useDatabaseFunctions,
+  useDatabaseNamespaces
 ) {
+  const unwrapped = unwrapExpression(node);
   return (
-    (node?.type === "Identifier" && databaseVariables.has(node.name)) ||
-    isUseDatabaseCall(node, useDatabaseFunctions) ||
-    isDatabaseNamespaceMember(node, databaseNamespaces)
+    (unwrapped?.type === "Identifier" &&
+      databaseVariables.has(unwrapped.name)) ||
+    isUseDatabaseCall(unwrapped, useDatabaseFunctions, useDatabaseNamespaces) ||
+    isDatabaseNamespaceMember(unwrapped, databaseNamespaces)
   );
 }
 
@@ -106,16 +153,19 @@ function isDatabaseWriteMember(
   node,
   databaseVariables,
   databaseNamespaces,
-  useDatabaseFunctions
+  useDatabaseFunctions,
+  useDatabaseNamespaces
 ) {
+  const unwrapped = unwrapExpression(node);
   return (
-    node?.type === "MemberExpression" &&
-    getPropertyName(node) === "write" &&
+    unwrapped?.type === "MemberExpression" &&
+    getPropertyName(unwrapped) === "write" &&
     isDatabaseSource(
-      node.object,
+      unwrapped.object,
       databaseVariables,
       databaseNamespaces,
-      useDatabaseFunctions
+      useDatabaseFunctions,
+      useDatabaseNamespaces
     )
   );
 }
@@ -150,11 +200,35 @@ module.exports = {
     const databaseNamespaces = new Set();
     const databaseWriteFunctions = new Set();
     const useDatabaseFunctions = new Set(["useDatabase"]);
+    const useDatabaseNamespaces = new Set();
 
     return {
       ImportDeclaration(node) {
         const source =
           typeof node.source.value === "string" ? node.source.value : "";
+        if (sourceTargetsWatermelonReact(source)) {
+          for (const specifier of node.specifiers) {
+            if (
+              specifier.type === "ImportNamespaceSpecifier" &&
+              specifier.local.type === "Identifier"
+            ) {
+              useDatabaseNamespaces.add(specifier.local.name);
+              continue;
+            }
+
+            if (
+              specifier.type === "ImportSpecifier" &&
+              specifier.imported.type === "Identifier" &&
+              specifier.imported.name === "useDatabase" &&
+              specifier.local.type === "Identifier"
+            ) {
+              useDatabaseFunctions.add(specifier.local.name);
+            }
+          }
+
+          return;
+        }
+
         if (!sourceTargetsDatabase(fileName, source)) {
           return;
         }
@@ -184,13 +258,16 @@ module.exports = {
           return;
         }
 
+        const init = unwrapExpression(node.init);
+
         if (
           node.id.type === "ObjectPattern" &&
           isDatabaseSource(
-            node.init,
+            init,
             databaseVariables,
             databaseNamespaces,
-            useDatabaseFunctions
+            useDatabaseFunctions,
+            useDatabaseNamespaces
           )
         ) {
           for (const property of node.id.properties) {
@@ -206,29 +283,52 @@ module.exports = {
           return;
         }
 
+        if (
+          node.id.type === "ObjectPattern" &&
+          isUseDatabaseNamespace(init, useDatabaseNamespaces)
+        ) {
+          for (const property of node.id.properties) {
+            if (
+              property.type === "Property" &&
+              property.key.type === "Identifier" &&
+              property.key.name === "useDatabase" &&
+              property.value.type === "Identifier"
+            ) {
+              useDatabaseFunctions.add(property.value.name);
+            }
+          }
+          return;
+        }
+
         if (node.id.type !== "Identifier") {
           return;
         }
 
         if (
-          node.init?.type === "Identifier" &&
-          useDatabaseFunctions.has(node.init.name)
+          init?.type === "Identifier" &&
+          useDatabaseFunctions.has(init.name)
         ) {
           useDatabaseFunctions.add(node.id.name);
           return;
         }
 
-        if (
-          node.init?.type === "Identifier" &&
-          databaseVariables.has(node.init.name)
-        ) {
+        if (isUseDatabaseNamespace(init, useDatabaseNamespaces)) {
+          useDatabaseNamespaces.add(node.id.name);
+          return;
+        }
+
+        if (init?.type === "Identifier" && databaseVariables.has(init.name)) {
           databaseVariables.add(node.id.name);
           return;
         }
 
         if (
-          isUseDatabaseCall(node.init, useDatabaseFunctions) ||
-          isDatabaseNamespaceMember(node.init, databaseNamespaces)
+          isUseDatabaseCall(
+            init,
+            useDatabaseFunctions,
+            useDatabaseNamespaces
+          ) ||
+          isDatabaseNamespaceMember(init, databaseNamespaces)
         ) {
           databaseVariables.add(node.id.name);
           return;
@@ -236,10 +336,11 @@ module.exports = {
 
         if (
           isDatabaseWriteMember(
-            node.init,
+            init,
             databaseVariables,
             databaseNamespaces,
-            useDatabaseFunctions
+            useDatabaseFunctions,
+            useDatabaseNamespaces
           )
         ) {
           databaseWriteFunctions.add(node.id.name);
@@ -264,7 +365,8 @@ module.exports = {
             callee,
             databaseVariables,
             databaseNamespaces,
-            useDatabaseFunctions
+            useDatabaseFunctions,
+            useDatabaseNamespaces
           )
         ) {
           context.report({

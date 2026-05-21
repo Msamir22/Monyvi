@@ -391,6 +391,15 @@ function useComparisonTargetPeriod(
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     let isActive = true;
 
+    setCurrentPeriod((prev) => {
+      const next = getCurrentYearMonth();
+      if (prev.year === next.year && prev.month === next.month) {
+        return prev;
+      }
+
+      return next;
+    });
+
     const scheduleNextCheck = (): void => {
       timeoutId = setTimeout(() => {
         if (!isActive) {

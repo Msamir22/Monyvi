@@ -22,6 +22,10 @@ ruleTester.run("monyvi-package-boundaries", rule, {
       filename: "packages/logic/src/utils/currency.ts",
     },
     {
+      code: `export { type CurrencyType } from "@monyvi/db";`,
+      filename: "packages/logic/src/utils/currency.ts",
+    },
+    {
       code: `import { formatCurrency } from "@monyvi/logic";`,
       filename: "apps/mobile/hooks/useCurrency.ts",
     },

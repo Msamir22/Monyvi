@@ -9,6 +9,7 @@ const mockGetSpendingForBudget = jest.fn<Promise<number>, [Budget]>();
 const mockGetCurrentPeriodBounds = jest.fn();
 const mockGetDaysElapsed = jest.fn();
 const mockGetDaysLeft = jest.fn();
+const mockIsPeriodExpired = jest.fn();
 const mockComputeSpendingMetrics = jest.fn();
 
 interface QueryCondition {
@@ -70,6 +71,8 @@ jest.mock("@monyvi/logic", () => ({
     mockGetDaysElapsed(...args),
   getDaysLeft: (...args: readonly unknown[]): unknown =>
     mockGetDaysLeft(...args),
+  isPeriodExpired: (...args: readonly unknown[]): unknown =>
+    mockIsPeriodExpired(...args),
 }));
 
 import {
@@ -87,6 +90,7 @@ function createBudget(
     readonly type: "GLOBAL" | "CATEGORY";
     readonly amount: number;
     readonly alertThreshold: number;
+    readonly periodEnd: Date;
   }> = {}
 ): Budget {
   const type = overrides.type ?? "CATEGORY";
@@ -99,7 +103,7 @@ function createBudget(
     amount: overrides.amount ?? 1000,
     alertThreshold: overrides.alertThreshold ?? 80,
     periodStart: new Date("2026-05-01T00:00:00.000Z"),
-    periodEnd: new Date("2026-05-31T23:59:59.999Z"),
+    periodEnd: overrides.periodEnd ?? new Date("2026-05-31T23:59:59.999Z"),
     isGlobal: type === "GLOBAL",
     isCategoryBudget: type === "CATEGORY",
   } as unknown as Budget;
@@ -139,6 +143,7 @@ describe("budget-list-read-model-service", () => {
     });
     mockGetDaysElapsed.mockReturnValue(15);
     mockGetDaysLeft.mockReturnValue(16);
+    mockIsPeriodExpired.mockReturnValue(false);
     mockComputeSpendingMetrics.mockReturnValue({
       spent: 250,
       limit: 1000,
@@ -214,6 +219,23 @@ describe("budget-list-read-model-service", () => {
       daysLeft: 16,
       daysElapsed: 15,
     });
+  });
+
+  it("skips expired active custom budgets before computing metrics", async () => {
+    const expiredCustomBudget = createBudget("expired-custom", {
+      period: "CUSTOM",
+      status: "ACTIVE",
+      periodEnd: new Date("2026-04-30T23:59:59.999Z"),
+    });
+    mockIsPeriodExpired.mockReturnValueOnce(true);
+
+    const result = await buildBudgetMetrics([expiredCustomBudget]);
+
+    expect(result).toEqual([]);
+    expect(mockIsPeriodExpired).toHaveBeenCalledWith(
+      expiredCustomBudget.periodEnd
+    );
+    expect(mockGetSpendingForBudget).not.toHaveBeenCalled();
   });
 
   it("selects filtered budget sections from computed metrics", () => {
