@@ -10,6 +10,7 @@ import { formatCurrency } from "@monyvi/logic";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useMemo, useState } from "react";
 import { buildAccountDisplayNames } from "@/utils/account-display";
+import { formatAccountBalance } from "@/utils/financial-display";
 import {
   ActivityIndicator,
   Keyboard,
@@ -178,7 +179,7 @@ export function PayNowModal({
                               {displayNames.get(account.id) ?? account.name}
                             </Text>
                             <Text className="text-xs text-slate-500 dark:text-slate-400">
-                              {account.formattedBalance}
+                              {formatAccountBalance(account)}
                             </Text>
                           </View>
                           {account.id === selectedAccountId && (
