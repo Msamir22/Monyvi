@@ -1,4 +1,9 @@
-import { Budget, Category, database, Transaction } from "@monyvi/db";
+import {
+  database,
+  type Budget,
+  type Category,
+  type Transaction,
+} from "@monyvi/db";
 import { Q } from "@nozbe/watermelondb";
 import {
   computeSpendingMetrics,
@@ -7,6 +12,9 @@ import {
   getDaysElapsed,
   getDaysLeft,
   getWeeklyBuckets,
+  parsePauseIntervals,
+  parsePausedAtMs,
+  type PauseInterval,
   type SpendingMetrics,
   type WeeklyBucket,
 } from "@monyvi/logic";
@@ -41,6 +49,11 @@ export interface BudgetDetailReadModel {
   readonly recentTransactions: readonly Transaction[];
 }
 
+interface BudgetPauseState {
+  readonly pauseIntervals: readonly PauseInterval[];
+  readonly pausedAtMs: number | undefined;
+}
+
 const RECENT_TRANSACTIONS_LIMIT = 6;
 
 export async function getBudgetDetailReadModel(
@@ -64,25 +77,45 @@ export async function getBudgetDetailReadModel(
     budget.isCategoryBudget && budget.categoryId
       ? await getCategoryAndSubcategoryIds(budget.categoryId)
       : null;
+  const pauseState = getBudgetPauseState(budget);
 
   return {
     metrics,
     daysLeft,
     daysElapsed,
-    weeklySpending: await getWeeklySpending(budget, categoryIds, bounds),
-    subcategoryBreakdown: await getSubcategoryBreakdown(budget, spent, bounds),
+    weeklySpending: await getWeeklySpending(
+      budget,
+      categoryIds,
+      bounds,
+      pauseState
+    ),
+    subcategoryBreakdown: await getSubcategoryBreakdown(
+      budget,
+      spent,
+      bounds,
+      pauseState
+    ),
     recentTransactions: await getRecentTransactions(
       budget,
       categoryIds,
-      bounds
+      bounds,
+      pauseState
     ),
+  };
+}
+
+function getBudgetPauseState(budget: Budget): BudgetPauseState {
+  return {
+    pauseIntervals: parsePauseIntervals(String(budget.pauseIntervals ?? "[]")),
+    pausedAtMs: parsePausedAtMs(budget.pausedAt),
   };
 }
 
 async function getWeeklySpending(
   budget: Budget,
   categoryIds: readonly string[] | null,
-  bounds: ReturnType<typeof getCurrentPeriodBounds>
+  bounds: ReturnType<typeof getCurrentPeriodBounds>,
+  pauseState: BudgetPauseState
 ): Promise<WeeklySpendingData[]> {
   const weeklyData: WeeklySpendingData[] = [];
 
@@ -105,8 +138,8 @@ async function getWeeklySpending(
     ).fetch();
     const activeTransactions = filterExcludedTransactions(
       weeklyTransactions,
-      budget.typedPauseIntervals,
-      budget.pausedAtMs
+      pauseState.pauseIntervals,
+      pauseState.pausedAtMs
     );
 
     weeklyData.push({
@@ -121,7 +154,8 @@ async function getWeeklySpending(
 async function getSubcategoryBreakdown(
   budget: Budget,
   spent: number,
-  bounds: ReturnType<typeof getCurrentPeriodBounds>
+  bounds: ReturnType<typeof getCurrentPeriodBounds>,
+  pauseState: BudgetPauseState
 ): Promise<SubcategorySpending[]> {
   if (!budget.isCategoryBudget || !budget.categoryId || spent <= 0) {
     return [];
@@ -149,8 +183,8 @@ async function getSubcategoryBreakdown(
     ).fetch();
     const activeChildTransactions = filterExcludedTransactions(
       childTransactions,
-      budget.typedPauseIntervals,
-      budget.pausedAtMs
+      pauseState.pauseIntervals,
+      pauseState.pausedAtMs
     );
     const childAmount = activeChildTransactions.reduce(
       (sum, tx) => sum + tx.amount,
@@ -173,7 +207,8 @@ async function getSubcategoryBreakdown(
 async function getRecentTransactions(
   budget: Budget,
   categoryIds: readonly string[] | null,
-  bounds: ReturnType<typeof getCurrentPeriodBounds>
+  bounds: ReturnType<typeof getCurrentPeriodBounds>,
+  pauseState: BudgetPauseState
 ): Promise<Transaction[]> {
   const conditions = [
     Q.where("deleted", false),
@@ -196,7 +231,7 @@ async function getRecentTransactions(
 
   return filterExcludedTransactions(
     recentRaw,
-    budget.typedPauseIntervals,
-    budget.pausedAtMs
+    pauseState.pauseIntervals,
+    pauseState.pausedAtMs
   ).slice(0, RECENT_TRANSACTIONS_LIMIT);
 }

@@ -1,4 +1,3 @@
-import { formatCurrency } from "@monyvi/logic";
 import { BaseTransaction } from "./base/base-transaction";
 
 export class Transaction extends BaseTransaction {
@@ -32,12 +31,5 @@ export class Transaction extends BaseTransaction {
 
   get hasLinkedAsset(): boolean {
     return this.linkedAssetId !== undefined && this.linkedAssetId !== null;
-  }
-
-  get signedFormatedAmount(): string {
-    const sign = this.type === "EXPENSE" ? "-" : "+";
-    return (
-      sign + formatCurrency({ amount: this.amount, currency: this.currency })
-    );
   }
 }

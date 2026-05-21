@@ -20,6 +20,7 @@ import type * as ExpoNotifications from "expo-notifications";
 import { Linking, Platform } from "react-native";
 import type { ParsedSmsTransaction } from "@monyvi/logic";
 import { logger } from "@/utils/logger";
+import { redactIdentifierForLog } from "@/utils/logger-redaction";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -309,8 +310,10 @@ async function handleNotificationActionResponse(
     handledNotificationKeys.delete(notificationKey);
     logger.error("[notification-service] Action handler failed", err, {
       actionId,
-      notificationId,
-      smsFingerprint: data.transactionData.smsFingerprint,
+      redactedNotificationId: redactIdentifierForLog(notificationId),
+      redactedSmsFingerprint: redactIdentifierForLog(
+        data.transactionData.smsFingerprint
+      ),
     });
     return false;
   }
@@ -384,7 +387,7 @@ async function dismissDeliveredNotification(
     await getNotifications().dismissNotificationAsync(notificationId);
   } catch (err: unknown) {
     logger.error("[notification-service] Failed to dismiss notification", err, {
-      notificationId,
+      redactedNotificationId: redactIdentifierForLog(notificationId),
     });
   }
 }
