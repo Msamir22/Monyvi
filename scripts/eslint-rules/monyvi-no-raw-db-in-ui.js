@@ -1,9 +1,6 @@
 "use strict";
 
-const KNOWN_DEBT_FILE_SUFFIXES = [
-  "apps/mobile/app/(private)/settings.tsx",
-  "apps/mobile/app/(private)/startup.tsx",
-];
+const KNOWN_DEBT_FILE_SUFFIXES = ["apps/mobile/app/(private)/startup.tsx"];
 
 function normalizePath(fileName) {
   return fileName.replace(/\\/g, "/");

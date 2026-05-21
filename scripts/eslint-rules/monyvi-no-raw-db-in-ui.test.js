@@ -19,10 +19,6 @@ ruleTester.run("monyvi-no-raw-db-in-ui", rule, {
     },
     {
       code: `const database = useDatabase();`,
-      filename: "apps/mobile/app/(private)/settings.tsx",
-    },
-    {
-      code: `const database = useDatabase();`,
       filename: "apps/mobile/hooks/useAccounts.ts",
     },
     {
@@ -44,6 +40,11 @@ ruleTester.run("monyvi-no-raw-db-in-ui", rule, {
     {
       code: `const database = useDatabase();`,
       filename: "apps/mobile/components/navigation/AppDrawer.tsx",
+      errors: [{ messageId: "rawUseDatabase" }],
+    },
+    {
+      code: `const database = useDatabase();`,
+      filename: "apps/mobile/app/(private)/settings.tsx",
       errors: [{ messageId: "rawUseDatabase" }],
     },
   ],
