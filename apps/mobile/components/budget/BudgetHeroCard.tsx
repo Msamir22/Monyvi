@@ -16,7 +16,7 @@ import React from "react";
 import { Text, TouchableOpacity, View, type ViewStyle } from "react-native";
 import { useTranslation } from "react-i18next";
 import { CircularProgress } from "./CircularProgress";
-import type { BudgetWithMetrics } from "@/hooks/useBudgets";
+import type { BudgetWithMetrics } from "@/services/budget-list-read-model-service";
 import { formatCurrency } from "@monyvi/logic";
 import type { CurrencyType } from "@monyvi/db";
 
