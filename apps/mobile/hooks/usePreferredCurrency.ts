@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useCurrentUser } from "./useCurrentUser";
 import { queryOwned } from "@/services/user-data-access";
 import { logger } from "@/utils/logger";
+import { redactIdentifierForLog } from "@/utils/logger-redaction";
 
 interface UsePreferredCurrencyResult {
   /** The user's preferred display currency */
@@ -64,7 +65,7 @@ export function usePreferredCurrency(): UsePreferredCurrencyResult {
         },
         error: (err: unknown) => {
           logger.error("preferredCurrency.profile.observe.failed", err, {
-            userId,
+            redactedUserId: redactIdentifierForLog(userId),
           });
           setIsLoading(false);
         },
