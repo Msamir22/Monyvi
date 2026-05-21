@@ -280,6 +280,18 @@ describe("setPreferredCurrency", () => {
       "No profile row found"
     );
   });
+
+  it("rejects unsupported currency codes before opening a database writer", async (): Promise<void> => {
+    const profile = createMockProfile({ preferredCurrency: "EGP" });
+    setupProfileFound(profile);
+
+    await expect(setPreferredCurrency("BTC")).rejects.toThrow(
+      'setPreferredCurrency: unsupported currency code "BTC"'
+    );
+
+    const { mockWrite } = getDbMocks();
+    expect(mockWrite).not.toHaveBeenCalled();
+  });
 });
 
 describe("completeOnboarding", () => {
