@@ -1,5 +1,3 @@
-import { formatToLocalDateString } from "@/utils/dateHelpers";
-import { palette } from "@/constants/colors";
 import type { CurrencyType } from "@monyvi/db";
 import { CURRENCY_INFO_MAP } from "@monyvi/logic";
 import { Ionicons } from "@expo/vector-icons";
@@ -7,11 +5,9 @@ import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   AppState,
   type AppStateStatus,
   ScrollView,
-  Switch,
   Text,
   TouchableOpacity,
   View,
@@ -20,7 +16,15 @@ import { useLocale } from "@/context/LocaleContext";
 
 import { CurrencyPicker } from "@/components/currency/CurrencyPicker";
 import { GradientBackground } from "@/components/ui/GradientBackground";
-import { Skeleton } from "@/components/ui/Skeleton";
+import {
+  AppearanceSettingsSection,
+  CurrencySettingsSection,
+  LanguageSettingsSection,
+  LiveDetectionSettingsSection,
+  LogoutSettingsRow,
+  ProfileNotificationsSection,
+  SmsSyncSettingsSection,
+} from "@/components/settings/SettingsSections";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useLogoutFlow } from "@/hooks/useLogoutFlow";
@@ -41,11 +45,12 @@ import {
   stopSmsListener,
 } from "@/services/sms-live-listener-service";
 import { ConfirmationModal } from "@/components/modals/ConfirmationModal";
+import { PermissionRecoveryModal } from "@/components/permissions/PermissionRecoveryModal";
 import {
-  PermissionRecoveryModal,
-  type PermissionRecoveryMode,
-} from "@/components/permissions/PermissionRecoveryModal";
-import { Dropdown, type DropdownItem } from "@/components/ui/Dropdown";
+  getPermissionRecoveryContent,
+  getRecoveryModeForPermissionStatus,
+  type PermissionRecoveryState,
+} from "@/components/settings/permission-recovery-content";
 import { useToast } from "@/components/ui/Toast";
 import {
   getNotificationPermissionStatus,
@@ -53,112 +58,6 @@ import {
   requestNotificationPermissionStatus,
 } from "@/services/notification-service";
 import { logger } from "@/utils/logger";
-
-type PermissionRecoveryKind = "sms-sync" | "sms-live" | "notification";
-
-interface PermissionRecoveryState {
-  readonly kind: PermissionRecoveryKind;
-  readonly mode: PermissionRecoveryMode;
-}
-
-interface PermissionRecoveryContent {
-  readonly icon: keyof typeof Ionicons.glyphMap;
-  readonly title: string;
-  readonly message: string;
-  readonly primaryLabel: string;
-}
-
-interface PermissionRecoveryContentOption {
-  readonly icon: keyof typeof Ionicons.glyphMap;
-  readonly titleKey: string;
-  readonly messageKey: string;
-  readonly primaryLabelKey: string;
-}
-
-interface PermissionRecoveryContentConfig {
-  readonly blocked: PermissionRecoveryContentOption;
-  readonly request: PermissionRecoveryContentOption;
-}
-
-const PERMISSION_RECOVERY_CONTENT_CONFIG: Record<
-  PermissionRecoveryKind,
-  PermissionRecoveryContentConfig
-> = {
-  notification: {
-    blocked: {
-      icon: "notifications-outline",
-      titleKey: "notification_permission_blocked_title",
-      messageKey: "notification_permission_blocked_message",
-      primaryLabelKey: "permission_open_settings",
-    },
-    request: {
-      icon: "notifications-outline",
-      titleKey: "notification_permission_request_title",
-      messageKey: "notification_permission_request_message",
-      primaryLabelKey: "notification_permission_allow",
-    },
-  },
-  "sms-sync": {
-    blocked: {
-      icon: "settings-outline",
-      titleKey: "sms_sync_permission_blocked_title",
-      messageKey: "sms_sync_permission_blocked_message",
-      primaryLabelKey: "permission_open_settings",
-    },
-    request: {
-      icon: "chatbubble-ellipses-outline",
-      titleKey: "sms_sync_permission_request_title",
-      messageKey: "sms_sync_permission_request_message",
-      primaryLabelKey: "sms_permission_allow",
-    },
-  },
-  "sms-live": {
-    blocked: {
-      icon: "settings-outline",
-      titleKey: "sms_permission_blocked_title",
-      messageKey: "sms_permission_blocked_message",
-      primaryLabelKey: "permission_open_settings",
-    },
-    request: {
-      icon: "chatbubble-ellipses-outline",
-      titleKey: "sms_permission_request_title",
-      messageKey: "sms_permission_request_message",
-      primaryLabelKey: "sms_permission_allow",
-    },
-  },
-};
-
-function getRecoveryModeForPermissionStatus(
-  status: "undetermined" | "granted" | "denied" | "blocked"
-): PermissionRecoveryMode {
-  return status === "blocked" ? "blocked" : "request";
-}
-
-function buildPermissionRecoveryContent(
-  mode: PermissionRecoveryMode,
-  translate: (key: string) => string,
-  config: PermissionRecoveryContentConfig
-): PermissionRecoveryContent {
-  const option = mode === "blocked" ? config.blocked : config.request;
-
-  return {
-    icon: option.icon,
-    title: translate(option.titleKey),
-    message: translate(option.messageKey),
-    primaryLabel: translate(option.primaryLabelKey),
-  };
-}
-
-function getPermissionRecoveryContent(
-  recovery: PermissionRecoveryState,
-  translate: (key: string) => string
-): PermissionRecoveryContent {
-  return buildPermissionRecoveryContent(
-    recovery.mode,
-    translate,
-    PERMISSION_RECOVERY_CONTENT_CONFIG[recovery.kind]
-  );
-}
 
 /**
  * Render the Settings screen for managing appearance, currency, and general preferences.
@@ -732,378 +631,83 @@ export default function SettingsScreen(): React.JSX.Element {
         <View className="w-6" />
       </View>
       <ScrollView contentContainerClassName="px-5">
-        {/* Language Section */}
-        <View className="mb-8">
-          <Text className="text-[13px] font-semibold mb-3 ms-1 uppercase text-slate-500 dark:text-slate-400">
-            {t("language")}
-          </Text>
+        <LanguageSettingsSection
+          t={t}
+          language={language}
+          isChangingLanguage={isChangingLanguage}
+          isLanguageDropdownOpen={isLanguageDropdownOpen}
+          onToggleLanguageDropdown={() =>
+            setIsLanguageDropdownOpen((prev) => !prev)
+          }
+          onChangeLanguage={(value) => {
+            void handleLanguageChange(value);
+          }}
+        />
+        <AppearanceSettingsSection
+          t={t}
+          isDark={isDark}
+          onToggleTheme={() => {
+            void toggleTheme();
+          }}
+        />
+        <CurrencySettingsSection
+          t={t}
+          preferredCurrency={preferredCurrency}
+          currencyFlag={currencyInfo?.flag ?? "💱"}
+          currencyName={currencyInfo?.name ?? preferredCurrency}
+          chevronColor={theme.text.secondary}
+          onPress={() => setIsCurrencyPickerVisible(true)}
+        />
 
-          <View className="p-4 rounded-2xl bg-white dark:bg-slate-800">
-            <View className="flex-row items-center gap-3">
-              <View className="w-8 bg-blue-600 dark:bg-blue-500 h-8 rounded-lg justify-center items-center">
-                <Ionicons name="language" size={20} color={palette.slate[25]} />
-              </View>
-              <View className="flex-1">
-                <Dropdown<string>
-                  label=""
-                  items={
-                    [
-                      { value: "en", label: t("language_english") },
-                      { value: "ar", label: t("language_arabic") },
-                    ] as ReadonlyArray<DropdownItem<string>>
-                  }
-                  value={language}
-                  onChange={(val) => {
-                    void handleLanguageChange(val as "en" | "ar");
-                  }}
-                  disabled={isChangingLanguage}
-                  isOpen={isLanguageDropdownOpen}
-                  onToggle={() => setIsLanguageDropdownOpen((prev) => !prev)}
-                />
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* Appearance Section */}
-        <View className="mb-8">
-          <Text className="text-[13px] font-semibold mb-3 ms-1 uppercase text-slate-500 dark:text-slate-400">
-            {t("appearance")}
-          </Text>
-
-          <View className="flex-row items-center justify-between p-4 rounded-2xl bg-white dark:bg-slate-800">
-            <View className="flex-row items-center gap-3">
-              <View className="w-8 dark:bg-indigo-500 bg-orange-400 h-8 rounded-lg justify-center items-center">
-                <Ionicons
-                  name={isDark ? "moon" : "sunny"}
-                  size={20}
-                  color={palette.slate[25]}
-                />
-              </View>
-              <Text className="text-base font-medium text-slate-900 dark:text-slate-50">
-                {t("dark_mode")}
-              </Text>
-            </View>
-            <Switch
-              value={isDark}
-              onValueChange={toggleTheme}
-              trackColor={{
-                false: palette.slate[400],
-                true: palette.nileGreen[500],
-              }}
-              thumbColor={isDark ? palette.slate[25] : palette.slate[100]}
-            />
-          </View>
-        </View>
-
-        {/* Currency Section */}
-        <View className="mb-8">
-          <Text className="text-[13px] font-semibold mb-3 ms-1 uppercase text-slate-500 dark:text-slate-400">
-            {t("currency")}
-          </Text>
-
-          <TouchableOpacity
-            onPress={() => setIsCurrencyPickerVisible(true)}
-            className="flex-row items-center justify-between p-4 rounded-2xl bg-white dark:bg-slate-800"
-          >
-            <View className="flex-row items-center gap-3">
-              <View className="w-8 bg-nileGreen-700 dark:bg-nileGreen-600 h-8 rounded-lg justify-center items-center">
-                <Text className="text-base">{currencyInfo?.flag ?? "💱"}</Text>
-              </View>
-              <View>
-                <Text className="text-base font-medium text-slate-900 dark:text-slate-50">
-                  {t("preferred_currency")}
-                </Text>
-                <Text className="text-xs text-slate-500 dark:text-slate-400">
-                  {currencyInfo?.name ?? preferredCurrency}
-                </Text>
-              </View>
-            </View>
-            <View className="flex-row items-center gap-1">
-              <Text className="text-sm font-semibold text-nileGreen-600 dark:text-nileGreen-400">
-                {preferredCurrency}
-              </Text>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={theme.text.secondary}
-              />
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* SMS Sync Section (Android only) */}
         {isAndroid && (
-          <View className="mb-8">
-            <Text className="text-[13px] font-semibold mb-3 ms-1 uppercase text-slate-500 dark:text-slate-400">
-              {t("sms_sync")}
-            </Text>
-
-            {/* Sync New Messages (incremental) */}
-            <TouchableOpacity
-              testID="sms-sync-button"
-              onPress={() => {
-                handleIncrementalSync();
-              }}
-              className="flex-row items-center justify-between p-4 rounded-2xl bg-white dark:bg-slate-800"
-            >
-              <View className="flex-row items-center gap-3">
-                <View className="w-8 bg-emerald-600 dark:bg-emerald-500 h-8 rounded-lg justify-center items-center">
-                  <Ionicons
-                    name="chatbubble-ellipses"
-                    size={20}
-                    color={palette.slate[25]}
-                  />
-                </View>
-                <View>
-                  <Text className="text-base font-medium text-slate-900 dark:text-slate-50">
-                    {t("sync_new")}
-                  </Text>
-                  <Text className="text-xs text-slate-500 dark:text-slate-400">
-                    {hasSynced && lastSyncTimestamp
-                      ? t("last_synced", {
-                          date: formatToLocalDateString(
-                            new Date(lastSyncTimestamp)
-                          ),
-                        })
-                      : smsPermissionStatus === "granted"
-                        ? t("scan_inbox")
-                        : t("grant_sms_permission")}
-                  </Text>
-                </View>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={theme.text.secondary}
-              />
-            </TouchableOpacity>
-
-            {/* Full Re-scan */}
-            {hasSynced && (
-              <TouchableOpacity
-                onPress={() => {
-                  setIsFullRescanModalOpen(true);
-                }}
-                className="flex-row items-center justify-between p-4 rounded-2xl bg-white dark:bg-slate-800"
-              >
-                <View className="flex-row items-center gap-3">
-                  <View className="w-8 bg-orange-600 dark:bg-orange-500 h-8 rounded-lg justify-center items-center">
-                    <Ionicons
-                      name="refresh"
-                      size={20}
-                      color={palette.slate[25]}
-                    />
-                  </View>
-                  <Text className="text-base font-medium text-slate-900 dark:text-slate-50">
-                    {t("full_rescan")}
-                  </Text>
-                </View>
-                <Ionicons
-                  name="chevron-forward"
-                  size={20}
-                  color={theme.text.secondary}
-                />
-              </TouchableOpacity>
-            )}
-          </View>
+          <SmsSyncSettingsSection
+            t={t}
+            hasSynced={hasSynced}
+            lastSyncTimestamp={lastSyncTimestamp}
+            smsPermissionStatus={smsPermissionStatus}
+            chevronColor={theme.text.secondary}
+            onIncrementalSync={handleIncrementalSync}
+            onFullRescanPress={() => setIsFullRescanModalOpen(true)}
+          />
         )}
 
-        {/* Live SMS Detection Section (Android only) */}
         {isAndroid && (
-          <View className="mb-8">
-            <Text className="text-[13px] font-semibold mb-3 ms-1 uppercase text-slate-500 dark:text-slate-400">
-              {t("live_detection")}
-            </Text>
-
-            {isLiveDetectionPreferenceReady ? (
-              <>
-                {/* Live Detection Toggle */}
-                <View className="flex-row items-center justify-between p-4 rounded-2xl bg-white dark:bg-slate-800">
-                  <View className="flex-row items-center gap-3 flex-1">
-                    <View className="w-8 bg-violet-600 dark:bg-violet-500 h-8 rounded-lg justify-center items-center">
-                      <Ionicons
-                        name="radio"
-                        size={20}
-                        color={palette.slate[25]}
-                      />
-                    </View>
-                    <View className="flex-1">
-                      <Text className="text-base font-medium text-slate-900 dark:text-slate-50">
-                        {t("live_detection")}
-                      </Text>
-                      <Text className="text-xs text-slate-500 dark:text-slate-400">
-                        {t("auto_detect_description")}
-                      </Text>
-                    </View>
-                  </View>
-                  <Switch
-                    testID="live-sms-detection-switch"
-                    value={liveDetectionSwitchValue}
-                    onValueChange={handleToggleLiveDetection}
-                    disabled={isLiveDetectionEnabling}
-                    trackColor={{
-                      false: palette.slate[400],
-                      true: palette.nileGreen[500],
-                    }}
-                    thumbColor={
-                      liveDetectionSwitchValue
-                        ? palette.slate[25]
-                        : palette.slate[100]
-                    }
-                  />
-                </View>
-
-                {/* Auto Confirm Toggle */}
-                <View
-                  className={`flex-row items-center justify-between p-4 rounded-2xl bg-white dark:bg-slate-800 mt-0.5 ${!liveDetection ? "opacity-50" : ""}`}
-                >
-                  <View className="flex-row items-center gap-3 flex-1">
-                    <View className="w-8 bg-indigo-600 dark:bg-indigo-500 h-8 rounded-lg justify-center items-center">
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={20}
-                        color={palette.slate[25]}
-                      />
-                    </View>
-                    <View className="flex-1">
-                      <Text className="text-base font-medium text-slate-900 dark:text-slate-50">
-                        {t("auto_confirm")}
-                      </Text>
-                      <Text className="text-xs text-slate-500 dark:text-slate-400">
-                        {t("auto_confirm_description")}
-                      </Text>
-                    </View>
-                  </View>
-                  <Switch
-                    testID="live-sms-auto-confirm-switch"
-                    value={autoConfirmSms}
-                    onValueChange={handleToggleAutoConfirm}
-                    disabled={!liveDetection}
-                    trackColor={{
-                      false: palette.slate[400],
-                      true: palette.nileGreen[500],
-                    }}
-                    thumbColor={
-                      autoConfirmSms ? palette.slate[25] : palette.slate[100]
-                    }
-                  />
-                </View>
-              </>
-            ) : (
-              <View>
-                <View className="p-4 rounded-2xl bg-white dark:bg-slate-800">
-                  <View className="flex-row items-center gap-3">
-                    <Skeleton width={32} height={32} borderRadius={8} />
-                    <View className="flex-1">
-                      <Skeleton width="55%" height={18} borderRadius={4} />
-                      <View className="mt-2">
-                        <Skeleton width="85%" height={12} borderRadius={4} />
-                      </View>
-                    </View>
-                    <Skeleton width={50} height={32} borderRadius={16} />
-                  </View>
-                </View>
-                <View className="p-4 rounded-2xl bg-white dark:bg-slate-800 mt-0.5">
-                  <View className="flex-row items-center gap-3">
-                    <Skeleton width={32} height={32} borderRadius={8} />
-                    <View className="flex-1">
-                      <Skeleton width="45%" height={18} borderRadius={4} />
-                      <View className="mt-2">
-                        <Skeleton width="75%" height={12} borderRadius={4} />
-                      </View>
-                    </View>
-                    <Skeleton width={50} height={32} borderRadius={16} />
-                  </View>
-                </View>
-              </View>
-            )}
-          </View>
+          <LiveDetectionSettingsSection
+            t={t}
+            isReady={isLiveDetectionPreferenceReady}
+            liveDetectionSwitchValue={liveDetectionSwitchValue}
+            isLiveDetectionEnabling={isLiveDetectionEnabling}
+            liveDetection={liveDetection}
+            autoConfirmSms={autoConfirmSms}
+            onToggleLiveDetection={(value) => {
+              handleToggleLiveDetection(value).catch((error: unknown) => {
+                logger.error("settings.toggleLiveDetection.failed", error);
+              });
+            }}
+            onToggleAutoConfirm={(value) => {
+              handleToggleAutoConfirm(value).catch((error: unknown) => {
+                logger.error("settings.toggleAutoConfirm.failed", error);
+              });
+            }}
+          />
         )}
 
-        {/* Profile & Notifications Section */}
-        <View className="mb-8">
-          {/* Profile */}
-          <TouchableOpacity className="flex-row items-center justify-between p-4 rounded-2xl bg-white dark:bg-slate-800">
-            <View className="flex-row items-center gap-3">
-              <View className="w-8 dark:bg-blue-500 bg-orange-400 h-8 rounded-lg justify-center items-center">
-                <Ionicons name="person" size={20} color={palette.slate[25]} />
-              </View>
-              <View className="flex-1">
-                <Text className="text-base font-medium text-slate-900 dark:text-slate-50">
-                  {t("profile")}
-                </Text>
-                {user?.email && (
-                  <Text
-                    className="text-xs text-slate-500 dark:text-slate-400"
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                  >
-                    {user.email}
-                  </Text>
-                )}
-              </View>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={20}
-              color={theme.text.secondary}
-            />
-          </TouchableOpacity>
-
-          {/* Notifications */}
-          <TouchableOpacity className="flex-row items-center justify-between p-4 rounded-2xl bg-white dark:bg-slate-800 mt-0.5">
-            <View className="flex-row items-center gap-3">
-              <View className="w-8 dark:bg-rose-500 bg-orange-400 h-8 rounded-lg justify-center items-center">
-                <Ionicons
-                  name="notifications"
-                  size={20}
-                  color={palette.slate[25]}
-                />
-              </View>
-              <Text className="text-base font-medium text-slate-900 dark:text-slate-50">
-                {t("notifications")}
-              </Text>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={20}
-              color={theme.text.secondary}
-            />
-          </TouchableOpacity>
-        </View>
-
-        {/* Logout */}
-        <TouchableOpacity
+        <ProfileNotificationsSection
+          t={t}
+          userEmail={user?.email ?? null}
+          chevronColor={theme.text.secondary}
+        />
+        <LogoutSettingsRow
+          t={t}
+          tCommon={tCommon}
+          isLoggingOut={isLoggingOut}
+          chevronColor={theme.text.secondary}
           onPress={() => {
             requestLogout().catch((error: unknown) => {
               logger.error("settings.logout.failed", error);
             });
           }}
-          className="flex-row items-center justify-between p-4 rounded-2xl bg-white dark:bg-slate-800"
-        >
-          <View className="flex-row items-center gap-3">
-            <View className="w-8 dark:bg-red-700 bg-red-600 h-8 rounded-lg justify-center items-center">
-              {isLoggingOut ? (
-                <ActivityIndicator size={16} color={palette.slate[25]} />
-              ) : (
-                <Ionicons
-                  name="log-out-outline"
-                  size={20}
-                  color={palette.slate[25]}
-                />
-              )}
-            </View>
-            <Text className="text-base font-medium text-red-600 dark:text-red-400">
-              {isLoggingOut ? tCommon("loading") : t("logout")}
-            </Text>
-          </View>
-          <Ionicons
-            name="chevron-forward"
-            size={20}
-            color={theme.text.secondary}
-          />
-        </TouchableOpacity>
+        />
       </ScrollView>
       {/* {t("full_rescan")} Confirmation Modal */}
       <ConfirmationModal
