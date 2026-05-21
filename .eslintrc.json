@@ -249,7 +249,6 @@
     {
       "files": [
         "apps/mobile/__tests__/services/edit-account-service.test.ts",
-        "apps/mobile/app/(private)/edit-transaction.tsx",
         "packages/db/src/supabase-types.ts"
       ],
       "rules": {
