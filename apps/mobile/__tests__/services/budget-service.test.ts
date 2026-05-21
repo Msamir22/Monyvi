@@ -22,7 +22,7 @@ interface MockBudgetRecord {
   readonly id: string;
   readonly userId: string;
   readonly type: string;
-  categoryId: string;
+  categoryId: string | null;
   readonly period: string;
   status: string;
   pausedAt?: string;
@@ -69,7 +69,7 @@ function createLifecycleBudget(
     id: "budget-lifecycle",
     userId: "user-1",
     type: "GLOBAL",
-    categoryId: "",
+    categoryId: null,
     period: "CUSTOM",
     status: "ACTIVE",
     periodEnd: new Date("2020-01-01T00:00:00.000Z"),
@@ -280,6 +280,37 @@ describe("budget-service", () => {
     expect(expired.status).toBe("PAUSED");
     expect(expired.pausedAt).toEqual(expect.any(String));
     expect(future.update).not.toHaveBeenCalled();
+  });
+
+  it("re-checks pause eligibility inside the writer before pausing", async (): Promise<void> => {
+    const expired = createLifecycleBudget({ id: "expired" });
+    mockQueryOwned.mockReturnValueOnce(createQueryResult([expired]));
+    mockWrite.mockImplementationOnce(
+      async (callback: () => Promise<unknown>): Promise<unknown> => {
+        expired.status = "PAUSED";
+        expired.pausedAt = "2024-01-01T00:00:00.000Z";
+        return callback();
+      }
+    );
+
+    const pausedCount = await pauseExpiredCustomBudgets();
+
+    expect(pausedCount).toBe(0);
+    expect(expired.update).not.toHaveBeenCalled();
+    expect(expired.pausedAt).toBe("2024-01-01T00:00:00.000Z");
+  });
+
+  it("preserves an existing pausedAt value when pausing an eligible budget", async (): Promise<void> => {
+    const pausedAt = "2024-01-01T00:00:00.000Z";
+    const expired = createLifecycleBudget({ id: "expired", pausedAt });
+    mockQueryOwned.mockReturnValueOnce(createQueryResult([expired]));
+
+    const pausedCount = await pauseExpiredCustomBudgets();
+
+    expect(pausedCount).toBe(1);
+    expect(expired.update).toHaveBeenCalledTimes(1);
+    expect(expired.status).toBe("PAUSED");
+    expect(expired.pausedAt).toBe(pausedAt);
   });
 
   it("does not open a writer when no active custom budgets are expired", async (): Promise<void> => {
