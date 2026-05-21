@@ -5,6 +5,10 @@ interface E2ePreflightModule {
   currentFocusShowsLauncher(currentFocus: string): boolean;
   getHttpClientNameForUrl(url: string): "http" | "https";
   isAppReady(uiXml: string): boolean;
+  resolveMetroUrls(env?: Readonly<Record<string, string | undefined>>): {
+    hostMetroUrl: string;
+    metroUrl: string;
+  };
 }
 
 const preflight = jest.requireActual(
@@ -27,6 +31,20 @@ describe("e2e-preflight", () => {
     expect(
       preflight.getHttpClientNameForUrl("http://127.0.0.1:8081/status")
     ).toBe("http");
+  });
+
+  it("uses the emulator host Metro URL in CI to avoid adb reverse drops", () => {
+    expect(preflight.resolveMetroUrls({ CI: "true" })).toEqual({
+      hostMetroUrl: "http://127.0.0.1:8081",
+      metroUrl: "http://10.0.2.2:8081/?platform=android",
+    });
+
+    expect(
+      preflight.resolveMetroUrls({
+        CI: "true",
+        E2E_DEVICE_METRO_URL: "http://custom-device:8081",
+      }).metroUrl
+    ).toBe("http://custom-device:8081/?platform=android");
   });
 
   it("builds dev menu preferences that hide the Expo tools button", () => {

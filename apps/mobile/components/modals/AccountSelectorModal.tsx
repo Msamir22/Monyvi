@@ -14,6 +14,7 @@ import { useTheme } from "@/context/ThemeContext";
 import type { Account, AccountType } from "@monyvi/db";
 import { useTranslation } from "react-i18next";
 import { buildAccountDisplayNames } from "@/utils/account-display";
+import { formatAccountBalance } from "@/utils/financial-display";
 
 interface AccountSelectorModalProps {
   visible: boolean;
@@ -146,7 +147,7 @@ export function AccountSelectorModal({
                           <Text className="text-xs text-slate-500 dark:text-slate-400">
                             {account.currency} •{" "}
                             {accountTypeLabel(account.type)} •{" "}
-                            {account.formattedBalance}
+                            {formatAccountBalance(account)}
                           </Text>
                         </View>
 

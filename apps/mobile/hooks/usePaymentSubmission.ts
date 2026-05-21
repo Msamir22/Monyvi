@@ -14,6 +14,7 @@ import { InteractionManager } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useToast } from "@/components/ui/Toast";
 import { logger } from "@/utils/logger";
+import { redactIdentifierForLog } from "@/utils/logger-redaction";
 import { submitRecurringPayment } from "@/services/recurring-payment-service";
 
 // =============================================================================
@@ -104,8 +105,8 @@ export function usePaymentSubmission({
           const normalizedError =
             error instanceof Error ? error : new Error(String(error));
           logger.error("Error creating transaction", normalizedError, {
-            paymentId: payment.id,
-            accountId,
+            redactedPaymentId: redactIdentifierForLog(payment.id),
+            redactedAccountId: redactIdentifierForLog(accountId),
           });
           showToast({
             type: "error",

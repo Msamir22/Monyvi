@@ -95,18 +95,31 @@ function getPropertyName(memberExpression) {
   return null;
 }
 
+function getIdentifierName(node) {
+  const unwrapped = unwrapExpression(node);
+  return unwrapped?.type === "Identifier" ? unwrapped.name : null;
+}
+
+function isUseDatabaseNamespace(node, useDatabaseNamespaces) {
+  const identifierName = getIdentifierName(node);
+  return Boolean(identifierName && useDatabaseNamespaces.has(identifierName));
+}
+
 function isUseDatabaseCall(node, useDatabaseFunctions, useDatabaseNamespaces) {
   const unwrapped = unwrapExpression(node);
+  if (unwrapped?.type !== "CallExpression") {
+    return false;
+  }
+
+  const callee = unwrapExpression(unwrapped.callee);
+  if (callee.type === "Identifier") {
+    return useDatabaseFunctions.has(callee.name);
+  }
+
   return (
-    unwrapped?.type === "CallExpression" &&
-    ((unwrapExpression(unwrapped.callee).type === "Identifier" &&
-      useDatabaseFunctions.has(unwrapExpression(unwrapped.callee).name)) ||
-      (unwrapExpression(unwrapped.callee).type === "MemberExpression" &&
-        getPropertyName(unwrapExpression(unwrapped.callee)) === "useDatabase" &&
-        unwrapExpression(unwrapped.callee).object.type === "Identifier" &&
-        useDatabaseNamespaces.has(
-          unwrapExpression(unwrapped.callee).object.name
-        )))
+    callee.type === "MemberExpression" &&
+    getPropertyName(callee) === "useDatabase" &&
+    isUseDatabaseNamespace(callee.object, useDatabaseNamespaces)
   );
 }
 
@@ -245,10 +258,12 @@ module.exports = {
           return;
         }
 
+        const init = unwrapExpression(node.init);
+
         if (
           node.id.type === "ObjectPattern" &&
           isDatabaseSource(
-            node.init,
+            init,
             databaseVariables,
             databaseNamespaces,
             useDatabaseFunctions,
@@ -268,33 +283,52 @@ module.exports = {
           return;
         }
 
+        if (
+          node.id.type === "ObjectPattern" &&
+          isUseDatabaseNamespace(init, useDatabaseNamespaces)
+        ) {
+          for (const property of node.id.properties) {
+            if (
+              property.type === "Property" &&
+              property.key.type === "Identifier" &&
+              property.key.name === "useDatabase" &&
+              property.value.type === "Identifier"
+            ) {
+              useDatabaseFunctions.add(property.value.name);
+            }
+          }
+          return;
+        }
+
         if (node.id.type !== "Identifier") {
           return;
         }
 
         if (
-          unwrapExpression(node.init)?.type === "Identifier" &&
-          useDatabaseFunctions.has(unwrapExpression(node.init).name)
+          init?.type === "Identifier" &&
+          useDatabaseFunctions.has(init.name)
         ) {
           useDatabaseFunctions.add(node.id.name);
           return;
         }
 
-        if (
-          unwrapExpression(node.init)?.type === "Identifier" &&
-          databaseVariables.has(unwrapExpression(node.init).name)
-        ) {
+        if (isUseDatabaseNamespace(init, useDatabaseNamespaces)) {
+          useDatabaseNamespaces.add(node.id.name);
+          return;
+        }
+
+        if (init?.type === "Identifier" && databaseVariables.has(init.name)) {
           databaseVariables.add(node.id.name);
           return;
         }
 
         if (
           isUseDatabaseCall(
-            node.init,
+            init,
             useDatabaseFunctions,
             useDatabaseNamespaces
           ) ||
-          isDatabaseNamespaceMember(node.init, databaseNamespaces)
+          isDatabaseNamespaceMember(init, databaseNamespaces)
         ) {
           databaseVariables.add(node.id.name);
           return;
@@ -302,7 +336,7 @@ module.exports = {
 
         if (
           isDatabaseWriteMember(
-            node.init,
+            init,
             databaseVariables,
             databaseNamespaces,
             useDatabaseFunctions,

@@ -357,4 +357,4 @@ account's private data.
   `/speckit.plan`, `/speckit.tasks`, `/speckit.implement`) MUST reference this
   constitution and verify compliance before producing output.
 
-**Version**: 1.4.0 | **Ratified**: 2026-02-14 | **Last Amended**: 2026-05-10
+**Version**: 1.5.0 | **Ratified**: 2026-02-14 | **Last Amended**: 2026-05-22

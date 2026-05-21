@@ -1,11 +1,6 @@
 "use strict";
 
-const KNOWN_DEBT_FILE_SUFFIXES = [
-  "apps/mobile/hooks/usePreferredCurrency.ts",
-  "apps/mobile/hooks/usePaymentSubmission.ts",
-  "apps/mobile/services/notification-service.ts",
-  "apps/mobile/services/sms-live-detection-handler.ts",
-];
+const KNOWN_DEBT_FILE_SUFFIXES = [];
 
 const SENSITIVE_KEYS = new Set([
   "account_id",
@@ -235,6 +230,10 @@ module.exports = {
 
     function resolveExpression(expression, visitedIdentifiers, scopeNode) {
       const unwrappedExpression = unwrapExpression(expression);
+      if (!unwrappedExpression) {
+        return null;
+      }
+
       if (unwrappedExpression.type !== "Identifier") {
         return unwrappedExpression;
       }
@@ -321,6 +320,9 @@ module.exports = {
       scopeNode
     ) {
       const unwrappedExpression = unwrapExpression(expression);
+      if (!unwrappedExpression) {
+        return;
+      }
 
       if (unwrappedExpression.type === "SpreadElement") {
         inspectContextExpression(
@@ -346,13 +348,29 @@ module.exports = {
       }
     }
 
-    function getMemberPathNames(expression) {
+    function getMemberPathNames(expression, visitedIdentifiers, scopeNode) {
       const unwrapped = unwrapExpression(expression);
       if (!unwrapped) {
         return [];
       }
 
       if (unwrapped.type === "Identifier") {
+        const resolved = resolveExpression(
+          unwrapped,
+          new Set(visitedIdentifiers),
+          scopeNode
+        );
+        if (resolved && resolved !== unwrapped) {
+          const resolvedNames = getMemberPathNames(
+            resolved,
+            new Set(visitedIdentifiers),
+            scopeNode
+          );
+          if (resolvedNames.length > 0) {
+            return resolvedNames;
+          }
+        }
+
         return [unwrapped.name];
       }
 
@@ -360,12 +378,20 @@ module.exports = {
         return [];
       }
 
-      const objectNames = getMemberPathNames(unwrapped.object);
+      const objectNames = getMemberPathNames(
+        unwrapped.object,
+        visitedIdentifiers,
+        scopeNode
+      );
       const propertyName = getPropertyName(unwrapped);
       return propertyName ? [...objectNames, propertyName] : objectNames;
     }
 
-    function isSensitiveMemberExpression(expression) {
+    function isSensitiveMemberExpression(
+      expression,
+      visitedIdentifiers,
+      scopeNode
+    ) {
       const propertyName = getPropertyName(expression);
       if (!propertyName) {
         return false;
@@ -376,7 +402,9 @@ module.exports = {
       }
 
       const ownerNames = getMemberPathNames(
-        unwrapExpression(expression).object
+        unwrapExpression(expression).object,
+        visitedIdentifiers,
+        scopeNode
       );
       return ownerNames.some(
         (ownerName) =>
@@ -418,7 +446,8 @@ module.exports = {
 
       if (unwrapped.type === "MemberExpression") {
         const propertyName = getPropertyName(unwrapped);
-        return propertyName && isSensitiveMemberExpression(unwrapped)
+        return propertyName &&
+          isSensitiveMemberExpression(unwrapped, visitedIdentifiers, scopeNode)
           ? propertyName
           : null;
       }
@@ -488,6 +517,10 @@ module.exports = {
     }
 
     function inspectLoggerMessage(argument, scopeNode) {
+      if (!argument) {
+        return;
+      }
+
       const keyName = getSensitiveExpressionName(
         argument,
         new Set(),

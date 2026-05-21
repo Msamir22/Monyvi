@@ -4,6 +4,7 @@ import type {
   AssetMetal,
   DailySnapshotNetWorth,
 } from "@monyvi/db";
+import { getSameDayLastMonth } from "@monyvi/logic";
 
 const mockAccountsCollection = { table: "accounts" };
 const mockAssetsCollection = { table: "assets" };
@@ -188,11 +189,13 @@ describe("net-worth-read-model-service", () => {
     ).toBeNull();
   });
 
-  it("calculates month-over-month percentage change from closest snapshot", () => {
+  it("calculates month-over-month percentage change from same-day previous snapshot", () => {
+    const sameDayLastMonth = getSameDayLastMonth();
+
     const change = buildMonthlyPercentageChange([
       createSnapshot("2026-05-15T00:00:00.000Z", 1200),
-      createSnapshot("2026-04-14T00:00:00.000Z", 1000),
-      createSnapshot("2026-04-15T00:00:00.000Z", 1000),
+      createSnapshot(`${sameDayLastMonth}T00:00:00.000Z`, 1000),
+      createSnapshot("2026-04-01T00:00:00.000Z", 900),
     ]);
 
     expect(change).toBe(20);

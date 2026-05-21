@@ -6,8 +6,8 @@
  *
  * Usage:
  *   import { logger } from "@/utils/logger";
- *   logger.error("Payment failed", error, { paymentId: "abc" });
- *   logger.info("Transaction created", { amount: 100, currency: "EGP" });
+ *   logger.error("Payment failed", error, { redactedPaymentId: "prefix=abc..." });
+ *   logger.info("Transaction created", { transactionType: "EXPENSE", currency: "EGP" });
  *   logger.warn("Rate missing for pair", { from: "EGP", to: "SAR" });
  *
  * @module logger

@@ -24,6 +24,7 @@ import {
   filterExcludedTransactions,
   buildPauseInterval,
   parsePauseIntervals,
+  parsePausedAtMs,
 } from "@monyvi/logic";
 import {
   getCurrentUserDataScope,
@@ -312,7 +313,7 @@ export async function resumeBudget(budgetId: string): Promise<void> {
     throw new Error("Cannot resume a budget that is not paused");
   }
 
-  const pausedAtMs = budget.pausedAtMs;
+  const pausedAtMs = parsePausedAtMs(budget.pausedAt);
   const nowMs = Date.now();
 
   await database.write(async () => {
@@ -481,10 +482,14 @@ export async function getSpendingForBudget(budget: Budget): Promise<number> {
   }
 
   // Exclude transactions that fall within any pause interval
+  const pauseIntervals = parsePauseIntervals(
+    String(budget.pauseIntervals ?? "[]")
+  );
+  const pausedAtMs = parsePausedAtMs(budget.pausedAt);
   const filtered = filterExcludedTransactions(
     transactions,
-    budget.typedPauseIntervals,
-    budget.pausedAtMs
+    pauseIntervals,
+    pausedAtMs
   );
 
   return filtered.reduce((sum, tx) => sum + tx.amount, 0);

@@ -87,6 +87,16 @@ function getPropertyName(memberExpression) {
   return null;
 }
 
+function getIdentifierName(node) {
+  const unwrapped = unwrapExpression(node);
+  return unwrapped?.type === "Identifier" ? unwrapped.name : null;
+}
+
+function isUseDatabaseNamespace(node, useDatabaseNamespaces) {
+  const identifierName = getIdentifierName(node);
+  return Boolean(identifierName && useDatabaseNamespaces.has(identifierName));
+}
+
 function isUseDatabaseCall(node, useDatabaseFunctions, useDatabaseNamespaces) {
   const unwrapped = unwrapExpression(node);
   if (unwrapped?.type !== "CallExpression") {
@@ -101,8 +111,7 @@ function isUseDatabaseCall(node, useDatabaseFunctions, useDatabaseNamespaces) {
   return (
     callee.type === "MemberExpression" &&
     getPropertyName(callee) === "useDatabase" &&
-    unwrapExpression(callee.object).type === "Identifier" &&
-    useDatabaseNamespaces.has(unwrapExpression(callee.object).name)
+    isUseDatabaseNamespace(callee.object, useDatabaseNamespaces)
   );
 }
 
@@ -194,11 +203,35 @@ module.exports = {
       VariableDeclarator(node) {
         const init = unwrapExpression(node.init);
         if (
+          node.id.type === "ObjectPattern" &&
+          isUseDatabaseNamespace(init, useDatabaseNamespaces)
+        ) {
+          for (const property of node.id.properties) {
+            if (
+              property.type === "Property" &&
+              property.key.type === "Identifier" &&
+              property.key.name === "useDatabase" &&
+              property.value.type === "Identifier"
+            ) {
+              useDatabaseFunctions.add(property.value.name);
+            }
+          }
+          return;
+        }
+
+        if (
           node.id.type === "Identifier" &&
           init?.type === "Identifier" &&
           useDatabaseFunctions.has(init.name)
         ) {
           useDatabaseFunctions.add(node.id.name);
+        }
+
+        if (
+          node.id.type === "Identifier" &&
+          isUseDatabaseNamespace(init, useDatabaseNamespaces)
+        ) {
+          useDatabaseNamespaces.add(node.id.name);
         }
       },
 

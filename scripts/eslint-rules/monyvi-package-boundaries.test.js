@@ -30,10 +30,6 @@ ruleTester.run("monyvi-package-boundaries", rule, {
       filename: "apps/mobile/hooks/useCurrency.ts",
     },
     {
-      code: `import { formatCurrency } from "@monyvi/logic";`,
-      filename: "packages/db/src/models/Account.ts",
-    },
-    {
       code: `import { Transaction } from "@monyvi/db";`,
       filename: "packages/logic/src/analytics/transaction-analytics.test.ts",
     },
@@ -53,6 +49,11 @@ ruleTester.run("monyvi-package-boundaries", rule, {
       code: `import { Transaction } from "@monyvi/db";`,
       filename: "packages/logic/src/analytics/new-analytics.ts",
       errors: [{ messageId: "logicRuntimeDbImport" }],
+    },
+    {
+      code: `import { formatCurrency } from "@monyvi/logic";`,
+      filename: "packages/db/src/models/Account.ts",
+      errors: [{ messageId: "dbReverseImport" }],
     },
     {
       code: `import { formatCurrency } from "../../../logic/src/utils/currency";`,

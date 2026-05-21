@@ -48,6 +48,12 @@ function createQuery<TRecord>(): MockQuery<TRecord> {
   };
 }
 
+function resetQuery<TRecord>(query: MockQuery<TRecord>): void {
+  query.observerRef.current = null;
+  query.observe.mockClear();
+  query.unsubscribe.mockClear();
+}
+
 const monthlyChartQuery = createQuery<Transaction>();
 const categoryTransactionsQuery = createQuery<Transaction>();
 const categoriesQuery = createQuery<Category>();
@@ -124,6 +130,12 @@ describe("useAnalytics", () => {
     jest.clearAllMocks();
     mockUserId = "user-1";
     mockIsResolvingUser = false;
+    resetQuery(monthlyChartQuery);
+    resetQuery(categoryTransactionsQuery);
+    resetQuery(categoriesQuery);
+    resetQuery(currentComparisonQuery);
+    resetQuery(previousComparisonQuery);
+    resetQuery(monthlySummaryQuery);
 
     mockObserveMonthlyChartTransactions.mockReturnValue(monthlyChartQuery);
     mockObserveCategoryBreakdownSources.mockReturnValue({
@@ -250,6 +262,54 @@ describe("useAnalytics", () => {
     expect(result.current.data).toBe(categoryBreakdown);
   });
 
+  it("keeps non-monthly analytics reads disabled while signed out", async () => {
+    mockUserId = null;
+
+    const category = renderHook(() => useCategoryBreakdown(2026, 5));
+    const comparison = renderHook(() => useComparison("mom", 2026, 5));
+    const summaries = renderHook(() => useMonthlySummaries());
+
+    await waitFor(() => {
+      expect(category.result.current.isLoading).toBe(false);
+      expect(comparison.result.current.isLoading).toBe(false);
+      expect(summaries.result.current.isLoading).toBe(false);
+    });
+
+    expect(mockObserveCategoryBreakdownSources).not.toHaveBeenCalled();
+    expect(mockObserveComparisonTransactions).not.toHaveBeenCalled();
+    expect(mockObserveMonthlySummaryTransactions).not.toHaveBeenCalled();
+  });
+
+  it("logs category transaction observation failures and stops loading", async () => {
+    const error = new Error("category transactions failed");
+    const { result } = renderHook(() => useCategoryBreakdown(2026, 5));
+
+    act(() => {
+      categoryTransactionsQuery.observerRef.current?.error(error);
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.error).toBe(error);
+    });
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      "analytics.categoryTransactions.observe.failed",
+      error
+    );
+  });
+
+  it("refetches category breakdown without rebuilding unchanged data", () => {
+    const { result } = renderHook(() => useCategoryBreakdown(2026, 5));
+    mockBuildCategoryBreakdown.mockClear();
+
+    act(() => {
+      result.current.refetch();
+    });
+
+    expect(mockObserveCategoryBreakdownSources).toHaveBeenCalledTimes(2);
+    expect(mockBuildCategoryBreakdown).not.toHaveBeenCalled();
+  });
+
   it("subscribes comparison sources through the analytics read model", async () => {
     const { result } = renderHook(() =>
       useComparison("mom", 2026, 5, ["account-1"])
@@ -282,6 +342,36 @@ describe("useAnalytics", () => {
     expect(result.current.data).toBe(comparisonData);
   });
 
+  it("logs comparison observation failures and stops loading", async () => {
+    const error = new Error("current comparison failed");
+    const { result } = renderHook(() => useComparison("mom", 2026, 5));
+
+    act(() => {
+      currentComparisonQuery.observerRef.current?.error(error);
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.error).toBe(error);
+    });
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      "analytics.currentPeriod.observe.failed",
+      error
+    );
+  });
+
+  it("refetches comparison without rebuilding unchanged data", () => {
+    const { result } = renderHook(() => useComparison("mom", 2026, 5));
+    mockBuildComparison.mockClear();
+
+    act(() => {
+      result.current.refetch();
+    });
+
+    expect(mockObserveComparisonTransactions).toHaveBeenCalledTimes(2);
+    expect(mockBuildComparison).not.toHaveBeenCalled();
+  });
+
   it("resubscribes default comparison sources when the local month changes", () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date(2026, 4, 31, 23, 59, 59, 900));
@@ -309,35 +399,28 @@ describe("useAnalytics", () => {
     });
   });
 
-  it("refreshes the default comparison period immediately when filters clear", () => {
+  it("refreshes the default comparison period when explicit filters are cleared", async () => {
     jest.useFakeTimers();
-    jest.setSystemTime(new Date(2026, 4, 15, 12, 0, 0, 0));
+    jest.setSystemTime(new Date(2026, 4, 31, 23, 59, 59, 900));
 
     const { rerender } = renderHook(
-      ({ year, month }: { year?: number; month?: number }) =>
+      ({ year, month }: { readonly year?: number; readonly month?: number }) =>
         useComparison("mom", year, month),
-      {
-        initialProps: { year: 2026, month: 4 },
-      }
+      { initialProps: { year: 2026, month: 5 } }
     );
 
-    expect(mockObserveComparisonTransactions).toHaveBeenLastCalledWith({
-      userId: "user-1",
-      type: "mom",
-      year: 2026,
-      month: 4,
-      accountIds: [],
-    });
+    jest.setSystemTime(new Date(2026, 5, 1, 0, 0, 0, 100));
 
-    jest.setSystemTime(new Date(2026, 5, 1, 12, 0, 0, 0));
-    rerender({});
+    rerender({ year: undefined, month: undefined });
 
-    expect(mockObserveComparisonTransactions).toHaveBeenLastCalledWith({
-      userId: "user-1",
-      type: "mom",
-      year: 2026,
-      month: 6,
-      accountIds: [],
+    await waitFor(() => {
+      expect(mockObserveComparisonTransactions).toHaveBeenLastCalledWith({
+        userId: "user-1",
+        type: "mom",
+        year: 2026,
+        month: 6,
+        accountIds: [],
+      });
     });
   });
 
@@ -364,5 +447,35 @@ describe("useAnalytics", () => {
       { months: 3 }
     );
     expect(result.current.data).toBe(monthlySummaries);
+  });
+
+  it("logs monthly summary observation failures and exposes the error", async () => {
+    const error = new Error("monthly summaries failed");
+    const { result } = renderHook(() => useMonthlySummaries());
+
+    act(() => {
+      monthlySummaryQuery.observerRef.current?.error(error);
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.error).toBe(error);
+    });
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      "analytics.monthlySummaries.observe.failed",
+      error
+    );
+  });
+
+  it("refetches monthly summaries without rebuilding unchanged data", () => {
+    const { result } = renderHook(() => useMonthlySummaries());
+    mockBuildMonthlySummaries.mockClear();
+
+    act(() => {
+      result.current.refetch();
+    });
+
+    expect(mockObserveMonthlySummaryTransactions).toHaveBeenCalledTimes(2);
+    expect(mockBuildMonthlySummaries).not.toHaveBeenCalled();
   });
 });
