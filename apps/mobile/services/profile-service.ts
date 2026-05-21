@@ -100,6 +100,26 @@ export async function setPreferredLanguage(
 }
 
 /**
+ * Persist the user's preferred display currency to the scoped profile row.
+ */
+export async function setPreferredCurrency(
+  currency: CurrencyType
+): Promise<void> {
+  if (!SUPPORTED_CURRENCY_CODES.has(currency)) {
+    throw new Error(
+      `setPreferredCurrency: unsupported currency code "${String(currency)}"`
+    );
+  }
+
+  const profile = await getProfile();
+  await database.write(async () => {
+    await profile.update((p) => {
+      p.preferredCurrency = currency;
+    });
+  });
+}
+
+/**
  * Flip the `onboarding_completed` flag to true AND clear the per-user
  * AsyncStorage cursor.
  *

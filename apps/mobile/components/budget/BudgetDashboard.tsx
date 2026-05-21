@@ -16,7 +16,7 @@
  * @module BudgetDashboard
  */
 
-import React, { useCallback } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -25,13 +25,15 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 
 import { palette } from "@/constants/colors";
 import { usePreferredCurrency } from "@/hooks/usePreferredCurrency";
 import { useBudgets, type BudgetWithMetrics } from "@/hooks/useBudgets";
+import { pauseExpiredCustomBudgets } from "@/services/budget-service";
+import { logger } from "@/utils/logger";
 
 import { formatCurrency } from "@monyvi/logic";
 import { PeriodFilterChips } from "./PeriodFilterChips";
@@ -55,7 +57,40 @@ export function BudgetDashboard(): React.JSX.Element {
     periodFilter,
     setPeriodFilter,
     budgets,
+    refresh,
+    autoPauseCheckKey,
   } = useBudgets();
+  const [isAutoPauseActive, setIsAutoPauseActive] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      setIsAutoPauseActive(true);
+
+      return () => {
+        setIsAutoPauseActive(false);
+      };
+    }, [])
+  );
+
+  useEffect(() => {
+    if (!isAutoPauseActive) return;
+
+    let isActive = true;
+
+    pauseExpiredCustomBudgets()
+      .then((pausedCount) => {
+        if (isActive && pausedCount > 0) {
+          refresh();
+        }
+      })
+      .catch((error: unknown) => {
+        logger.error("budgetDashboard.pauseExpired.failed", error);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [autoPauseCheckKey, isAutoPauseActive, refresh]);
 
   const handleCreateBudget = useCallback((): void => {
     router.push("/create-budget");
@@ -123,7 +158,7 @@ export function BudgetDashboard(): React.JSX.Element {
         </View>
       ) : (
         <FlatList
-          data={categoryBudgets as BudgetWithMetrics[]}
+          data={categoryBudgets}
           keyExtractor={keyExtractor}
           renderItem={renderCategoryItem}
           numColumns={2}

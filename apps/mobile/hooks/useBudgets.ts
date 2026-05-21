@@ -1,18 +1,9 @@
 /**
  * useBudgets Hook
  *
- * Observes all ACTIVE, non-deleted budgets via WatermelonDB,
- * computes spending per budget, and supports period filtering.
- *
- * Also handles:
- * - Period rollover: resets alert_fired_level to null
- * - Auto-pause: pauses custom budgets whose period_end has passed
- *
- * Architecture & Design Rationale:
- * - Pattern: Custom Hook (data subscription + side effects)
- * - Why: Encapsulates WatermelonDB reactive queries, spending calculations,
- *   and lifecycle management in a single reusable hook.
- * - SOLID: SRP — provides budget list data; components handle rendering.
+ * Observes all active/non-deleted budgets, computes spending per budget, and
+ * supports period filtering. Lifecycle mutations, such as pausing expired
+ * custom budgets, are explicit service commands invoked by containers.
  *
  * @module useBudgets
  */
@@ -21,15 +12,11 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { Budget, database } from "@monyvi/db";
 import { Q } from "@nozbe/watermelondb";
 
-import {
-  getSpendingForBudget,
-  autoPauseBudget,
-} from "@/services/budget-service";
+import { getSpendingForBudget } from "@/services/budget-service";
 import { queryOwned } from "@/services/user-data-access";
 import type { PeriodFilter } from "@/components/budget/PeriodFilterChips";
 import {
   SpendingMetrics,
-  isPeriodExpired,
   getCurrentPeriodBounds,
   getDaysElapsed,
   getDaysLeft,
@@ -67,6 +54,8 @@ interface UseBudgetsResult {
   readonly setPeriodFilter: (filter: PeriodFilter) => void;
   /** Force refresh spending calculations */
   readonly refresh: () => void;
+  /** Changes when budget fields relevant to lifecycle auto-pause change */
+  readonly autoPauseCheckKey: string;
 }
 
 // =============================================================================
@@ -83,7 +72,6 @@ export function useBudgets(): UseBudgetsResult {
   const [refreshCounter, setRefreshCounter] = useState(0);
   const { userId, isResolvingUser } = useCurrentUser();
 
-  // ── Subscribe to active, non-deleted budgets ──
   useEffect(() => {
     if (isResolvingUser) {
       setRawBudgets([]);
@@ -113,7 +101,6 @@ export function useBudgets(): UseBudgetsResult {
     return () => subscription.unsubscribe();
   }, [userId, isResolvingUser]);
 
-  // ── Compute spending metrics when budgets change ──
   useEffect(() => {
     let cancelled = false;
 
@@ -123,23 +110,11 @@ export function useBudgets(): UseBudgetsResult {
       const results: BudgetWithMetrics[] = [];
 
       for (const budget of rawBudgets) {
-        // Auto-pause expired custom budgets (F2 remediation)
-        if (
-          budget.status === "ACTIVE" &&
-          budget.isCustomPeriod &&
-          isPeriodExpired(budget.periodEnd)
-        ) {
-          await autoPauseBudget(budget.id);
-          continue; // Skip this budget — it's now paused
-        }
-
         const bounds = getCurrentPeriodBounds(
           budget.period,
           budget.periodStart,
           budget.periodEnd
         );
-
-        // NOTE: Period-rollover alert reset is handled in budget-alert-service.ts (C-03)
 
         const spent = await getSpendingForBudget(budget);
         const daysElapsed = getDaysElapsed(bounds.start);
@@ -167,13 +142,11 @@ export function useBudgets(): UseBudgetsResult {
     };
   }, [rawBudgets, refreshCounter]);
 
-  // ── Filter by period ──
   const filteredBudgets = useMemo(() => {
     if (periodFilter === "ALL") return budgetsWithMetrics;
     return budgetsWithMetrics.filter((bm) => bm.budget.period === periodFilter);
   }, [budgetsWithMetrics, periodFilter]);
 
-  // ── Split global vs category ──
   const globalBudget = useMemo(
     () => filteredBudgets.find((bm) => bm.budget.isGlobal),
     [filteredBudgets]
@@ -192,6 +165,21 @@ export function useBudgets(): UseBudgetsResult {
     [filteredBudgets]
   );
 
+  const autoPauseCheckKey = useMemo(
+    () =>
+      rawBudgets
+        .map((budget) =>
+          [
+            budget.id,
+            budget.status,
+            budget.period,
+            budget.periodEnd?.getTime() ?? "none",
+          ].join(":")
+        )
+        .join("|"),
+    [rawBudgets]
+  );
+
   const refresh = useCallback(() => {
     setRefreshCounter((c) => c + 1);
   }, []);
@@ -206,5 +194,6 @@ export function useBudgets(): UseBudgetsResult {
     periodFilter,
     setPeriodFilter,
     refresh,
+    autoPauseCheckKey,
   };
 }

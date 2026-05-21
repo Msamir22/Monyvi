@@ -18,10 +18,6 @@ ruleTester.run("monyvi-no-hook-db-write", rule, {
       filename: "apps/mobile/services/transaction-service.ts",
     },
     {
-      code: `await database.write(async () => {});`,
-      filename: "apps/mobile/hooks/usePreferredCurrency.ts",
-    },
-    {
       code: `const rows = await database.get("accounts").query().fetch();`,
       filename: "apps/mobile/hooks/useAccounts.ts",
     },
@@ -42,6 +38,16 @@ ruleTester.run("monyvi-no-hook-db-write", rule, {
         await db.write(async () => {});
       `,
       filename: "apps/mobile/components/Thing.tsx",
+      errors: [{ messageId: "dbWriteOutsideService" }],
+    },
+    {
+      code: `await database.write(async () => {});`,
+      filename: "apps/mobile/hooks/usePreferredCurrency.ts",
+      errors: [{ messageId: "dbWriteOutsideService" }],
+    },
+    {
+      code: `await database.write(async () => {});`,
+      filename: "apps/mobile/utils/transactions.ts",
       errors: [{ messageId: "dbWriteOutsideService" }],
     },
     {

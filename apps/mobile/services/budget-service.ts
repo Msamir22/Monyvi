@@ -20,6 +20,7 @@ import {
 import { Q, type Collection } from "@nozbe/watermelondb";
 import {
   getCurrentPeriodBounds,
+  isPeriodExpired,
   filterExcludedTransactions,
   buildPauseInterval,
   parsePauseIntervals,
@@ -77,6 +78,14 @@ export class BudgetServiceError extends Error {
 
 function budgetsCollection(): Collection<Budget> {
   return database.get<Budget>("budgets");
+}
+
+function isExpiredCustomBudgetEligibleForPause(budget: Budget): boolean {
+  return (
+    budget.status === "ACTIVE" &&
+    budget.period === "CUSTOM" &&
+    isPeriodExpired(budget.periodEnd)
+  );
 }
 
 function transactionsCollection(): Collection<Transaction> {
@@ -374,6 +383,49 @@ export async function autoPauseBudget(budgetId: string): Promise<void> {
       b.pausedAt = new Date().toISOString();
     });
   });
+}
+
+/**
+ * Pause all active custom budgets whose period has expired.
+ *
+ * This is an explicit lifecycle command. Hooks/read models should call this
+ * from a clear orchestration point instead of mutating while computing reads.
+ */
+export async function pauseExpiredCustomBudgets(): Promise<number> {
+  const scope = await getCurrentUserDataScope();
+  const candidates = await scope
+    .queryOwned(
+      budgetsCollection(),
+      Q.where("deleted", false),
+      Q.where("status", "ACTIVE"),
+      Q.where("period", "CUSTOM")
+    )
+    .fetch();
+
+  const expiredBudgets = candidates.filter((budget) =>
+    isPeriodExpired(budget.periodEnd)
+  );
+
+  if (expiredBudgets.length === 0) {
+    return 0;
+  }
+
+  const pausedAt = new Date().toISOString();
+  let pausedCount = 0;
+
+  await database.write(async () => {
+    for (const budget of expiredBudgets) {
+      if (!isExpiredCustomBudgetEligibleForPause(budget)) continue;
+
+      await budget.update((b) => {
+        b.status = "PAUSED";
+        b.pausedAt = b.pausedAt ?? pausedAt;
+      });
+      pausedCount += 1;
+    }
+  });
+
+  return pausedCount;
 }
 
 // =============================================================================

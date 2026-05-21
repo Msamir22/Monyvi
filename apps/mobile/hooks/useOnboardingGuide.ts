@@ -361,8 +361,8 @@ export function useOnboardingGuide(): UseOnboardingGuideResult {
 
   const isAllComplete = completedCount === steps.length;
 
-  // Auto-dismiss when all steps complete. Delegates to the service layer so
-  // no `database.write()` lives inside a hook (Constitution IV / CLAUDE.md).
+  // Auto-dismiss when all steps complete. Delegates persistence to the service
+  // layer so hooks stay read/lifecycle-only (Constitution IV / CLAUDE.md).
   useEffect(() => {
     if (!isAllComplete || !profile || profile.setupGuideCompleted) return;
 
