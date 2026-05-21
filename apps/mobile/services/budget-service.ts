@@ -79,6 +79,14 @@ function budgetsCollection(): Collection<Budget> {
   return database.get<Budget>("budgets");
 }
 
+function isExpiredCustomBudgetEligibleForPause(budget: Budget): boolean {
+  return (
+    budget.status === "ACTIVE" &&
+    budget.period === "CUSTOM" &&
+    isPeriodExpired(budget.periodEnd)
+  );
+}
+
 function transactionsCollection(): Collection<Transaction> {
   return database.get<Transaction>("transactions");
 }
@@ -402,18 +410,21 @@ export async function pauseExpiredCustomBudgets(): Promise<number> {
   }
 
   const pausedAt = new Date().toISOString();
+  let pausedCount = 0;
+
   await database.write(async () => {
-    await Promise.all(
-      expiredBudgets.map((budget) =>
-        budget.update((b) => {
-          b.status = "PAUSED";
-          b.pausedAt = pausedAt;
-        })
-      )
-    );
+    for (const budget of expiredBudgets) {
+      if (!isExpiredCustomBudgetEligibleForPause(budget)) continue;
+
+      await budget.update((b) => {
+        b.status = "PAUSED";
+        b.pausedAt = b.pausedAt ?? pausedAt;
+      });
+      pausedCount += 1;
+    }
   });
 
-  return expiredBudgets.length;
+  return pausedCount;
 }
 
 // =============================================================================
