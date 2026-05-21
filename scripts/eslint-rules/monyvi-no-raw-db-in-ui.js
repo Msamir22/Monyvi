@@ -65,7 +65,7 @@ module.exports = {
       ImportDeclaration(node) {
         const source =
           typeof node.source.value === "string" ? node.source.value : "";
-        if (source !== "@monyvi/db") {
+        if (source !== "@monyvi/db" && !source.startsWith("@monyvi/db/")) {
           return;
         }
 

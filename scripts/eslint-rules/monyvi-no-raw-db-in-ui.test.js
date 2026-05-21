@@ -37,6 +37,11 @@ ruleTester.run("monyvi-no-raw-db-in-ui", rule, {
       errors: [{ messageId: "rawDatabaseImport" }],
     },
     {
+      code: `import { database } from "@monyvi/db/database";`,
+      filename: "apps/mobile/app/(private)/new-screen.tsx",
+      errors: [{ messageId: "rawDatabaseImport" }],
+    },
+    {
       code: `const database = useDatabase();`,
       filename: "apps/mobile/components/NewDrawer.tsx",
       errors: [{ messageId: "rawUseDatabase" }],

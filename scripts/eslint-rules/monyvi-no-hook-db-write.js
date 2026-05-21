@@ -50,6 +50,27 @@ function getPropertyName(memberExpression) {
   return null;
 }
 
+function isDatabaseWriteMember(node, databaseVariables) {
+  return (
+    node?.type === "MemberExpression" &&
+    getPropertyName(node) === "write" &&
+    ((node.object.type === "Identifier" &&
+      databaseVariables.has(node.object.name)) ||
+      (node.object.type === "CallExpression" &&
+        node.object.callee.type === "Identifier" &&
+        node.object.callee.name === "useDatabase"))
+  );
+}
+
+function isDatabaseSource(node, databaseVariables) {
+  return (
+    (node?.type === "Identifier" && databaseVariables.has(node.name)) ||
+    (node?.type === "CallExpression" &&
+      node.callee.type === "Identifier" &&
+      node.callee.name === "useDatabase")
+  );
+}
+
 module.exports = {
   meta: {
     type: "problem",
@@ -77,10 +98,51 @@ module.exports = {
     }
 
     const databaseVariables = new Set(["database"]);
+    const databaseWriteFunctions = new Set();
 
     return {
+      ImportDeclaration(node) {
+        const source =
+          typeof node.source.value === "string" ? node.source.value : "";
+        if (source !== "@monyvi/db" && !source.startsWith("@monyvi/db/")) {
+          return;
+        }
+
+        for (const specifier of node.specifiers) {
+          if (
+            specifier.type === "ImportSpecifier" &&
+            specifier.imported.type === "Identifier" &&
+            specifier.imported.name === "database" &&
+            specifier.local.type === "Identifier"
+          ) {
+            databaseVariables.add(specifier.local.name);
+          }
+        }
+      },
+
       VariableDeclarator(node) {
-        if (!node.id || node.id.type !== "Identifier") {
+        if (!node.id) {
+          return;
+        }
+
+        if (
+          node.id.type === "ObjectPattern" &&
+          isDatabaseSource(node.init, databaseVariables)
+        ) {
+          for (const property of node.id.properties) {
+            if (
+              property.type === "Property" &&
+              property.key.type === "Identifier" &&
+              property.key.name === "write" &&
+              property.value.type === "Identifier"
+            ) {
+              databaseWriteFunctions.add(property.value.name);
+            }
+          }
+          return;
+        }
+
+        if (node.id.type !== "Identifier") {
           return;
         }
 
@@ -98,24 +160,33 @@ module.exports = {
           node.init.callee.name === "useDatabase"
         ) {
           databaseVariables.add(node.id.name);
+          return;
+        }
+
+        if (isDatabaseWriteMember(node.init, databaseVariables)) {
+          databaseWriteFunctions.add(node.id.name);
         }
       },
 
       CallExpression(node) {
         const callee = node.callee;
         if (
-          callee.type !== "MemberExpression" ||
-          getPropertyName(callee) !== "write" ||
-          callee.object.type !== "Identifier" ||
-          !databaseVariables.has(callee.object.name)
+          callee.type === "Identifier" &&
+          databaseWriteFunctions.has(callee.name)
         ) {
+          context.report({
+            node,
+            messageId: "dbWriteOutsideService",
+          });
           return;
         }
 
-        context.report({
-          node,
-          messageId: "dbWriteOutsideService",
-        });
+        if (isDatabaseWriteMember(callee, databaseVariables)) {
+          context.report({
+            node,
+            messageId: "dbWriteOutsideService",
+          });
+        }
       },
     };
   },

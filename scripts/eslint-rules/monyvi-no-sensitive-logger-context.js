@@ -8,24 +8,37 @@ const KNOWN_DEBT_FILE_SUFFIXES = [
 ];
 
 const SENSITIVE_KEYS = new Set([
+  "account_id",
   "accountid",
   "amount",
   "availablebalance",
   "balance",
+  "bank_account_id",
   "bankaccountid",
   "email",
   "fingerprint",
+  "from_account_id",
   "fromaccountid",
+  "payment_id",
   "paymentid",
+  "profile_id",
   "profileid",
+  "raw_sms_body",
   "rawsmsbody",
   "sender",
+  "sender_display_name",
   "senderdisplayname",
+  "sms_body",
   "smsbody",
+  "sms_fingerprint",
   "smsfingerprint",
+  "to_account_id",
   "toaccountid",
+  "transaction_id",
   "transactionid",
+  "transfer_id",
   "transferid",
+  "user_id",
   "userid",
 ]);
 
@@ -132,8 +145,15 @@ module.exports = {
       return {};
     }
 
+    const objectExpressionsByName = new Map();
+
     function inspectObjectExpression(objectExpression) {
       for (const property of objectExpression.properties) {
+        if (property.type === "SpreadElement") {
+          inspectContextExpression(property.argument);
+          continue;
+        }
+
         if (property.type !== "Property") {
           continue;
         }
@@ -153,16 +173,37 @@ module.exports = {
       }
     }
 
+    function inspectContextExpression(expression) {
+      if (expression.type === "ObjectExpression") {
+        inspectObjectExpression(expression);
+        return;
+      }
+
+      if (expression.type === "Identifier") {
+        const objectExpression = objectExpressionsByName.get(expression.name);
+        if (objectExpression) {
+          inspectObjectExpression(objectExpression);
+        }
+      }
+    }
+
     return {
+      VariableDeclarator(node) {
+        if (
+          node.id.type === "Identifier" &&
+          node.init?.type === "ObjectExpression"
+        ) {
+          objectExpressionsByName.set(node.id.name, node.init);
+        }
+      },
+
       CallExpression(node) {
         if (!isLoggerCall(node)) {
           return;
         }
 
         for (const argument of node.arguments) {
-          if (argument.type === "ObjectExpression") {
-            inspectObjectExpression(argument);
-          }
+          inspectContextExpression(argument);
         }
       },
     };

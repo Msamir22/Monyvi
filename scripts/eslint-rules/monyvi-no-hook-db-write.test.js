@@ -44,5 +44,42 @@ ruleTester.run("monyvi-no-hook-db-write", rule, {
       filename: "apps/mobile/components/Thing.tsx",
       errors: [{ messageId: "dbWriteOutsideService" }],
     },
+    {
+      code: `await useDatabase().write(async () => {});`,
+      filename: "apps/mobile/components/Thing.tsx",
+      errors: [{ messageId: "dbWriteOutsideService" }],
+    },
+    {
+      code: `
+        import { database as localDatabase } from "@monyvi/db";
+        await localDatabase.write(async () => {});
+      `,
+      filename: "apps/mobile/components/Thing.tsx",
+      errors: [{ messageId: "dbWriteOutsideService" }],
+    },
+    {
+      code: `
+        const { write } = database;
+        await write(async () => {});
+      `,
+      filename: "apps/mobile/components/Thing.tsx",
+      errors: [{ messageId: "dbWriteOutsideService" }],
+    },
+    {
+      code: `
+        const { write: writeToDatabase } = useDatabase();
+        await writeToDatabase(async () => {});
+      `,
+      filename: "apps/mobile/components/Thing.tsx",
+      errors: [{ messageId: "dbWriteOutsideService" }],
+    },
+    {
+      code: `
+        const writeToDatabase = database.write;
+        await writeToDatabase(async () => {});
+      `,
+      filename: "apps/mobile/components/Thing.tsx",
+      errors: [{ messageId: "dbWriteOutsideService" }],
+    },
   ],
 });
