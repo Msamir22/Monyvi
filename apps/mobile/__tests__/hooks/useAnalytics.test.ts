@@ -120,6 +120,7 @@ import {
 
 describe("useAnalytics", () => {
   beforeEach(() => {
+    jest.useRealTimers();
     jest.clearAllMocks();
     mockUserId = "user-1";
     mockIsResolvingUser = false;
@@ -138,6 +139,10 @@ describe("useAnalytics", () => {
     mockBuildCategoryBreakdown.mockReturnValue(categoryBreakdown);
     mockBuildComparison.mockReturnValue(comparisonData);
     mockBuildMonthlySummaries.mockReturnValue(monthlySummaries);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   it("subscribes monthly chart data through the analytics read model", async () => {
@@ -275,6 +280,33 @@ describe("useAnalytics", () => {
       [{ id: "previous" }]
     );
     expect(result.current.data).toBe(comparisonData);
+  });
+
+  it("resubscribes default comparison sources when the local month changes", () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date(2026, 4, 31, 23, 59, 59, 900));
+
+    renderHook(() => useComparison("mom"));
+
+    expect(mockObserveComparisonTransactions).toHaveBeenLastCalledWith({
+      userId: "user-1",
+      type: "mom",
+      year: 2026,
+      month: 5,
+      accountIds: [],
+    });
+
+    act(() => {
+      jest.advanceTimersByTime(200);
+    });
+
+    expect(mockObserveComparisonTransactions).toHaveBeenLastCalledWith({
+      userId: "user-1",
+      type: "mom",
+      year: 2026,
+      month: 6,
+      accountIds: [],
+    });
   });
 
   it("subscribes monthly summaries through the analytics read model", async () => {
