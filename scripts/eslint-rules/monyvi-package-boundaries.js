@@ -126,6 +126,17 @@ module.exports = {
       },
 
       CallExpression(node) {
+        if (node.callee.type === "Import" && node.arguments.length === 1) {
+          const sourceNode = node.arguments[0];
+          if (
+            sourceNode.type === "Literal" &&
+            typeof sourceNode.value === "string"
+          ) {
+            checkSource(node, sourceNode.value, false);
+          }
+          return;
+        }
+
         if (
           node.callee.type !== "Identifier" ||
           node.callee.name !== "require" ||
@@ -135,6 +146,18 @@ module.exports = {
         }
 
         const sourceNode = node.arguments[0];
+        if (
+          sourceNode.type !== "Literal" ||
+          typeof sourceNode.value !== "string"
+        ) {
+          return;
+        }
+
+        checkSource(node, sourceNode.value, false);
+      },
+
+      ImportExpression(node) {
+        const sourceNode = node.source;
         if (
           sourceNode.type !== "Literal" ||
           typeof sourceNode.value !== "string"

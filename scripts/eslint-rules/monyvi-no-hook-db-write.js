@@ -1,5 +1,7 @@
 "use strict";
 
+const path = require("path");
+
 const KNOWN_DEBT_FILE_SUFFIXES = [
   "apps/mobile/hooks/usePreferredCurrency.ts",
   "apps/mobile/utils/transactions.ts",
@@ -33,6 +35,29 @@ function isMobileService(fileName) {
   return normalizePath(fileName).includes("apps/mobile/services/");
 }
 
+function resolveRelativeSource(fileName, source) {
+  if (!source.startsWith(".")) {
+    return source;
+  }
+
+  return path.posix.normalize(
+    path.posix.join(path.posix.dirname(normalizePath(fileName)), source)
+  );
+}
+
+function sourceTargetsDatabase(fileName, source) {
+  if (source === "@monyvi/db" || source.startsWith("@monyvi/db/")) {
+    return true;
+  }
+
+  const resolved = resolveRelativeSource(fileName, source);
+  return (
+    resolved === "packages/db" ||
+    resolved.startsWith("packages/db/") ||
+    resolved.includes("/packages/db/")
+  );
+}
+
 function getPropertyName(memberExpression) {
   if (!memberExpression || memberExpression.type !== "MemberExpression") {
     return null;
@@ -50,24 +75,51 @@ function getPropertyName(memberExpression) {
   return null;
 }
 
-function isDatabaseWriteMember(node, databaseVariables) {
+function isUseDatabaseCall(node, useDatabaseFunctions) {
   return (
-    node?.type === "MemberExpression" &&
-    getPropertyName(node) === "write" &&
-    ((node.object.type === "Identifier" &&
-      databaseVariables.has(node.object.name)) ||
-      (node.object.type === "CallExpression" &&
-        node.object.callee.type === "Identifier" &&
-        node.object.callee.name === "useDatabase"))
+    node?.type === "CallExpression" &&
+    node.callee.type === "Identifier" &&
+    useDatabaseFunctions.has(node.callee.name)
   );
 }
 
-function isDatabaseSource(node, databaseVariables) {
+function isDatabaseNamespaceMember(node, databaseNamespaces) {
+  return (
+    node?.type === "MemberExpression" &&
+    getPropertyName(node) === "database" &&
+    node.object.type === "Identifier" &&
+    databaseNamespaces.has(node.object.name)
+  );
+}
+
+function isDatabaseSource(
+  node,
+  databaseVariables,
+  databaseNamespaces,
+  useDatabaseFunctions
+) {
   return (
     (node?.type === "Identifier" && databaseVariables.has(node.name)) ||
-    (node?.type === "CallExpression" &&
-      node.callee.type === "Identifier" &&
-      node.callee.name === "useDatabase")
+    isUseDatabaseCall(node, useDatabaseFunctions) ||
+    isDatabaseNamespaceMember(node, databaseNamespaces)
+  );
+}
+
+function isDatabaseWriteMember(
+  node,
+  databaseVariables,
+  databaseNamespaces,
+  useDatabaseFunctions
+) {
+  return (
+    node?.type === "MemberExpression" &&
+    getPropertyName(node) === "write" &&
+    isDatabaseSource(
+      node.object,
+      databaseVariables,
+      databaseNamespaces,
+      useDatabaseFunctions
+    )
   );
 }
 
@@ -98,17 +150,27 @@ module.exports = {
     }
 
     const databaseVariables = new Set(["database"]);
+    const databaseNamespaces = new Set();
     const databaseWriteFunctions = new Set();
+    const useDatabaseFunctions = new Set(["useDatabase"]);
 
     return {
       ImportDeclaration(node) {
         const source =
           typeof node.source.value === "string" ? node.source.value : "";
-        if (source !== "@monyvi/db" && !source.startsWith("@monyvi/db/")) {
+        if (!sourceTargetsDatabase(fileName, source)) {
           return;
         }
 
         for (const specifier of node.specifiers) {
+          if (
+            specifier.type === "ImportNamespaceSpecifier" &&
+            specifier.local.type === "Identifier"
+          ) {
+            databaseNamespaces.add(specifier.local.name);
+            continue;
+          }
+
           if (
             specifier.type === "ImportSpecifier" &&
             specifier.imported.type === "Identifier" &&
@@ -127,7 +189,12 @@ module.exports = {
 
         if (
           node.id.type === "ObjectPattern" &&
-          isDatabaseSource(node.init, databaseVariables)
+          isDatabaseSource(
+            node.init,
+            databaseVariables,
+            databaseNamespaces,
+            useDatabaseFunctions
+          )
         ) {
           for (const property of node.id.properties) {
             if (
@@ -148,6 +215,14 @@ module.exports = {
 
         if (
           node.init?.type === "Identifier" &&
+          useDatabaseFunctions.has(node.init.name)
+        ) {
+          useDatabaseFunctions.add(node.id.name);
+          return;
+        }
+
+        if (
+          node.init?.type === "Identifier" &&
           databaseVariables.has(node.init.name)
         ) {
           databaseVariables.add(node.id.name);
@@ -155,15 +230,21 @@ module.exports = {
         }
 
         if (
-          node.init?.type === "CallExpression" &&
-          node.init.callee.type === "Identifier" &&
-          node.init.callee.name === "useDatabase"
+          isUseDatabaseCall(node.init, useDatabaseFunctions) ||
+          isDatabaseNamespaceMember(node.init, databaseNamespaces)
         ) {
           databaseVariables.add(node.id.name);
           return;
         }
 
-        if (isDatabaseWriteMember(node.init, databaseVariables)) {
+        if (
+          isDatabaseWriteMember(
+            node.init,
+            databaseVariables,
+            databaseNamespaces,
+            useDatabaseFunctions
+          )
+        ) {
           databaseWriteFunctions.add(node.id.name);
         }
       },
@@ -181,7 +262,14 @@ module.exports = {
           return;
         }
 
-        if (isDatabaseWriteMember(callee, databaseVariables)) {
+        if (
+          isDatabaseWriteMember(
+            callee,
+            databaseVariables,
+            databaseNamespaces,
+            useDatabaseFunctions
+          )
+        ) {
           context.report({
             node,
             messageId: "dbWriteOutsideService",

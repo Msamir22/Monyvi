@@ -112,7 +112,7 @@ function isLoggerCall(node) {
 }
 
 function isSensitiveKey(keyName) {
-  const normalized = keyName.toLowerCase();
+  const normalized = normalizeSensitiveName(keyName);
   if (
     normalized.includes("redacted") ||
     normalized.includes("masked") ||
@@ -122,6 +122,10 @@ function isSensitiveKey(keyName) {
   }
 
   return SENSITIVE_KEYS.has(normalized);
+}
+
+function normalizeSensitiveName(keyName) {
+  return keyName.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 module.exports = {
@@ -145,12 +149,62 @@ module.exports = {
       return {};
     }
 
-    const objectExpressionsByName = new Map();
+    const sourceCode = context.getSourceCode();
 
-    function inspectObjectExpression(objectExpression) {
+    function findVariable(name, scopeNode) {
+      let scope =
+        typeof sourceCode.getScope === "function"
+          ? sourceCode.getScope(scopeNode)
+          : context.getScope();
+      while (scope) {
+        const variable = scope.set.get(name);
+        if (variable) {
+          return variable;
+        }
+        scope = scope.upper;
+      }
+
+      return null;
+    }
+
+    function resolveExpression(expression, visitedIdentifiers, scopeNode) {
+      if (expression.type !== "Identifier") {
+        return expression;
+      }
+
+      if (visitedIdentifiers.has(expression.name)) {
+        return null;
+      }
+
+      visitedIdentifiers.add(expression.name);
+      const variable = findVariable(expression.name, scopeNode);
+      const definition = variable?.defs.find(
+        (def) => def.node.type === "VariableDeclarator" && def.node.init
+      );
+      const init = definition?.node.init;
+      if (!init) {
+        return null;
+      }
+
+      if (init.type === "Identifier") {
+        return resolveExpression(init, visitedIdentifiers, scopeNode);
+      }
+
+      return init;
+    }
+
+    function inspectObjectExpression(
+      objectExpression,
+      visitedIdentifiers,
+      scopeNode
+    ) {
       for (const property of objectExpression.properties) {
         if (property.type === "SpreadElement") {
-          inspectContextExpression(property.argument);
+          inspectContextExpression(
+            property.argument,
+            new Set(visitedIdentifiers),
+            scopeNode
+          );
           continue;
         }
 
@@ -168,42 +222,55 @@ module.exports = {
         }
 
         if (property.value.type === "ObjectExpression") {
-          inspectObjectExpression(property.value);
+          inspectObjectExpression(
+            property.value,
+            visitedIdentifiers,
+            scopeNode
+          );
+        }
+
+        if (property.value.type === "Identifier") {
+          inspectContextExpression(
+            property.value,
+            new Set(visitedIdentifiers),
+            scopeNode
+          );
         }
       }
     }
 
-    function inspectContextExpression(expression) {
-      if (expression.type === "ObjectExpression") {
-        inspectObjectExpression(expression);
+    function inspectContextExpression(
+      expression,
+      visitedIdentifiers,
+      scopeNode
+    ) {
+      if (expression.type === "SpreadElement") {
+        inspectContextExpression(
+          expression.argument,
+          visitedIdentifiers,
+          scopeNode
+        );
         return;
       }
 
-      if (expression.type === "Identifier") {
-        const objectExpression = objectExpressionsByName.get(expression.name);
-        if (objectExpression) {
-          inspectObjectExpression(objectExpression);
-        }
+      const resolved = resolveExpression(
+        expression,
+        visitedIdentifiers,
+        scopeNode
+      );
+      if (resolved?.type === "ObjectExpression") {
+        inspectObjectExpression(resolved, visitedIdentifiers, scopeNode);
       }
     }
 
     return {
-      VariableDeclarator(node) {
-        if (
-          node.id.type === "Identifier" &&
-          node.init?.type === "ObjectExpression"
-        ) {
-          objectExpressionsByName.set(node.id.name, node.init);
-        }
-      },
-
       CallExpression(node) {
         if (!isLoggerCall(node)) {
           return;
         }
 
         for (const argument of node.arguments) {
-          inspectContextExpression(argument);
+          inspectContextExpression(argument, new Set(), node);
         }
       },
     };

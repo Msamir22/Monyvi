@@ -70,5 +70,22 @@ ruleTester.run("monyvi-no-sensitive-logger-context", rule, {
       filename: "apps/mobile/services/profile-service.ts",
       errors: [{ messageId: "sensitiveLoggerKey" }],
     },
+    {
+      code: `
+        const baseContext = { amount: 100 };
+        const context = baseContext;
+        logger.info("account.loaded", context);
+      `,
+      filename: "apps/mobile/services/profile-service.ts",
+      errors: [{ messageId: "sensitiveLoggerKey" }],
+    },
+    {
+      code: `
+        const context = { safe: true };
+        logger.info("account.loaded", { ...context, metadata: { user_id: "u1" } });
+      `,
+      filename: "apps/mobile/services/profile-service.ts",
+      errors: [{ messageId: "sensitiveLoggerKey" }],
+    },
   ],
 });

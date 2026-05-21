@@ -85,5 +85,15 @@ ruleTester.run("monyvi-package-boundaries", rule, {
       filename: "packages/logic/src/analytics/new-analytics.ts",
       errors: [{ messageId: "logicRuntimeDbImport" }],
     },
+    {
+      code: `await import("@monyvi/logic");`,
+      filename: "packages/db/src/models/NewModel.ts",
+      errors: [{ messageId: "dbReverseImport" }],
+    },
+    {
+      code: `await import("../../../db/src");`,
+      filename: "packages/logic/src/analytics/new-analytics.ts",
+      errors: [{ messageId: "logicRuntimeDbImport" }],
+    },
   ],
 });
