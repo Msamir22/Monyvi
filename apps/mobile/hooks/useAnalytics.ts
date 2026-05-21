@@ -1,28 +1,27 @@
 /**
  * useAnalytics Hooks
- * Local-first analytics hooks using WatermelonDB
- * All calculations use shared logic from @monyvi/logic
+ * Local-first analytics facades backed by mobile read-model services.
  */
 
-import { Category, database, Transaction, TransactionType } from "@monyvi/db";
-import {
-  aggregateByCategory,
-  calculateComparison,
-  calculateMonthlyTotals,
+import { useEffect, useMemo, useState } from "react";
+import type { Category, Transaction, TransactionType } from "@monyvi/db";
+import type {
   CategoryBreakdown,
   ChartDataPoint,
   ComparisonResult,
-  generateMonthlyChartData,
-  getComparisonPeriods,
-  getYearMonthBoundaries,
   MonthlySummary,
 } from "@monyvi/logic";
-import { Q } from "@nozbe/watermelondb";
-import { useEffect, useMemo, useState } from "react";
+
 import {
-  queryAccessibleCategories,
-  queryOwned,
-} from "@/services/user-data-access";
+  buildCategoryBreakdown,
+  buildComparison,
+  buildMonthlyChartData,
+  buildMonthlySummaries,
+  observeCategoryBreakdownSources,
+  observeComparisonTransactions,
+  observeMonthlyChartTransactions,
+  observeMonthlySummaryTransactions,
+} from "@/services/analytics-read-model-service";
 import { logger } from "@/utils/logger";
 import { useCurrentUser } from "./useCurrentUser";
 
@@ -33,9 +32,13 @@ interface UseAnalyticsResult<T> {
   refetch: () => void;
 }
 
-/**
- * Hook to get monthly chart data for the last N months
- */
+interface YearMonthPeriod {
+  readonly year: number;
+  readonly month: number;
+}
+
+const MAX_PERIOD_CHECK_DELAY_MS = 24 * 60 * 60 * 1000;
+
 export function useMonthlyChartData(
   months: number = 12,
   accountIds?: string[],
@@ -46,11 +49,8 @@ export function useMonthlyChartData(
   const [error, setError] = useState<Error | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const { userId, isResolvingUser } = useCurrentUser();
-
-  const accountIdsString = useMemo(
-    () => accountIds?.join(",") ?? "",
-    [accountIds]
-  );
+  const accountIdsString = useAccountIdsKey(accountIds);
+  const selectedAccountIds = useSelectedAccountIds(accountIdsString);
 
   const refetch = (): void => {
     setRefreshKey((prev) => prev + 1);
@@ -72,33 +72,12 @@ export function useMonthlyChartData(
     setIsLoading(true);
     setError(null);
 
-    const transactionsCollection = database.get<Transaction>("transactions");
-
-    // Calculate date range for the last N months
-    const now = new Date();
-    const startDate = new Date(
-      now.getFullYear(),
-      // +1 month to include current month
-      now.getMonth() - months + 1,
-      1
-    ).getTime();
-
-    // Build query conditions
-    const conditions = [
-      Q.where("deleted", false),
-      Q.where("date", Q.gte(startDate)),
-      Q.where("type", type),
-    ];
-    const selectedAccountIds =
-      accountIdsString.length > 0 ? accountIdsString.split(",") : [];
-
-    // Filter by accounts if specified
-    if (selectedAccountIds.length > 0) {
-      conditions.push(Q.where("account_id", Q.oneOf(selectedAccountIds)));
-    }
-
-    const query = queryOwned(transactionsCollection, userId, ...conditions);
-
+    const query = observeMonthlyChartTransactions({
+      userId,
+      months,
+      type,
+      accountIds: selectedAccountIds,
+    });
     const subscription = query.observe().subscribe({
       next: (result) => {
         setTransactions(result);
@@ -106,25 +85,31 @@ export function useMonthlyChartData(
       },
       error: (err: unknown) => {
         logger.error("analytics.monthlyChart.observe.failed", err);
-        setError(err instanceof Error ? err : new Error(String(err)));
+        setError(toError(err));
         setIsLoading(false);
       },
     });
 
     return () => subscription.unsubscribe();
-  }, [months, type, accountIdsString, refreshKey, userId, isResolvingUser]);
+  }, [
+    months,
+    type,
+    accountIdsString,
+    refreshKey,
+    userId,
+    isResolvingUser,
+    selectedAccountIds,
+  ]);
 
-  // Generate chart data
-  const data = useMemo((): ChartDataPoint[] => {
-    return generateMonthlyChartData(transactions, months, type);
-  }, [transactions, months, type]);
+  const data = useMemo(
+    (): ChartDataPoint[] =>
+      buildMonthlyChartData(transactions, { months, type }),
+    [transactions, months, type]
+  );
 
   return { data, isLoading, error, refetch };
 }
 
-/**
- * Hook to get spending breakdown by category for a specific month
- */
 export function useCategoryBreakdown(
   year: number,
   month: number,
@@ -136,11 +121,8 @@ export function useCategoryBreakdown(
   const [error, setError] = useState<Error | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const { userId, isResolvingUser } = useCurrentUser();
-
-  const accountIdsString = useMemo(
-    () => accountIds?.join(",") ?? "",
-    [accountIds]
-  );
+  const accountIdsString = useAccountIdsKey(accountIds);
+  const selectedAccountIds = useSelectedAccountIds(accountIdsString);
 
   const refetch = (): void => {
     setRefreshKey((prev) => prev + 1);
@@ -164,44 +146,22 @@ export function useCategoryBreakdown(
     setIsLoading(true);
     setError(null);
 
-    const transactionsCollection = database.get<Transaction>("transactions");
-    const categoriesCollection = database.get<Category>("categories");
+    const { transactionsQuery, categoriesQuery } =
+      observeCategoryBreakdownSources({
+        userId,
+        year,
+        month,
+        accountIds: selectedAccountIds,
+      });
 
-    const { startDate, endDate } = getYearMonthBoundaries(year, month);
-
-    // Build query conditions
-    const conditions = [
-      Q.where("deleted", false),
-      Q.where("date", Q.gte(startDate)),
-      Q.where("date", Q.lte(endDate)),
-    ];
-    const selectedAccountIds =
-      accountIdsString.length > 0 ? accountIdsString.split(",") : [];
-
-    if (selectedAccountIds.length > 0) {
-      conditions.push(Q.where("account_id", Q.oneOf(selectedAccountIds)));
-    }
-
-    const transactionsQuery = queryOwned(
-      transactionsCollection,
-      userId,
-      ...conditions
-    );
-    const categoriesQuery = queryAccessibleCategories(
-      categoriesCollection,
-      userId,
-      Q.where("deleted", false)
-    );
-
-    // Observe both transactions and categories
     const transactionsSub = transactionsQuery.observe().subscribe({
       next: (result) => setTransactions(result),
       error: (err: unknown) => {
         logger.error("analytics.categoryTransactions.observe.failed", err);
-        setError(err instanceof Error ? err : new Error(String(err)));
+        setError(toError(err));
+        setIsLoading(false);
       },
     });
-
     const categoriesSub = categoriesQuery.observe().subscribe({
       next: (result) => {
         setCategories(result);
@@ -209,7 +169,7 @@ export function useCategoryBreakdown(
       },
       error: (err: unknown) => {
         logger.error("analytics.categories.observe.failed", err);
-        setError(err instanceof Error ? err : new Error(String(err)));
+        setError(toError(err));
         setIsLoading(false);
       },
     });
@@ -218,19 +178,24 @@ export function useCategoryBreakdown(
       transactionsSub.unsubscribe();
       categoriesSub.unsubscribe();
     };
-  }, [year, month, accountIdsString, refreshKey, userId, isResolvingUser]);
+  }, [
+    year,
+    month,
+    accountIdsString,
+    refreshKey,
+    userId,
+    isResolvingUser,
+    selectedAccountIds,
+  ]);
 
-  // Calculate category breakdown
-  const data = useMemo((): CategoryBreakdown[] => {
-    return aggregateByCategory(transactions, categories);
-  }, [transactions, categories]);
+  const data = useMemo(
+    (): CategoryBreakdown[] => buildCategoryBreakdown(transactions, categories),
+    [transactions, categories]
+  );
 
   return { data, isLoading, error, refetch };
 }
 
-/**
- * Hook for month-over-month or year-over-year comparison
- */
 export function useComparison(
   type: "mom" | "yoy",
   year?: number,
@@ -247,16 +212,9 @@ export function useComparison(
   const [error, setError] = useState<Error | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const { userId, isResolvingUser } = useCurrentUser();
-
-  const accountIdsString = useMemo(
-    () => accountIds?.join(",") ?? "",
-    [accountIds]
-  );
-
-  // Default to current month if not specified
-  const now = new Date();
-  const targetYear = year ?? now.getFullYear();
-  const targetMonth = month ?? now.getMonth() + 1;
+  const accountIdsString = useAccountIdsKey(accountIds);
+  const selectedAccountIds = useSelectedAccountIds(accountIdsString);
+  const targetPeriod = useComparisonTargetPeriod(year, month);
 
   const refetch = (): void => {
     setRefreshKey((prev) => prev + 1);
@@ -280,46 +238,21 @@ export function useComparison(
     setIsLoading(true);
     setError(null);
 
-    const transactionsCollection = database.get<Transaction>("transactions");
-    const { current, previous } = getComparisonPeriods(
+    const { currentQuery, previousQuery } = observeComparisonTransactions({
+      userId,
       type,
-      targetYear,
-      targetMonth
-    );
-
-    const baseConditions = [Q.where("deleted", false)];
-    const selectedAccountIds =
-      accountIdsString.length > 0 ? accountIdsString.split(",") : [];
-    if (selectedAccountIds.length > 0) {
-      baseConditions.push(Q.where("account_id", Q.oneOf(selectedAccountIds)));
-    }
-
-    // Current period query
-    const currentQuery = queryOwned(
-      transactionsCollection,
-      userId,
-      ...baseConditions,
-      Q.where("date", Q.gte(current.startDate)),
-      Q.where("date", Q.lte(current.endDate))
-    );
-
-    // Previous period query
-    const previousQuery = queryOwned(
-      transactionsCollection,
-      userId,
-      ...baseConditions,
-      Q.where("date", Q.gte(previous.startDate)),
-      Q.where("date", Q.lte(previous.endDate))
-    );
-
+      year: targetPeriod.year,
+      month: targetPeriod.month,
+      accountIds: selectedAccountIds,
+    });
     const currentSub = currentQuery.observe().subscribe({
       next: (result) => setCurrentTransactions(result),
       error: (err: unknown) => {
         logger.error("analytics.currentPeriod.observe.failed", err);
-        setError(err instanceof Error ? err : new Error(String(err)));
+        setError(toError(err));
+        setIsLoading(false);
       },
     });
-
     const previousSub = previousQuery.observe().subscribe({
       next: (result) => {
         setPreviousTransactions(result);
@@ -327,7 +260,7 @@ export function useComparison(
       },
       error: (err: unknown) => {
         logger.error("analytics.previousPeriod.observe.failed", err);
-        setError(err instanceof Error ? err : new Error(String(err)));
+        setError(toError(err));
         setIsLoading(false);
       },
     });
@@ -338,33 +271,24 @@ export function useComparison(
     };
   }, [
     type,
-    targetYear,
-    targetMonth,
+    targetPeriod.year,
+    targetPeriod.month,
     accountIdsString,
     refreshKey,
     userId,
     isResolvingUser,
+    selectedAccountIds,
   ]);
 
-  // Calculate comparison using shared logic
-  const data = useMemo((): ComparisonResult => {
-    const currentTotals = calculateMonthlyTotals(currentTransactions);
-    const previousTotals = calculateMonthlyTotals(previousTransactions);
-
-    // Compare expenses by default
-    return calculateComparison(
-      currentTotals.totalExpenses,
-      previousTotals.totalExpenses
-    );
-  }, [currentTransactions, previousTransactions]);
+  const data = useMemo(
+    (): ComparisonResult =>
+      buildComparison(currentTransactions, previousTransactions),
+    [currentTransactions, previousTransactions]
+  );
 
   return { data, isLoading, error, refetch };
 }
 
-/**
- * Hook to get monthly summary data for multiple months
- * Returns an array of monthly summaries for charts
- */
 export function useMonthlySummaries(
   months: number = 12,
   accountIds?: string[]
@@ -374,11 +298,8 @@ export function useMonthlySummaries(
   const [error, setError] = useState<Error | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const { userId, isResolvingUser } = useCurrentUser();
-
-  const accountIdsString = useMemo(
-    () => accountIds?.join(",") ?? "",
-    [accountIds]
-  );
+  const accountIdsString = useAccountIdsKey(accountIds);
+  const selectedAccountIds = useSelectedAccountIds(accountIdsString);
 
   const refetch = (): void => {
     setRefreshKey((prev) => prev + 1);
@@ -400,28 +321,11 @@ export function useMonthlySummaries(
     setIsLoading(true);
     setError(null);
 
-    const transactionsCollection = database.get<Transaction>("transactions");
-
-    const now = new Date();
-    const startDate = new Date(
-      now.getFullYear(),
-      now.getMonth() - months + 1,
-      1
-    ).getTime();
-
-    const conditions = [
-      Q.where("deleted", false),
-      Q.where("date", Q.gte(startDate)),
-    ];
-    const selectedAccountIds =
-      accountIdsString.length > 0 ? accountIdsString.split(",") : [];
-
-    if (selectedAccountIds.length > 0) {
-      conditions.push(Q.where("account_id", Q.oneOf(selectedAccountIds)));
-    }
-
-    const query = queryOwned(transactionsCollection, userId, ...conditions);
-
+    const query = observeMonthlySummaryTransactions({
+      userId,
+      months,
+      accountIds: selectedAccountIds,
+    });
     const subscription = query.observe().subscribe({
       next: (result) => {
         setTransactions(result);
@@ -429,42 +333,122 @@ export function useMonthlySummaries(
       },
       error: (err: unknown) => {
         logger.error("analytics.monthlySummaries.observe.failed", err);
-        setError(err instanceof Error ? err : new Error(String(err)));
+        setError(toError(err));
         setIsLoading(false);
       },
     });
 
     return () => subscription.unsubscribe();
-  }, [months, accountIdsString, refreshKey, userId, isResolvingUser]);
+  }, [
+    months,
+    accountIdsString,
+    refreshKey,
+    userId,
+    isResolvingUser,
+    selectedAccountIds,
+  ]);
 
-  // Group by month and calculate summaries
-  const data = useMemo((): MonthlySummary[] => {
-    const now = new Date();
-    const summaries: MonthlySummary[] = [];
-
-    for (let i = months - 1; i >= 0; i--) {
-      const targetDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const year = targetDate.getFullYear();
-      const month = targetDate.getMonth() + 1;
-
-      const { startDate, endDate } = getYearMonthBoundaries(year, month);
-
-      const monthTransactions = transactions.filter(
-        (t) => t.date.getTime() >= startDate && t.date.getTime() <= endDate
-      );
-
-      const totals = calculateMonthlyTotals(monthTransactions);
-
-      summaries.push({
-        year,
-        month,
-        ...totals,
-        transactionCount: monthTransactions.length,
-      });
-    }
-
-    return summaries;
-  }, [transactions, months]);
+  const data = useMemo(
+    (): MonthlySummary[] => buildMonthlySummaries(transactions, { months }),
+    [transactions, months]
+  );
 
   return { data, isLoading, error, refetch };
+}
+
+function useAccountIdsKey(accountIds: readonly string[] | undefined): string {
+  return useMemo(() => accountIds?.join(",") ?? "", [accountIds]);
+}
+
+function useSelectedAccountIds(accountIdsString: string): readonly string[] {
+  return useMemo(
+    () => (accountIdsString.length > 0 ? accountIdsString.split(",") : []),
+    [accountIdsString]
+  );
+}
+
+function useComparisonTargetPeriod(
+  year: number | undefined,
+  month: number | undefined
+): YearMonthPeriod {
+  const [currentPeriod, setCurrentPeriod] =
+    useState<YearMonthPeriod>(getCurrentYearMonth);
+
+  useEffect(() => {
+    if (year !== undefined && month !== undefined) {
+      return;
+    }
+
+    setCurrentPeriod((prev) => {
+      const next = getCurrentYearMonth();
+      if (prev.year === next.year && prev.month === next.month) {
+        return prev;
+      }
+
+      return next;
+    });
+
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let isActive = true;
+
+    const scheduleNextCheck = (): void => {
+      timeoutId = setTimeout(() => {
+        if (!isActive) {
+          return;
+        }
+
+        setCurrentPeriod((prev) => {
+          const next = getCurrentYearMonth();
+          if (prev.year === next.year && prev.month === next.month) {
+            return prev;
+          }
+
+          return next;
+        });
+        scheduleNextCheck();
+      }, getDelayUntilNextPeriodCheck());
+    };
+
+    scheduleNextCheck();
+
+    return () => {
+      isActive = false;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [year, month]);
+
+  return useMemo(
+    () => ({
+      year: year ?? currentPeriod.year,
+      month: month ?? currentPeriod.month,
+    }),
+    [year, month, currentPeriod]
+  );
+}
+
+function getCurrentYearMonth(): YearMonthPeriod {
+  const now = new Date();
+
+  return {
+    year: now.getFullYear(),
+    month: now.getMonth() + 1,
+  };
+}
+
+function getDelayUntilNextPeriodCheck(): number {
+  const now = new Date();
+  const nextMonthStart = new Date(
+    now.getFullYear(),
+    now.getMonth() + 1,
+    1
+  ).getTime();
+  const delayUntilNextMonth = nextMonthStart - now.getTime() + 1;
+
+  return Math.max(1, Math.min(delayUntilNextMonth, MAX_PERIOD_CHECK_DELAY_MS));
+}
+
+function toError(err: unknown): Error {
+  return err instanceof Error ? err : new Error(String(err));
 }
