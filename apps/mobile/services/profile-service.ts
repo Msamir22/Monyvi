@@ -105,6 +105,12 @@ export async function setPreferredLanguage(
 export async function setPreferredCurrency(
   currency: CurrencyType
 ): Promise<void> {
+  if (!SUPPORTED_CURRENCY_CODES.has(currency)) {
+    throw new Error(
+      `setPreferredCurrency: unsupported currency code "${String(currency)}"`
+    );
+  }
+
   const profile = await getProfile();
   await database.write(async () => {
     await profile.update((p) => {

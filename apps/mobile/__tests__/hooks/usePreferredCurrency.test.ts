@@ -81,6 +81,16 @@ jest.mock("@/utils/logger", () => ({
 
 import { usePreferredCurrency } from "../../hooks/usePreferredCurrency";
 
+function emitProfiles(profiles: readonly unknown[]): void {
+  if (!activeSubscriber) {
+    throw new Error(
+      "Expected usePreferredCurrency to have an active subscriber"
+    );
+  }
+
+  activeSubscriber.next([...profiles]);
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
   activeSubscriber = null;
@@ -96,7 +106,7 @@ describe("usePreferredCurrency", () => {
     const { result } = renderHook(() => usePreferredCurrency());
 
     act(() => {
-      activeSubscriber?.next([
+      emitProfiles([
         {
           id: "profile-1",
           preferredCurrency: "EGP",
@@ -120,7 +130,7 @@ describe("usePreferredCurrency", () => {
     const { result } = renderHook(() => usePreferredCurrency());
 
     act(() => {
-      activeSubscriber?.next([{ id: "profile-1", preferredCurrency: "EGP" }]);
+      emitProfiles([{ id: "profile-1", preferredCurrency: "EGP" }]);
     });
 
     await act(async () => {
