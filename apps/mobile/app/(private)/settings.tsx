@@ -23,9 +23,8 @@ import { GradientBackground } from "@/components/ui/GradientBackground";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
+import { useLogoutFlow } from "@/hooks/useLogoutFlow";
 import { usePreferredCurrency } from "@/hooks/usePreferredCurrency";
-import { useDatabase } from "@/providers/DatabaseProvider";
-import { performLogout } from "@/services/logout-service";
 import { setIntroLocaleOverride } from "@/services/intro-flag-service";
 import { setPreferredLanguage } from "@/services/profile-service";
 import { useSmsPermission } from "@/hooks/useSmsPermission";
@@ -189,13 +188,30 @@ export default function SettingsScreen(): React.JSX.Element {
   const { hasSynced, lastSyncTimestamp } = useSmsSync();
   const { setScanMode } = useSmsScanContext();
   const [isFullRescanModalOpen, setIsFullRescanModalOpen] = useState(false);
-  const database = useDatabase();
   const { showToast } = useToast();
-
-  // Logout UI state
-  const [showSyncWarning, setShowSyncWarning] = useState(false);
-  const [showForceLogoutError, setShowForceLogoutError] = useState(false);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const {
+    isLoggingOut,
+    showSyncWarning,
+    showForceLogoutError,
+    requestLogout,
+    forceLogout,
+    dismissSyncWarning,
+    dismissForceLogoutError,
+  } = useLogoutFlow({
+    onSuccess: () => router.replace("/auth"),
+    onNoNetwork: () => {
+      showToast({
+        type: "error",
+        title: t("no_network_logout"),
+      });
+    },
+    onUnknownError: () => {
+      showToast({
+        type: "error",
+        title: t("logout_error"),
+      });
+    },
+  });
 
   // Live detection preferences
   const [liveDetection, setLiveDetection] = useState(false);
@@ -660,55 +676,7 @@ export default function SettingsScreen(): React.JSX.Element {
     [setPreferredCurrency]
   );
 
-  const handleLogoutPress = useCallback(async (): Promise<void> => {
-    setIsLoggingOut(true);
-
-    const result = await performLogout(database);
-
-    if (result.success) {
-      setIsLoggingOut(false);
-      router.replace("/auth");
-      return;
-    }
-
-    setIsLoggingOut(false);
-
-    if (result.error === "no_network") {
-      showToast({
-        type: "error",
-        title: t("no_network_logout"),
-      });
-      return;
-    }
-
-    if (result.error === "sync_failed") {
-      setShowSyncWarning(true);
-      return;
-    }
-
-    // "unknown" or any other unhandled error
-    showToast({
-      type: "error",
-      title: t("logout_error"),
-    });
-  }, [database, showToast, t]);
-
-  const handleForceLogout = useCallback(async (): Promise<void> => {
-    setShowSyncWarning(false);
-    setIsLoggingOut(true);
-
-    const result = await performLogout(database, true);
-
-    setIsLoggingOut(false);
-
-    if (result.success) {
-      router.replace("/auth");
-      return;
-    }
-
-    // Force logout failed — show retry modal
-    setShowForceLogoutError(true);
-  }, [database]);
+  const handleForceLogout = forceLogout;
 
   const [isChangingLanguage, setIsChangingLanguage] = useState(false);
 
@@ -1107,7 +1075,11 @@ export default function SettingsScreen(): React.JSX.Element {
 
         {/* Logout */}
         <TouchableOpacity
-          onPress={handleLogoutPress}
+          onPress={() => {
+            requestLogout().catch((error: unknown) => {
+              logger.error("settings.logout.failed", error);
+            });
+          }}
           className="flex-row items-center justify-between p-4 rounded-2xl bg-white dark:bg-slate-800"
         >
           <View className="flex-row items-center gap-3">
@@ -1156,10 +1128,11 @@ export default function SettingsScreen(): React.JSX.Element {
         confirmLabel={t("proceed_anyway")}
         cancelLabel={tCommon("cancel")}
         onConfirm={() => {
-          // TODO: Replace with structured logging (e.g., Sentry)
-          handleForceLogout().catch(console.error);
+          handleForceLogout().catch((error: unknown) => {
+            logger.error("settings.forceLogout.failed", error);
+          });
         }}
-        onCancel={() => setShowSyncWarning(false)}
+        onCancel={dismissSyncWarning}
       />
       {/* Force Logout Error Modal */}
       <ConfirmationModal
@@ -1171,10 +1144,12 @@ export default function SettingsScreen(): React.JSX.Element {
         confirmLabel={tCommon("retry")}
         cancelLabel={tCommon("cancel")}
         onConfirm={() => {
-          setShowForceLogoutError(false);
-          handleForceLogout().catch(console.error);
+          dismissForceLogoutError();
+          handleForceLogout().catch((error: unknown) => {
+            logger.error("settings.forceLogout.retry.failed", error);
+          });
         }}
-        onCancel={() => setShowForceLogoutError(false)}
+        onCancel={dismissForceLogoutError}
       />
       <PermissionRecoveryModal
         visible={permissionRecovery !== null}

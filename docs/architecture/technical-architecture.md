@@ -308,7 +308,10 @@ Tracked architecture debt:
   React-facade hook pattern instead of adding query/calculation logic back into
   hooks.
 - #657 splits oversized UI modules and restores container/presentational
-  boundaries.
+  boundaries. The first slice extracts shared logout orchestration into a hook
+  facade and makes the SMS scan progress component presentational by passing
+  category labels from the route container. Settings, edit routes, and remaining
+  oversized screen sections stay tracked debt until their slices land.
 - #659 splits sync internals into focused strategies and ownership guards.
 
 ## 13. Guardrail Rollout
