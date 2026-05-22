@@ -138,6 +138,14 @@ function prepareSoftDelete<TRecord extends SoftDeletableRecord>(
   });
 }
 
+function hasBankDetailsData(data: UpdateAccountData): boolean {
+  return (
+    Boolean(data.bankName?.trim()) ||
+    Boolean(data.cardLast4?.trim()) ||
+    Boolean(data.smsSenderName?.trim())
+  );
+}
+
 // ---------------------------------------------------------------------------
 // T005: Account Name Uniqueness Check
 // ---------------------------------------------------------------------------
@@ -342,8 +350,10 @@ export async function updateAccountWithinWriter(
       Q.where("id", Q.notEq(accountId))
     ).fetch();
 
-    for (const defaultAccount of currentDefaults) {
-      await defaultAccount.update((acc) => {
+    // There should be at most one default, but we defensively unset all that match the criteria just in case of data inconsistency.
+    const currentDefault = currentDefaults[0];
+    if (currentDefault) {
+      await currentDefault.update((acc) => {
         acc.isDefault = false;
       });
     }
@@ -358,12 +368,13 @@ export async function updateAccountWithinWriter(
 
   // Update bank details if this is a bank account
   if (existingAccount.isBank) {
-    const bankDetailRecords =
-      (await existingAccount.bankDetails.fetch()) as BankDetails[];
-
-    const activeBankDetail = bankDetailRecords.find(
-      (record) => record.deleted !== true
-    );
+    const [activeBankDetail] = await queryChildrenOfOwnedParent(
+      database.get<BankDetails>("bank_details"),
+      existingAccount,
+      currentUserId,
+      "account_id",
+      Q.where("deleted", false)
+    ).fetch();
 
     if (activeBankDetail) {
       await activeBankDetail.update((bd) => {
@@ -371,7 +382,7 @@ export async function updateAccountWithinWriter(
         bd.cardLast4 = data.cardLast4;
         bd.smsSenderName = data.smsSenderName;
       });
-    } else {
+    } else if (hasBankDetailsData(data)) {
       await database.get<BankDetails>("bank_details").create((bd) => {
         bd.accountId = accountId;
         bd.bankName = data.bankName;

@@ -56,7 +56,7 @@ const TABLE_TO_CLASS = {
 };
 
 // Fields that should be indexed
-const INDEXED_FIELDS = ["user_id"];
+const INDEXED_FIELDS = ["user_id", "sms_fingerprint"];
 
 // Fields that are timestamps (stored as number in WatermelonDB)
 const TIMESTAMP_FIELDS = [

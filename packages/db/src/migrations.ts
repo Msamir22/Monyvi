@@ -252,5 +252,16 @@ export const migrations = schemaMigrations({
         ),
       ],
     },
+    {
+      toVersion: 20,
+      steps: [
+        unsafeExecuteSql(
+          'delete from "bank_details" where coalesce("deleted", 0) != 1 and exists (select 1 from "bank_details" as "older_bank_details" where "older_bank_details"."account_id" = "bank_details"."account_id" and coalesce("older_bank_details"."deleted", 0) != 1 and ("older_bank_details"."created_at" < "bank_details"."created_at" or ("older_bank_details"."created_at" = "bank_details"."created_at" and "older_bank_details"."id" < "bank_details"."id")));'
+        ),
+        unsafeExecuteSql(
+          'create unique index if not exists "bank_details_one_active_per_account" on "bank_details" ("account_id") where coalesce("deleted", 0) != 1;'
+        ),
+      ],
+    },
   ],
 });

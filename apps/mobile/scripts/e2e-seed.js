@@ -59,6 +59,7 @@ function buildSeedIds(userId) {
     accounts: {
       cash: deterministicUuid(userId, "account:cash"),
       bank: deterministicUuid(userId, "account:bank"),
+      qnbBank: deterministicUuid(userId, "account:qnb-bank"),
       wallet: deterministicUuid(userId, "account:wallet"),
     },
     bankDetails: {
@@ -305,10 +306,18 @@ async function deleteScopedRows(client, table, userId, seedIds) {
   if (table === "bank_details") {
     const deleteBuilder = client.from(table).delete();
     if (typeof deleteBuilder.in !== "function") {
-      return assertNoError(
-        await deleteBuilder.eq("account_id", seedIds.accounts.bank),
-        `delete ${table}`
+      const fallbackDeleteResults = await Promise.all(
+        [seedIds.accounts.bank, seedIds.accounts.qnbBank].map((accountId) =>
+          client.from(table).delete().eq("account_id", accountId)
+        )
       );
+
+      await Promise.all(
+        fallbackDeleteResults.map((result) =>
+          assertNoError(result, `delete ${table}`)
+        )
+      );
+      return;
     }
 
     return assertNoError(
@@ -426,6 +435,18 @@ function buildSeedRows(userId) {
         updated_at: FIXED_NOW,
       },
       {
+        id: seedIds.accounts.qnbBank,
+        user_id: userId,
+        name: "E2E QNB Bank",
+        type: "BANK",
+        balance: 3200,
+        currency: "EGP",
+        is_default: false,
+        deleted: false,
+        created_at: FIXED_NOW,
+        updated_at: FIXED_NOW,
+      },
+      {
         id: seedIds.accounts.wallet,
         user_id: userId,
         name: "E2E Wallet",
@@ -452,7 +473,7 @@ function buildSeedRows(userId) {
       },
       {
         id: seedIds.bankDetails.qnb,
-        account_id: seedIds.accounts.bank,
+        account_id: seedIds.accounts.qnbBank,
         bank_name: "QNB",
         card_last_4: "5566",
         sms_sender_name: "QNB",

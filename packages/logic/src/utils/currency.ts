@@ -256,3 +256,17 @@ export const formatCurrency = ({
   // For currencies with suffix (EGP, SAR, and other Middle Eastern currencies)
   return `${formattedNumber} ${symbol}`;
 };
+
+export function roundCurrency(value: number, decimals: number = 2): number {
+  const factor = Math.pow(10, decimals);
+  const epsilon = Math.sign(value) * Number.EPSILON;
+  return Math.round((value + epsilon) * factor) / factor || 0;
+}
+
+export function roundForCurrency(
+  value: number,
+  currency: CurrencyType
+): number {
+  const decimals = CURRENCY_PRECISION[currency] ?? DEFAULT_PRECISION;
+  return roundCurrency(value, decimals);
+}

@@ -51,7 +51,7 @@ const TIMESTAMP_FIELDS = [
 ];
 
 // Fields that should be indexed in WatermelonDB
-const INDEXED_FIELDS = ["user_id"];
+const INDEXED_FIELDS = ["user_id", "sms_fingerprint"];
 
 // =============================================================================
 // SQL TYPE MAPPING
