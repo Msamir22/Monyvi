@@ -9,7 +9,6 @@ export * from "./parsers";
 export * from "./types";
 export * from "./utils/currency";
 export * from "./utils/currency-data";
-export * from "./utils/round-currency";
 export * from "./utils/ai-parser-utils";
 export * from "./utils/build-category-tree";
 

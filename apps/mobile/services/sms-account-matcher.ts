@@ -271,11 +271,9 @@ async function fetchAccountsWithDetails(
           Q.where("deleted", false)
         ).fetch();
 
-  // Build a lookup: accountId → first BankDetails row
-  const bankDetailsByAccountId = new Map<string, readonly BankDetails[]>();
+  const bankDetailsByAccountId = new Map<string, BankDetails>();
   for (const row of allBankDetails) {
-    const existingRows = bankDetailsByAccountId.get(row.accountId) ?? [];
-    bankDetailsByAccountId.set(row.accountId, [...existingRows, row]);
+    bankDetailsByAccountId.set(row.accountId, row);
   }
 
   function pushAccountWithDetails(
@@ -296,16 +294,7 @@ async function fetchAccountsWithDetails(
   }
 
   for (const account of accounts) {
-    const bankDetailsRows = bankDetailsByAccountId.get(account.id);
-
-    if (!bankDetailsRows || bankDetailsRows.length === 0) {
-      pushAccountWithDetails(account);
-      continue;
-    }
-
-    for (const bankDetails of bankDetailsRows) {
-      pushAccountWithDetails(account, bankDetails);
-    }
+    pushAccountWithDetails(account, bankDetailsByAccountId.get(account.id));
   }
 
   // Sort by created_at ASC for deterministic fallback ordering

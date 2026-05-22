@@ -963,16 +963,18 @@ describe("edit-account-service", () => {
 
     it("updates bank details for bank accounts", async () => {
       const bankDetail = mockModel("bd-1", {
+        accountId: "acc-1",
         bankName: "Old Bank",
         cardLast4: "1234",
         smsSenderName: "OldSMS",
+        deleted: false,
       });
-      const acc = seedAccount("acc-1", {
+      seedAccount("acc-1", {
         name: "Bank Account",
         type: "BANK",
         isBank: true,
       });
-      acc.bankDetails.fetch.mockResolvedValue([bankDetail]);
+      mockSeed("bank_details", bankDetail);
 
       await updateAccountWithBalanceAdjustment(
         "acc-1",
@@ -1024,6 +1026,30 @@ describe("edit-account-service", () => {
         smsSenderName: "CIBSMS",
         deleted: false,
       });
+    });
+
+    it("does not create an empty bank details row when no bank metadata is provided", async () => {
+      seedAccount("acc-1", {
+        name: "Bank Account",
+        type: "BANK",
+        isBank: true,
+      });
+
+      await updateAccountWithBalanceAdjustment(
+        "acc-1",
+        "user-1",
+        {
+          name: "Bank Account",
+          balance: 0,
+          isDefault: false,
+          bankName: "",
+          cardLast4: "",
+          smsSenderName: "",
+        },
+        null
+      );
+
+      expect(mockGetStore("bank_details").size).toBe(0);
     });
 
     it("returns success: false when the account is not found", async () => {

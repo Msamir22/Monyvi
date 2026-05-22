@@ -59,6 +59,7 @@ function buildSeedIds(userId) {
     accounts: {
       cash: deterministicUuid(userId, "account:cash"),
       bank: deterministicUuid(userId, "account:bank"),
+      qnbBank: deterministicUuid(userId, "account:qnb-bank"),
       wallet: deterministicUuid(userId, "account:wallet"),
     },
     bankDetails: {
@@ -426,6 +427,18 @@ function buildSeedRows(userId) {
         updated_at: FIXED_NOW,
       },
       {
+        id: seedIds.accounts.qnbBank,
+        user_id: userId,
+        name: "E2E QNB Bank",
+        type: "BANK",
+        balance: 3200,
+        currency: "EGP",
+        is_default: false,
+        deleted: false,
+        created_at: FIXED_NOW,
+        updated_at: FIXED_NOW,
+      },
+      {
         id: seedIds.accounts.wallet,
         user_id: userId,
         name: "E2E Wallet",
@@ -452,7 +465,7 @@ function buildSeedRows(userId) {
       },
       {
         id: seedIds.bankDetails.qnb,
-        account_id: seedIds.accounts.bank,
+        account_id: seedIds.accounts.qnbBank,
         bank_name: "QNB",
         card_last_4: "5566",
         sms_sender_name: "QNB",

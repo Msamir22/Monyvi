@@ -171,6 +171,9 @@ metadata used by SMS account resolution:
 - SMS sender name.
 - Optional account number.
 
+An account may have at most one active bank details row. A different SMS sender
+or card identity should be represented as a separate account.
+
 SMS account matching should prefer sender plus card-last-four matches, then
 sender-only matches, then the user's default account.
 
