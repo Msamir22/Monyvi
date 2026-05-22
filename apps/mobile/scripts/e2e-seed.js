@@ -306,10 +306,18 @@ async function deleteScopedRows(client, table, userId, seedIds) {
   if (table === "bank_details") {
     const deleteBuilder = client.from(table).delete();
     if (typeof deleteBuilder.in !== "function") {
-      return assertNoError(
-        await deleteBuilder.eq("account_id", seedIds.accounts.bank),
-        `delete ${table}`
+      const fallbackDeleteResults = await Promise.all(
+        [seedIds.accounts.bank, seedIds.accounts.qnbBank].map((accountId) =>
+          client.from(table).delete().eq("account_id", accountId)
+        )
       );
+
+      await Promise.all(
+        fallbackDeleteResults.map((result) =>
+          assertNoError(result, `delete ${table}`)
+        )
+      );
+      return;
     }
 
     return assertNoError(

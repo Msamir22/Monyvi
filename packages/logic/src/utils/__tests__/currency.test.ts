@@ -446,6 +446,7 @@ describe("roundCurrency", () => {
   it("handles negative values", () => {
     expect(roundCurrency(-5.55)).toBe(-5.55);
     expect(roundCurrency(-1.999)).toBe(-2);
+    expect(roundCurrency(-1.005)).toBe(-1.01);
     expect(roundCurrency(-0.1 - 0.2)).toBe(-0.3);
   });
 
@@ -466,6 +467,7 @@ describe("roundForCurrency", () => {
     expect(roundForCurrency(1.2345, "EGP")).toBe(1.23);
     expect(roundForCurrency(1.2345, "USD")).toBe(1.23);
     expect(roundForCurrency(1.2345, "EUR")).toBe(1.23);
+    expect(roundForCurrency(-1.005, "USD")).toBe(-1.01);
   });
 
   it("uses 3 decimals for BHD, KWD, OMR", () => {

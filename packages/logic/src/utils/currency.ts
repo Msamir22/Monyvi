@@ -259,7 +259,8 @@ export const formatCurrency = ({
 
 export function roundCurrency(value: number, decimals: number = 2): number {
   const factor = Math.pow(10, decimals);
-  return Math.round((value + Number.EPSILON) * factor) / factor || 0;
+  const epsilon = Math.sign(value) * Number.EPSILON;
+  return Math.round((value + epsilon) * factor) / factor || 0;
 }
 
 export function roundForCurrency(

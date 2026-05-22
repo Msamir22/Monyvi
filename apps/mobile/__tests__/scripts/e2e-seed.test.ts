@@ -103,8 +103,13 @@ describe("e2e-seed script helpers", () => {
 
     expect(operations).toContain("delete:transactions:user_id:user-e2e");
     expect(operations).toContain("delete:accounts:user_id:user-e2e");
+    expect(
+      operations.filter((operation) =>
+        operation.startsWith("delete:bank_details:account_id:")
+      )
+    ).toHaveLength(2);
     expect(operations).toContain("upsert:profiles:user-e2e");
-    expect(operations).toContain("upsert:accounts:3");
+    expect(operations).toContain("upsert:accounts:4");
     expect(operations).toContain("upsert:transactions:2");
     expect(operations).toContain("upsert:transfers:1");
     expect(operations).toContain(
@@ -212,7 +217,7 @@ describe("e2e-seed script helpers", () => {
     expect(operations).toContain("delete:transactions:user_id:user-e2e");
     expect(operations).toContain("delete:accounts:user_id:user-e2e");
     expect(operations).not.toContain("upsert:profiles:user-e2e");
-    expect(operations).not.toContain("upsert:accounts:3");
+    expect(operations).not.toContain("upsert:accounts:4");
     expect(operations).not.toContain("upsert:transactions:2");
     expect(operations).not.toContain("upsert:transfers:1");
   });
