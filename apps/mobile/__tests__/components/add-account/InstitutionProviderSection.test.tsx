@@ -201,6 +201,30 @@ describe("InstitutionProviderSection", () => {
     expect(screen.getByText("FamilySMS")).toBeTruthy();
   });
 
+  it("clears a known provider when editing it through manual fallback", () => {
+    const onSelectOtherInstitution = jest.fn();
+    const onProviderDisplayNameChange = jest.fn();
+
+    render(
+      <InstitutionProviderSection
+        accountType="BANK"
+        isKnownProviderEligible={false}
+        institutionId="cib"
+        providerDisplayName="CIB"
+        senderNames={["CIB"]}
+        onSelectKnownInstitution={jest.fn()}
+        onSelectOtherInstitution={onSelectOtherInstitution}
+        onProviderDisplayNameChange={onProviderDisplayNameChange}
+        onSenderNamesChange={jest.fn()}
+      />
+    );
+
+    fireEvent.changeText(screen.getByLabelText("Bank name"), "My Bank");
+
+    expect(onSelectOtherInstitution).toHaveBeenCalledTimes(1);
+    expect(onProviderDisplayNameChange).toHaveBeenCalledWith("My Bank");
+  });
+
   it("keeps manual provider input visible after the user clears it", () => {
     const props = {
       accountType: "BANK" as const,

@@ -123,6 +123,13 @@ export function InstitutionProviderSection({
     }
     return false;
   };
+  const handleManualProviderDisplayNameChange = (value: string): void => {
+    if (selectedInstitutionId !== null) {
+      setHasSelectedOther(true);
+      onSelectOtherInstitution();
+    }
+    onProviderDisplayNameChange(value);
+  };
 
   return (
     <View
@@ -186,7 +193,7 @@ export function InstitutionProviderSection({
               : t("provider_name_placeholder_wallet")
           }
           value={providerDisplayName}
-          onChangeText={onProviderDisplayNameChange}
+          onChangeText={handleManualProviderDisplayNameChange}
           error={providerDisplayNameError}
           maxLength={100}
         />

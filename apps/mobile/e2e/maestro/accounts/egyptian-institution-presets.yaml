@@ -174,7 +174,7 @@ appId: com.monyvi.app
 - inputText: "CIB"
 - waitForAnimationToEnd
 - assertVisible: "CIB \\(Commercial International Bank\\)"
-- tapOn: "Close provider list"
+- tapOn: "Close bank list"
 - tapOn: "Digital Wallet"
 - tapOn: "Choose a wallet"
 - tapOn: "Search"

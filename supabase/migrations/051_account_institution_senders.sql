@@ -1,6 +1,6 @@
 -- Move bank/wallet provider identity to accounts and SMS senders to child rows.
--- Monyvi is pre-production, so legacy bank_details provider/sender columns can
--- be removed from active remote schema without a production backfill.
+-- Monyvi is pre-production, but backfill legacy provider/sender values first so
+-- local QA and seeded data keep their SMS matching metadata.
 
 ALTER TABLE public.accounts
   ADD COLUMN IF NOT EXISTS institution_id TEXT,

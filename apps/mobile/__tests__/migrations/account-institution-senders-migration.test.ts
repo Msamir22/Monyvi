@@ -90,5 +90,12 @@ describe("account institution and sender migration", () => {
     expect(serializedMigrations).toContain(
       "account_sms_senders_one_active_normalized"
     );
+    expect(serializedMigrations).toContain("provider_display_name");
+    expect(serializedMigrations).toContain("_status");
+    expect(serializedMigrations).toContain("_changed");
+    expect(serializedMigrations).toContain("'created'");
+    expect(serializedMigrations).toContain(
+      "lower(hex(randomblob(4)) || '-' || hex(randomblob(2))"
+    );
   });
 });
