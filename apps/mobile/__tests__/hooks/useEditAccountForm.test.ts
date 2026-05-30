@@ -87,14 +87,14 @@ afterEach(() => {
 });
 
 describe("useEditAccountForm", () => {
-  it("does not mark uniqueness as checking until the debounce fires", async () => {
+  it("blocks save immediately while the debounced uniqueness check is pending", async () => {
     const { result } = renderHook(() => useEditAccountForm(baseAccount, null));
 
     act(() => {
       result.current.updateField("name", "Cash Plus");
     });
 
-    expect(result.current.isCheckingUniqueness).toBe(false);
+    expect(result.current.isCheckingUniqueness).toBe(true);
     expect(mockCheckAccountNameUniqueness).not.toHaveBeenCalled();
 
     await act(async () => {

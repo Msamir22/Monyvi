@@ -458,7 +458,7 @@ function buildSeedRows(userId) {
         type: "BANK",
         balance: 12430.55,
         currency: "EGP",
-        institution_id: "national-bank-of-egypt",
+        institution_id: "nbe",
         provider_display_name: "NBE",
         is_default: false,
         deleted: false,

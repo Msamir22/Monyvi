@@ -1,11 +1,15 @@
 import { fireEvent, render, screen } from "@testing-library/react-native";
+import { getSelectableEgyptianInstitutions } from "@monyvi/logic";
 
 import { InstitutionPicker } from "../../../components/add-account/InstitutionPicker";
 
 const translations: Record<string, string> = {
-  institution_dropdown_accessibility: "Choose provider",
-  institution_dropdown_close: "Close provider list",
-  institution_dropdown_placeholder: "Choose a provider",
+  institution_bank_dropdown_accessibility: "Choose bank",
+  institution_bank_dropdown_close: "Close bank list",
+  institution_bank_dropdown_placeholder: "Choose a bank",
+  institution_wallet_dropdown_accessibility: "Choose wallet",
+  institution_wallet_dropdown_close: "Close wallet list",
+  institution_wallet_dropdown_placeholder: "Choose a wallet",
   institution_search_placeholder: "Search",
   institution_other: "Other",
   institution_bank_label: "Bank",
@@ -29,7 +33,7 @@ describe("InstitutionPicker", () => {
       />
     );
 
-    fireEvent.press(screen.getByLabelText("Choose provider"));
+    fireEvent.press(screen.getByLabelText("Choose bank"));
 
     expect(screen.getByText("Bank")).toBeTruthy();
     expect(
@@ -57,7 +61,7 @@ describe("InstitutionPicker", () => {
       />
     );
 
-    fireEvent.press(screen.getByLabelText("Choose provider"));
+    fireEvent.press(screen.getByLabelText("Choose wallet"));
 
     expect(screen.getByText("Wallet")).toBeTruthy();
     expect(screen.getByText("Vodafone Cash (Vodafone Cash)")).toBeTruthy();
@@ -83,7 +87,7 @@ describe("InstitutionPicker", () => {
       />
     );
 
-    fireEvent.press(screen.getByLabelText("Choose provider"));
+    fireEvent.press(screen.getByLabelText("Choose bank"));
     fireEvent.changeText(screen.getByPlaceholderText("Search"), "standard");
 
     expect(
@@ -92,6 +96,54 @@ describe("InstitutionPicker", () => {
     expect(
       screen.queryByText("CIB (Commercial International Bank)")
     ).toBeNull();
+  });
+
+  it("renders a logo for every selectable bank in the dropdown", () => {
+    render(
+      <InstitutionPicker
+        type="bank"
+        selectedInstitutionId={null}
+        onSelectInstitution={jest.fn()}
+        onSelectOther={jest.fn()}
+      />
+    );
+
+    fireEvent.press(screen.getByLabelText("Choose bank"));
+
+    for (const bank of getSelectableEgyptianInstitutions("bank")) {
+      fireEvent.changeText(
+        screen.getByPlaceholderText("Search"),
+        bank.shortName
+      );
+      const label = `${bank.shortName} (${bank.fullName})`;
+
+      expect(screen.getByText(label)).toBeTruthy();
+      expect(screen.getByTestId(`${label} logo`)).toBeTruthy();
+    }
+  });
+
+  it("renders a logo for every selectable wallet in the dropdown", () => {
+    render(
+      <InstitutionPicker
+        type="wallet"
+        selectedInstitutionId={null}
+        onSelectInstitution={jest.fn()}
+        onSelectOther={jest.fn()}
+      />
+    );
+
+    fireEvent.press(screen.getByLabelText("Choose wallet"));
+
+    for (const wallet of getSelectableEgyptianInstitutions("wallet")) {
+      fireEvent.changeText(
+        screen.getByPlaceholderText("Search"),
+        wallet.shortName
+      );
+      const label = `${wallet.shortName} (${wallet.fullName})`;
+
+      expect(screen.getByText(label)).toBeTruthy();
+      expect(screen.getByTestId(`${label} logo`)).toBeTruthy();
+    }
   });
 
   it("filters providers by Arabic metadata in English UI", () => {
@@ -104,7 +156,7 @@ describe("InstitutionPicker", () => {
       />
     );
 
-    fireEvent.press(screen.getByLabelText("Choose provider"));
+    fireEvent.press(screen.getByLabelText("Choose bank"));
     fireEvent.changeText(
       screen.getByPlaceholderText("Search"),
       "التجاري الدولي"
@@ -126,7 +178,7 @@ describe("InstitutionPicker", () => {
       />
     );
 
-    fireEvent.press(screen.getByLabelText("Choose provider"));
+    fireEvent.press(screen.getByLabelText("Choose bank"));
     fireEvent.changeText(screen.getByPlaceholderText("Search"), "CIB");
 
     expect(
@@ -143,7 +195,7 @@ describe("InstitutionPicker", () => {
       />
     );
 
-    fireEvent.press(screen.getByLabelText("Choose provider"));
+    fireEvent.press(screen.getByLabelText("Choose wallet"));
     expect(screen.getByPlaceholderText("Search")).toHaveProp("value", "");
     expect(screen.getByText("Vodafone Cash (Vodafone Cash)")).toBeTruthy();
   });
@@ -158,15 +210,15 @@ describe("InstitutionPicker", () => {
       />
     );
 
-    fireEvent.press(screen.getByLabelText("Choose provider"));
+    fireEvent.press(screen.getByLabelText("Choose bank"));
     fireEvent.changeText(screen.getByPlaceholderText("Search"), "CIB");
 
     expect(
       screen.getByText("CIB (Commercial International Bank)")
     ).toBeTruthy();
 
-    fireEvent.press(screen.getByLabelText("Close provider list"));
-    fireEvent.press(screen.getByLabelText("Choose provider"));
+    fireEvent.press(screen.getByLabelText("Close bank list"));
+    fireEvent.press(screen.getByLabelText("Choose bank"));
 
     expect(screen.getByPlaceholderText("Search")).toHaveProp("value", "");
     expect(

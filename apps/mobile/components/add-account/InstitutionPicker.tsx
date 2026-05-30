@@ -51,6 +51,24 @@ function getPickerTitleKey(type: InstitutionPickerType): string {
     : "institution_wallet_label";
 }
 
+function getPickerPlaceholderKey(type: InstitutionPickerType): string {
+  return type === "bank"
+    ? "institution_bank_dropdown_placeholder"
+    : "institution_wallet_dropdown_placeholder";
+}
+
+function getPickerAccessibilityKey(type: InstitutionPickerType): string {
+  return type === "bank"
+    ? "institution_bank_dropdown_accessibility"
+    : "institution_wallet_dropdown_accessibility";
+}
+
+function getPickerCloseKey(type: InstitutionPickerType): string {
+  return type === "bank"
+    ? "institution_bank_dropdown_close"
+    : "institution_wallet_dropdown_close";
+}
+
 interface InstitutionLogoMarkProps {
   readonly logo: InstitutionLogo;
   readonly accessibilityLabel: string;
@@ -67,14 +85,14 @@ function InstitutionLogoMark({
 
   return (
     <View
-      className="me-3 h-10 w-10 items-center justify-center rounded-xl border border-slate-100 bg-white dark:border-slate-700 dark:bg-slate-800"
+      className="me-3 h-11 w-11 items-center justify-center rounded-xl border border-slate-100 bg-white dark:border-slate-700 dark:bg-slate-800"
       accessibilityLabel={accessibilityLabel}
       testID={accessibilityLabel}
     >
       {InstitutionSvgLogo ? (
-        <InstitutionSvgLogo width={28} height={28} />
+        <InstitutionSvgLogo width={32} height={32} />
       ) : logo.format === "image" ? (
-        <Image source={logo.source} resizeMode="contain" className="h-7 w-7" />
+        <Image source={logo.source} resizeMode="contain" className="h-8 w-8" />
       ) : null}
     </View>
   );
@@ -163,7 +181,7 @@ export function InstitutionPicker({
           setIsDropdownOpen(true);
         }}
         accessibilityRole="button"
-        accessibilityLabel={t("institution_dropdown_accessibility")}
+        accessibilityLabel={t(getPickerAccessibilityKey(type))}
         className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800"
       >
         <View className="flex-row items-center justify-between">
@@ -182,7 +200,7 @@ export function InstitutionPicker({
               }`}
               numberOfLines={2}
             >
-              {selectedLabel ?? t("institution_dropdown_placeholder")}
+              {selectedLabel ?? t(getPickerPlaceholderKey(type))}
             </Text>
           </View>
           <Ionicons name="chevron-down" size={18} color={palette.slate[500]} />
@@ -205,7 +223,6 @@ export function InstitutionPicker({
                 <View
                   className="rounded-t-3xl bg-white px-5 pb-6 pt-5 dark:bg-slate-900"
                   style={{
-                    marginBottom: keyboardHeight,
                     maxHeight: sheetMaxHeight,
                   }}
                 >
@@ -216,7 +233,7 @@ export function InstitutionPicker({
                     <TouchableOpacity
                       onPress={() => setIsDropdownOpen(false)}
                       accessibilityRole="button"
-                      accessibilityLabel={t("institution_dropdown_close")}
+                      accessibilityLabel={t(getPickerCloseKey(type))}
                       className="p-2"
                     >
                       <Ionicons

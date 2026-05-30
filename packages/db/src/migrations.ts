@@ -289,6 +289,12 @@ export const migrations = schemaMigrations({
           ],
         }),
         unsafeExecuteSql(
+          'update "accounts" set "provider_display_name" = (select trim("bank_details"."bank_name") from "bank_details" where "bank_details"."account_id" = "accounts"."id" and coalesce("bank_details"."deleted", 0) != 1 and "bank_details"."bank_name" is not null and trim("bank_details"."bank_name") != \'\' order by "bank_details"."created_at" asc limit 1) where ("provider_display_name" is null or trim("provider_display_name") = \'\') and exists (select 1 from "bank_details" where "bank_details"."account_id" = "accounts"."id" and coalesce("bank_details"."deleted", 0) != 1 and "bank_details"."bank_name" is not null and trim("bank_details"."bank_name") != \'\');'
+        ),
+        unsafeExecuteSql(
+          'insert or ignore into "account_sms_senders" ("id", "account_id", "sender_name", "normalized_sender_name", "created_at", "updated_at", "deleted") select lower(hex(randomblob(16))), "bank_details"."account_id", trim("bank_details"."sms_sender_name"), lower(trim("bank_details"."sms_sender_name")), coalesce("bank_details"."created_at", strftime(\'%s\', \'now\') * 1000), coalesce("bank_details"."updated_at", strftime(\'%s\', \'now\') * 1000), 0 from "bank_details" where coalesce("bank_details"."deleted", 0) != 1 and "bank_details"."sms_sender_name" is not null and trim("bank_details"."sms_sender_name") != \'\';'
+        ),
+        unsafeExecuteSql(
           'create unique index if not exists "account_sms_senders_one_active_normalized" on "account_sms_senders" ("account_id", "normalized_sender_name") where coalesce("deleted", 0) != 1;'
         ),
       ],

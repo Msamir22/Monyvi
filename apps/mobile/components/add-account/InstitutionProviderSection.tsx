@@ -10,9 +10,9 @@ import type { AccountType } from "@monyvi/db";
 import { useTranslation } from "react-i18next";
 
 import { TextField } from "../ui/TextField";
+import { Tooltip } from "../ui/Tooltip";
 import { InstitutionPicker } from "./InstitutionPicker";
 import { SenderChipsField } from "./SenderChipsField";
-import { WhyInstitutionDetailsSheet } from "./WhyInstitutionDetailsSheet";
 import { palette } from "@/constants/colors";
 
 interface InstitutionProviderSectionProps {
@@ -55,6 +55,10 @@ function getSectionHelpKey(accountType: AccountType): string {
     : "institution_wallet_help";
 }
 
+function getManualNameLabelKey(accountType: AccountType): string {
+  return accountType === "BANK" ? "manual_bank_name" : "manual_wallet_name";
+}
+
 export function InstitutionProviderSection({
   accountType,
   isKnownProviderEligible,
@@ -73,7 +77,7 @@ export function InstitutionProviderSection({
   const { t } = useTranslation("accounts");
   const pickerType = getPickerType(accountType);
   const [hasSelectedOther, setHasSelectedOther] = useState(false);
-  const [isWhySheetVisible, setIsWhySheetVisible] = useState(false);
+  const [isWhyTooltipVisible, setIsWhyTooltipVisible] = useState(false);
   const selectedInstitution =
     institutionId === null ? null : getInstitutionById(institutionId);
   const selectedInstitutionId =
@@ -86,6 +90,16 @@ export function InstitutionProviderSection({
   useEffect(() => {
     setHasSelectedOther(false);
   }, [accountType]);
+
+  useEffect(() => {
+    if (
+      pickerType !== null &&
+      selectedInstitutionId === null &&
+      providerDisplayName.trim().length > 0
+    ) {
+      setHasSelectedOther(true);
+    }
+  }, [pickerType, providerDisplayName, selectedInstitutionId]);
 
   const verifiedSenderNames = useMemo(() => {
     return selectedInstitutionId
@@ -103,25 +117,47 @@ export function InstitutionProviderSection({
     (selectedInstitutionId === null && providerDisplayName.trim().length > 0);
   const shouldShowSenderChips =
     showSenderChips && (isManualMode || selectedInstitutionId !== null);
+  const handleSectionResponderCapture = (): boolean => {
+    if (isWhyTooltipVisible) {
+      setIsWhyTooltipVisible(false);
+    }
+    return false;
+  };
 
   return (
-    <View className={className || "mt-6"}>
-      <View className="mb-2 flex-row items-center justify-between">
-        <Text className="input-label mb-0">
-          {t(getSectionTitleKey(accountType))}
-        </Text>
-        <TouchableOpacity
-          onPress={() => setIsWhySheetVisible(true)}
-          accessibilityRole="button"
-          accessibilityLabel={t("provider_details_info")}
-          className="p-1"
-        >
-          <Ionicons
-            name="information-circle-outline"
-            size={14}
-            color={palette.nileGreen[500]}
-          />
-        </TouchableOpacity>
+    <View
+      className={className || "mt-6"}
+      testID="institution-provider-section"
+      onStartShouldSetResponderCapture={handleSectionResponderCapture}
+    >
+      <View className="mb-2 flex-row items-center px-1">
+        <View className="flex-row items-center">
+          <Text className="text-xs font-extrabold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+            {t(getSectionTitleKey(accountType))}
+          </Text>
+          <View className="relative ms-1 h-4 w-4 items-center justify-center">
+            <TouchableOpacity
+              onPress={() => setIsWhyTooltipVisible(true)}
+              accessibilityRole="button"
+              accessibilityLabel={t("provider_details_info")}
+              className="h-4 w-4 items-center justify-center"
+            >
+              <Ionicons
+                name="information-circle-outline"
+                size={13}
+                color={palette.nileGreen[500]}
+              />
+            </TouchableOpacity>
+            <Tooltip
+              text={t("why_provider_details_body")}
+              visible={isWhyTooltipVisible}
+              onDismiss={() => setIsWhyTooltipVisible(false)}
+              position="top"
+              arrowAlignment="left"
+              autoDismissMs={0}
+            />
+          </View>
+        </View>
       </View>
 
       {isKnownProviderEligible ? (
@@ -142,8 +178,8 @@ export function InstitutionProviderSection({
 
       {isManualMode ? (
         <TextField
-          label={t("provider_name")}
-          accessibilityLabel={t("provider_name")}
+          label={t(getManualNameLabelKey(accountType))}
+          accessibilityLabel={t(getManualNameLabelKey(accountType))}
           placeholder={
             pickerType === "bank"
               ? t("provider_name_placeholder_bank")
@@ -175,11 +211,6 @@ export function InstitutionProviderSection({
           </Text>
         </View>
       ) : null}
-
-      <WhyInstitutionDetailsSheet
-        visible={isWhySheetVisible}
-        onClose={() => setIsWhySheetVisible(false)}
-      />
     </View>
   );
 }

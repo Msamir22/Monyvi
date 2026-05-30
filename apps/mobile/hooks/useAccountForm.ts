@@ -242,6 +242,7 @@ export function useAccountForm(
                 senderNames: [],
                 bankName: "",
                 smsSenderName: "",
+                cardLast4: "",
               }
             : nextData;
         latestFormDataRef.current = newData;

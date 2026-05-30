@@ -93,6 +93,15 @@ describe("accountFormSchema (create)", () => {
     ).toBe(true);
   });
 
+  it("does not validate the hidden legacy SMS sender aggregate", () => {
+    const result = validateAccountForm({
+      ...baseCreate,
+      smsSenderName: "x".repeat(150),
+    });
+
+    expect(result.isValid).toBe(true);
+  });
+
   it("rejects empty string institution ids", () => {
     const result = validateAccountForm({
       ...baseCreate,
@@ -175,6 +184,15 @@ describe("editAccountFormSchema", () => {
     expect(
       validateEditAccountForm({ ...baseEdit, balance: "-0.50" }).isValid
     ).toBe(true);
+  });
+
+  it("does not validate the hidden legacy SMS sender aggregate on edit", () => {
+    const result = validateEditAccountForm({
+      ...baseEdit,
+      smsSenderName: "x".repeat(150),
+    });
+
+    expect(result.isValid).toBe(true);
   });
 
   it("rejects a leading minus with no digits", () => {

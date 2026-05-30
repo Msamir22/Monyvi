@@ -64,6 +64,7 @@ import { EditAccountSkeleton } from "@/components/edit-account/EditAccountSkelet
 // =============================================================================
 
 const LOWER_FORM_SCROLL_TARGET_Y = 100000;
+const BALANCE_FIELD_SCROLL_TARGET_Y = 360;
 
 export default function EditAccount(): React.ReactNode {
   const router = useRouter();
@@ -166,7 +167,7 @@ function EditAccountForm({
   const { isEligible: isKnownProviderEligible } =
     useEgyptianInstitutionEligibility();
 
-  const [isSmsMatchingExpanded, setIsSmsMatchingExpanded] = useState(true);
+  const [isSmsMatchingExpanded, setIsSmsMatchingExpanded] = useState(false);
   const [showBalanceSheet, setShowBalanceSheet] = useState(false);
   const [showDeleteSheet, setShowDeleteSheet] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -215,6 +216,19 @@ function EditAccountForm({
     smsFocusTimerRef.current = setTimeout(() => {
       scrollViewRef.current?.scrollTo({
         y: LOWER_FORM_SCROLL_TARGET_Y,
+        animated: true,
+      });
+    }, 250);
+  }, []);
+
+  const handleBalanceFieldFocus = useCallback((): void => {
+    if (smsFocusTimerRef.current) {
+      clearTimeout(smsFocusTimerRef.current);
+    }
+
+    smsFocusTimerRef.current = setTimeout(() => {
+      scrollViewRef.current?.scrollTo({
+        y: BALANCE_FIELD_SCROLL_TARGET_Y,
         animated: true,
       });
     }, 250);
@@ -349,7 +363,6 @@ function EditAccountForm({
   const handleProviderDisplayNameChange = useCallback(
     (value: string): void => {
       updateField("providerDisplayName", value);
-      updateField("bankName", value);
     },
     [updateField]
   );
@@ -445,6 +458,7 @@ function EditAccountForm({
             }}
             error={errors.balance}
             keyboardType="numeric"
+            onFocus={handleBalanceFieldFocus}
           />
 
           {/* Default Account Toggle */}

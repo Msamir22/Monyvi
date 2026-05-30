@@ -37,6 +37,7 @@ describe("AccountCard", () => {
       <AccountCard
         account={account({ providerDisplayName: "My Bank" })}
         latestRates={null as MarketRate | null}
+        providerLabel="My Bank"
       />
     );
 
@@ -52,6 +53,7 @@ describe("AccountCard", () => {
           providerDisplayName: "Family Wallet",
         })}
         latestRates={null as MarketRate | null}
+        providerLabel="Family Wallet"
       />
     );
 
@@ -68,6 +70,7 @@ describe("AccountCard", () => {
           type: "DIGITAL_WALLET",
         })}
         latestRates={null as MarketRate | null}
+        providerLabel="e& money (e& money)"
       />
     );
 

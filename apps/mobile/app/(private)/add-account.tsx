@@ -31,6 +31,7 @@ import {
 import type { CurrencyType } from "@monyvi/db";
 
 const LOWER_FORM_SCROLL_TARGET_Y = 100000;
+const BALANCE_FIELD_SCROLL_TARGET_Y = 360;
 
 interface CurrencySelectFieldProps {
   readonly value: CurrencyType;
@@ -131,7 +132,7 @@ export default function AddAccount(): React.ReactNode {
 
   // Local UI state
   const [isCurrencyOpen, setIsCurrencyOpen] = useState(false);
-  const [isSmsMatchingExpanded, setIsSmsMatchingExpanded] = useState(true);
+  const [isSmsMatchingExpanded, setIsSmsMatchingExpanded] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
   const smsFocusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -183,6 +184,19 @@ export default function AddAccount(): React.ReactNode {
     }, 250);
   }, []);
 
+  const handleBalanceFieldFocus = useCallback((): void => {
+    if (smsFocusTimerRef.current) {
+      clearTimeout(smsFocusTimerRef.current);
+    }
+
+    smsFocusTimerRef.current = setTimeout(() => {
+      scrollViewRef.current?.scrollTo({
+        y: BALANCE_FIELD_SCROLL_TARGET_Y,
+        animated: true,
+      });
+    }, 250);
+  }, []);
+
   /**
    * Handles the save action by validating the form and calling the creation hook.
    */
@@ -197,7 +211,6 @@ export default function AddAccount(): React.ReactNode {
   const handleProviderDisplayNameChange = useCallback(
     (value: string): void => {
       updateField("providerDisplayName", value);
-      updateField("bankName", value);
     },
     [updateField]
   );
@@ -302,6 +315,7 @@ export default function AddAccount(): React.ReactNode {
             }}
             error={errors.balance}
             keyboardType="numeric"
+            onFocus={handleBalanceFieldFocus}
           />
 
           <SmsMatchingSection

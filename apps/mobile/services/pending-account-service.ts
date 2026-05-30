@@ -110,12 +110,13 @@ async function persistPendingAccounts(
   let createdCount = 0;
 
   try {
-    // Pre-fetch existing active BANK accounts for dedup (name+currency)
+    // Pre-fetch existing active manual accounts for dedup (name+currency).
+    // The remote manual-provider uniqueness constraint is not type-scoped.
     const existingAccounts = await queryOwned(
       database.get<Account>("accounts"),
       userId,
       Q.where("deleted", false),
-      Q.where("type", "BANK")
+      Q.where("institution_id", null)
     ).fetch();
 
     // Track accounts mapped within this batch to avoid intra-batch duplicates

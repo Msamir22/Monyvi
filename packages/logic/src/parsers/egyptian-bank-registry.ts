@@ -612,6 +612,7 @@ const INSTITUTION_BY_ID = new Map<string, EgyptianFinancialInstitution>(
 
 const SENDER_LOOKUP_MAP: ReadonlyMap<string, EgyptianFinancialInstitution> =
   buildLookupMap();
+const MIN_SUBSTRING_PATTERN_LENGTH = 4;
 
 function buildLookupMap(): Map<string, EgyptianFinancialInstitution> {
   const map = new Map<string, EgyptianFinancialInstitution>();
@@ -643,7 +644,10 @@ export function isKnownFinancialSender(
   }
 
   for (const [pattern, institution] of SENDER_LOOKUP_MAP) {
-    if (pattern.length >= 3 && normalized.includes(pattern)) {
+    if (
+      pattern.length >= MIN_SUBSTRING_PATTERN_LENGTH &&
+      normalized.includes(pattern)
+    ) {
       return institution;
     }
   }

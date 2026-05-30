@@ -1,7 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import type { AccountType } from "@monyvi/db";
 import type { JSX } from "react";
-import { Text, TouchableOpacity, View, type ViewStyle } from "react-native";
+import {
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+  type ViewStyle,
+} from "react-native";
 import { useTranslation } from "react-i18next";
 
 import { ACCOUNT_TYPES } from "@/constants/accounts";
@@ -41,10 +47,14 @@ export function AccountTypeSelector({
   const { t: tCommon } = useTranslation("common");
 
   return (
-    <View className="mb-5" accessibilityRole="radiogroup">
-      <Text className="input-label">{t("account_type")}</Text>
-      <View className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
-        {ACCOUNT_TYPES.map((type, index) => {
+    <View className="mb-4" accessibilityRole="radiogroup">
+      <Text className="input-label mb-2">{t("account_type")}</Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerClassName="gap-2 pe-4"
+      >
+        {ACCOUNT_TYPES.map((type) => {
           const isSelected = value === type.id;
           const accountTypeLabel = t(ACCOUNT_TYPE_LABEL_KEYS[type.id]);
 
@@ -61,17 +71,15 @@ export function AccountTypeSelector({
                   : accountTypeLabel
               }
               disabled={disabled}
-              className={`flex-row items-center px-4 py-4 ${
-                index > 0
-                  ? "border-t border-slate-200 dark:border-slate-700"
-                  : ""
-              } ${
-                isSelected ? "bg-nileGreen-50" : "bg-white dark:bg-slate-800"
+              className={`h-[66px] min-w-[124px] flex-row items-center rounded-2xl border px-3 py-2 ${
+                isSelected
+                  ? "border-nileGreen-500 bg-nileGreen-50"
+                  : "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800"
               }`}
               style={getSelectedRowStyle(isSelected, isDark)}
             >
               <View
-                className={`me-3 h-9 w-9 items-center justify-center rounded-xl ${
+                className={`me-2 h-[34px] w-[34px] items-center justify-center rounded-xl ${
                   isSelected
                     ? "bg-nileGreen-100 dark:bg-nileGreen-800"
                     : "bg-slate-100 dark:bg-slate-700"
@@ -79,7 +87,7 @@ export function AccountTypeSelector({
               >
                 <Ionicons
                   name={type.icon}
-                  size={19}
+                  size={17}
                   color={
                     isSelected
                       ? palette.nileGreen[700]
@@ -89,20 +97,23 @@ export function AccountTypeSelector({
                   }
                 />
               </View>
-              <Text className="flex-1 text-base font-semibold text-text-primary">
+              <Text
+                className="flex-1 text-[13px] font-semibold text-text-primary"
+                numberOfLines={2}
+              >
                 {accountTypeLabel}
               </Text>
               {isSelected ? (
                 <Ionicons
                   name="checkmark-circle"
-                  size={22}
+                  size={20}
                   color={colors.primary}
                 />
               ) : null}
             </TouchableOpacity>
           );
         })}
-      </View>
+      </ScrollView>
     </View>
   );
 }

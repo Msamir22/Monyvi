@@ -22,8 +22,8 @@ appId: com.monyvi.app
     timeout: 30000
 - tapOn: "Bank Account"
 - assertVisible: "Bank"
-- assertVisible: "Why provider details matter"
-- tapOn: "Choose a provider"
+- assertVisible: "Why this helps"
+- tapOn: "Choose a bank"
 - tapOn: "Search"
 - inputText: "CIB"
 - waitForAnimationToEnd
@@ -47,7 +47,7 @@ appId: com.monyvi.app
     visible: "Edit Account"
     timeout: 30000
 - assertVisible: "Bank"
-- assertVisible: "Why provider details matter"
+- assertVisible: "Why this helps"
 - tapOn:
     id: "header-back"
 - extendedWaitUntil:
@@ -62,8 +62,8 @@ appId: com.monyvi.app
     timeout: 30000
 - tapOn: "Digital Wallet"
 - assertVisible: "Wallet"
-- assertVisible: "Why provider details matter"
-- tapOn: "Choose a provider"
+- assertVisible: "Why this helps"
+- tapOn: "Choose a wallet"
 - tapOn: "Search"
 - inputText: "Vodafone"
 - waitForAnimationToEnd
@@ -87,7 +87,7 @@ appId: com.monyvi.app
     visible: "Edit Account"
     timeout: 30000
 - assertVisible: "Wallet"
-- assertVisible: "Why provider details matter"
+- assertVisible: "Why this helps"
 - tapOn:
     id: "header-back"
 - extendedWaitUntil:
@@ -101,14 +101,15 @@ appId: com.monyvi.app
     visible: "Add Account"
     timeout: 30000
 - tapOn: "Bank Account"
-- tapOn: "Choose a provider"
+- tapOn: "Choose a bank"
 - tapOn: "Search"
 - inputText: "ZZZ"
 - waitForAnimationToEnd
 - tapOn: "Other"
-- tapOn: "Provider name"
+- tapOn: "Bank name"
 - inputText: "E2E Manual Bank"
 - waitForAnimationToEnd
+- tapOn: "Message detection (optional)"
 - tapOn: "Add sender"
 - inputText: "E2EBANK"
 - waitForAnimationToEnd
@@ -134,14 +135,15 @@ appId: com.monyvi.app
     visible: "Add Account"
     timeout: 30000
 - tapOn: "Digital Wallet"
-- tapOn: "Choose a provider"
+- tapOn: "Choose a wallet"
 - tapOn: "Search"
 - inputText: "ZZZ"
 - waitForAnimationToEnd
 - tapOn: "Other"
-- tapOn: "Provider name"
+- tapOn: "Wallet name"
 - inputText: "E2E Manual Wallet"
 - waitForAnimationToEnd
+- tapOn: "Message detection (optional)"
 - tapOn: "Add sender"
 - inputText: "E2EWALLET"
 - waitForAnimationToEnd
@@ -167,14 +169,14 @@ appId: com.monyvi.app
     visible: "Add Account"
     timeout: 30000
 - tapOn: "Bank Account"
-- tapOn: "Choose a provider"
+- tapOn: "Choose a bank"
 - tapOn: "Search"
 - inputText: "CIB"
 - waitForAnimationToEnd
 - assertVisible: "CIB \\(Commercial International Bank\\)"
 - tapOn: "Close provider list"
 - tapOn: "Digital Wallet"
-- tapOn: "Choose a provider"
+- tapOn: "Choose a wallet"
 - tapOn: "Search"
 - inputText: "Vodafone"
 - waitForAnimationToEnd

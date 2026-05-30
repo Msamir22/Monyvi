@@ -1,5 +1,4 @@
 import { Account, AccountSmsSender, database } from "@monyvi/db";
-import { Q } from "@nozbe/watermelondb";
 
 import { queryChildrenOfOwnedParent } from "./user-data-access";
 
@@ -59,23 +58,27 @@ export async function replaceAccountSmsSendersWithinWriter(
     );
   }
 
-  const activeSenders = await queryChildrenOfOwnedParent(
+  const existingSenders = await queryChildrenOfOwnedParent(
     database.get<AccountSmsSender>("account_sms_senders"),
     account,
     currentUserId,
-    "account_id",
-    Q.where("deleted", false)
+    "account_id"
   ).fetch();
 
-  const activeByNormalizedSender = new Map<string, AccountSmsSender>();
-  for (const sender of activeSenders) {
+  const existingByNormalizedSender = new Map<string, AccountSmsSender>();
+  for (const sender of existingSenders) {
     const normalized = normalizeAccountSmsSender(sender.senderName);
-    if (!activeByNormalizedSender.has(normalized)) {
-      activeByNormalizedSender.set(normalized, sender);
+    const current = existingByNormalizedSender.get(normalized);
+    if (!current || (current.deleted && !sender.deleted)) {
+      existingByNormalizedSender.set(normalized, sender);
     }
   }
 
-  for (const sender of activeSenders) {
+  for (const sender of existingSenders) {
+    if (sender.deleted) {
+      continue;
+    }
+
     const normalized = normalizeAccountSmsSender(sender.senderName);
     const desiredSenderName = desiredByNormalizedSender.get(normalized);
 
@@ -95,7 +98,15 @@ export async function replaceAccountSmsSendersWithinWriter(
   }
 
   for (const [normalized, senderName] of desiredByNormalizedSender) {
-    if (activeByNormalizedSender.has(normalized)) {
+    const existingSender = existingByNormalizedSender.get(normalized);
+    if (existingSender) {
+      if (existingSender.deleted || existingSender.senderName !== senderName) {
+        await existingSender.update((draft) => {
+          draft.senderName = senderName;
+          draft.normalizedSenderName = normalized;
+          draft.deleted = false;
+        });
+      }
       continue;
     }
 

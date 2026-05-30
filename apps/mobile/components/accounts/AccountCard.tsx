@@ -1,5 +1,5 @@
 import { palette } from "@/constants/colors";
-import { resolveAccountInstitutionPresentation } from "@/utils/account-institution-presentation";
+import type { InstitutionLogo } from "@/constants/egyptian-institution-assets";
 import { formatAccountBalance } from "@/utils/financial-display";
 import { Account, MarketRate } from "@monyvi/db";
 import { convertCurrency, formatCurrency } from "@monyvi/logic";
@@ -24,6 +24,8 @@ interface AccountCardProps {
    * Falls back to the raw `account.name` when omitted.
    */
   displayName?: string;
+  providerLabel?: string | null;
+  institutionLogo?: InstitutionLogo | null;
 }
 
 /**
@@ -41,6 +43,8 @@ function AccountCardImpl({
   latestRates,
   onPress,
   displayName,
+  providerLabel = null,
+  institutionLogo = null,
 }: AccountCardProps): React.JSX.Element {
   const { t } = useTranslation("accounts");
   const handlePress = useCallback(() => {
@@ -60,11 +64,6 @@ function AccountCardImpl({
           return { icon: "wallet", color: palette.nileGreen[500] };
       }
     }, [account.type]);
-  const institutionPresentation = useMemo(
-    () => resolveAccountInstitutionPresentation(account),
-    [account]
-  );
-  const institutionLogo = institutionPresentation?.asset.logo ?? null;
   const InstitutionSvgLogo =
     institutionLogo?.format === "svg" &&
     typeof institutionLogo.source === "function"
@@ -87,11 +86,9 @@ function AccountCardImpl({
 
     switch (account.type) {
       case "BANK":
-        return institutionPresentation?.providerLabel ?? t("type_bank");
+        return providerLabel ?? t("type_bank");
       case "DIGITAL_WALLET":
-        return (
-          institutionPresentation?.providerLabel ?? t("type_digital_wallet")
-        );
+        return providerLabel ?? t("type_digital_wallet");
       case "CASH":
         return t("type_cash");
       default:
@@ -102,7 +99,7 @@ function AccountCardImpl({
     account.balance,
     account.type,
     latestRates,
-    institutionPresentation?.providerLabel,
+    providerLabel,
     t,
   ]);
 

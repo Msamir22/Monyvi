@@ -285,6 +285,24 @@ describe("useAccountForm", () => {
     expect(result.current.formData.senderNames).toEqual([]);
   });
 
+  it("clears hidden card digits when account type changes", () => {
+    const { result } = renderHook(() =>
+      useAccountForm({ initialAccountType: "BANK" })
+    );
+
+    act(() => {
+      result.current.updateField("cardLast4", "12");
+    });
+
+    expect(result.current.isValid).toBe(false);
+
+    act(() => {
+      result.current.updateField("accountType", "DIGITAL_WALLET");
+    });
+
+    expect(result.current.formData.cardLast4).toBe("");
+  });
+
   it("keeps sender arrays as the canonical value and mirrors the legacy text field", () => {
     const { result } = renderHook(() =>
       useAccountForm({ initialAccountType: "DIGITAL_WALLET" })

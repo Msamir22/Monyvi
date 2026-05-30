@@ -180,7 +180,6 @@ function buildCreateAccountKey(userId: string, data: AccountFormData): string {
     userId.trim(),
     data.name.trim().toLowerCase(),
     data.currency,
-    data.accountType,
     data.institutionId ?? "manual",
   ].join("|");
 }
@@ -246,10 +245,6 @@ export async function createAccountForUser(
         const hasSameName =
           account.name.trim().toLowerCase() === trimmedName.toLowerCase();
         if (!hasSameName) {
-          return false;
-        }
-
-        if (account.type !== validatedData.accountType) {
           return false;
         }
 

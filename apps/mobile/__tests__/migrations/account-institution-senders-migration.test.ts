@@ -6,13 +6,9 @@ import { schema } from "../../../../packages/db/src/schema";
 
 function readMigrationSql(): string {
   return readFileSync(
-    path.join(
-      process.cwd(),
-      "..",
-      "..",
-      "supabase",
-      "migrations",
-      "051_account_institution_senders.sql"
+    path.resolve(
+      __dirname,
+      "../../../../supabase/migrations/051_account_institution_senders.sql"
     ),
     "utf8"
   );
@@ -83,11 +79,15 @@ describe("account institution and sender migration", () => {
   });
 
   it("updates the WatermelonDB migration chain for the new local schema", () => {
+    const serializedMigrations = JSON.stringify(migrations);
+
     expect(schema.version).toBeGreaterThanOrEqual(21);
-    expect(JSON.stringify(migrations)).toContain("account_sms_senders");
-    expect(JSON.stringify(migrations)).toContain("institution_id");
-    expect(JSON.stringify(migrations)).toContain("provider_display_name");
-    expect(JSON.stringify(migrations)).toContain(
+    expect(serializedMigrations).toContain("account_sms_senders");
+    expect(serializedMigrations).toContain("institution_id");
+    expect(serializedMigrations).toContain("provider_display_name");
+    expect(serializedMigrations).toContain("bank_name");
+    expect(serializedMigrations).toContain("sms_sender_name");
+    expect(serializedMigrations).toContain(
       "account_sms_senders_one_active_normalized"
     );
   });

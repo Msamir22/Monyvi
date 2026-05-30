@@ -66,11 +66,7 @@ export const accountFormSchema = z
       .optional()
       .or(z.literal(""))
       .refine((val) => !val || /^\d{4}$/.test(val), "validation_card_last_4"),
-    smsSenderName: z
-      .string()
-      .max(100, "validation_sms_sender_name_max")
-      .optional()
-      .or(z.literal("")),
+    smsSenderName: z.string().optional().or(z.literal("")),
   })
   .superRefine((data, ctx) => {
     const needsProvider =
@@ -163,11 +159,7 @@ export const editAccountFormSchema = z.object({
     .optional()
     .or(z.literal(""))
     .refine((val) => !val || /^\d{4}$/.test(val), "validation_card_last_4"),
-  smsSenderName: z
-    .string()
-    .max(100, "validation_sms_sender_name_max")
-    .optional()
-    .or(z.literal("")),
+  smsSenderName: z.string().optional().or(z.literal("")),
 });
 
 export type EditAccountFormData = z.infer<typeof editAccountFormSchema>;

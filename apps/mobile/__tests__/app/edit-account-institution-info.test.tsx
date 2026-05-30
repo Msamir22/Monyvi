@@ -13,16 +13,19 @@ const translations: Record<string, string> = {
   delete_account: "Delete account",
   delete_account_warning: "This cannot be undone.",
   edit_account: "Edit account",
-  provider_details_section: "Provider details",
+  provider_details_section: "Bank or wallet",
   provider_details_help:
     "Choose the bank or wallet so SMS transactions can be matched to the right account.",
-  provider_details_info: "Why provider details matter",
-  provider_name: "Provider name",
+  provider_details_info: "Why this helps",
+  manual_bank_name: "Bank name",
+  manual_wallet_name: "Wallet name",
   provider_name_placeholder_bank: "e.g., CIB, NBE, HSBC",
   provider_name_placeholder_wallet: "e.g., Vodafone Cash",
   institution_search_placeholder: "Search",
   institution_other: "Other",
   sms_sender_names: "SMS sender names",
+  sms_matching_optional: "Message detection (optional)",
+  sms_matching_help: "Sender names help Monyvi find messages for this account.",
   sms_sender_help:
     "The name that appears as the SMS sender when your bank sends you transaction notifications.",
   type_bank: "Bank",
@@ -183,6 +186,13 @@ describe("Edit account institution info", () => {
   it("shows the provider-details info control in the bank edit flow", () => {
     render(<EditAccount />);
 
-    expect(screen.getByLabelText("Why provider details matter")).toBeTruthy();
+    expect(screen.getByLabelText("Why this helps")).toBeTruthy();
+  });
+
+  it("keeps message detection collapsed by default", () => {
+    render(<EditAccount />);
+
+    expect(screen.getByText("Message detection (optional)")).toBeTruthy();
+    expect(screen.queryByText("SMS sender names")).toBeNull();
   });
 });

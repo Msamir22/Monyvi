@@ -68,12 +68,14 @@ const ARROW_SIZE = 6;
 // ---------------------------------------------------------------------------
 
 function getTooltipBaseStyle(
-  position: TooltipPosition
+  position: TooltipPosition,
+  alignment: ArrowAlignment
 ): Record<string, unknown> {
   const base: ViewStyle = {
     position: "absolute" as const,
     zIndex: 10,
     borderRadius: 8,
+    width: 240,
     paddingHorizontal: 12,
     paddingVertical: 8,
     shadowColor: "#000",
@@ -82,12 +84,18 @@ function getTooltipBaseStyle(
     shadowRadius: 4,
     elevation: 5,
   };
+  const horizontalStyle =
+    alignment === "left"
+      ? { left: 0 }
+      : alignment === "right"
+        ? { right: 0 }
+        : { alignSelf: "center" as const };
 
   if (position === "top") {
-    return { ...base, bottom: "100%", marginBottom: 8 };
+    return { ...base, ...horizontalStyle, bottom: "100%", marginBottom: 8 };
   }
 
-  return { ...base, top: "100%", marginTop: 8 };
+  return { ...base, ...horizontalStyle, top: "100%", marginTop: 8 };
 }
 
 function getArrowBaseStyle(
@@ -230,10 +238,10 @@ export function Tooltip({
 
   const tooltipStyle = useMemo(
     () => ({
-      ...getTooltipBaseStyle(position),
+      ...getTooltipBaseStyle(position, arrowAlignment),
       backgroundColor: tooltipBgColor,
     }),
-    [position, tooltipBgColor]
+    [position, arrowAlignment, tooltipBgColor]
   );
 
   const arrowStyle = useMemo(

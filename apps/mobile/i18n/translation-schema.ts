@@ -286,9 +286,17 @@ interface AccountsTranslations {
   readonly institution_dropdown_placeholder: string;
   readonly institution_dropdown_accessibility: string;
   readonly institution_dropdown_close: string;
+  readonly institution_bank_dropdown_placeholder: string;
+  readonly institution_bank_dropdown_accessibility: string;
+  readonly institution_bank_dropdown_close: string;
+  readonly institution_wallet_dropdown_placeholder: string;
+  readonly institution_wallet_dropdown_accessibility: string;
+  readonly institution_wallet_dropdown_close: string;
   readonly institution_search_placeholder: string;
   readonly institution_other: string;
   readonly provider_name: string;
+  readonly manual_bank_name: string;
+  readonly manual_wallet_name: string;
   readonly provider_name_placeholder_bank: string;
   readonly provider_name_placeholder_wallet: string;
   readonly sender_add_placeholder: string;

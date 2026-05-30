@@ -542,7 +542,7 @@ describe("createAccountForUser", () => {
     expect(accountsCollection.create).not.toHaveBeenCalled();
   });
 
-  it("allows the same account name and currency when the account type differs", async () => {
+  it("allows the same account name and currency when the known provider differs", async () => {
     const accountsCollection = {
       query: jest.fn().mockReturnValue({
         fetch: jest.fn().mockResolvedValue([
@@ -602,6 +602,46 @@ describe("createAccountForUser", () => {
       created: true,
     });
     expect(accountsCollection.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects duplicate manual names across account types", async () => {
+    const accountsCollection = {
+      query: jest.fn().mockReturnValue({
+        fetch: jest.fn().mockResolvedValue([
+          {
+            id: "cash-1",
+            name: "Main",
+            type: "CASH",
+            userId: "user-1",
+            currency: "EGP",
+            deleted: false,
+            institutionId: undefined,
+          },
+        ]),
+        fetchCount: jest.fn().mockResolvedValue(1),
+      }),
+      create: jest.fn(),
+    };
+    mockDatabaseGet.mockImplementation((collectionName: string) => {
+      if (collectionName === "accounts") return accountsCollection;
+      throw new Error(`Unexpected collection: ${collectionName}`);
+    });
+
+    const result = await createAccountForUser("user-1", {
+      name: "Main",
+      accountType: "BANK",
+      currency: "EGP",
+      balance: "0",
+      institutionId: null,
+      providerDisplayName: "Manual Bank",
+      senderNames: [],
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: CREATE_ACCOUNT_ERROR_CODES.DUPLICATE_ACCOUNT,
+    });
+    expect(accountsCollection.create).not.toHaveBeenCalled();
   });
 
   it("fails closed without writing when the balance format is invalid", async () => {

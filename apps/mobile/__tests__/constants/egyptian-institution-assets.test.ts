@@ -19,8 +19,9 @@ describe("Egyptian institution assets", () => {
       expect(asset.institutionId).toBe(provider.id);
       expect(asset.kind).toBe(provider.type);
       expect(asset.logo).toBeTruthy();
-      expect(asset.logo).not.toBe(
-        DEFAULT_EGYPTIAN_INSTITUTION_ASSETS[provider.type].logo
+      expect(asset.logo.format).toBeTruthy();
+      expect(asset.logo.source).not.toBe(
+        DEFAULT_EGYPTIAN_INSTITUTION_ASSETS[provider.type].logo.source
       );
     }
   });

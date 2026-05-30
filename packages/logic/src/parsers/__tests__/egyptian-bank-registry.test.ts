@@ -105,6 +105,11 @@ describe("Egyptian financial institution registry", () => {
     expect(isKnownFinancialSender("IPN")).toBeUndefined();
   });
 
+  it("requires exact matches for short generic sender aliases", () => {
+    expect(isKnownFinancialSender("ABC")?.id).toBe("bank-abc");
+    expect(isKnownFinancialSender("ABCStore")).toBeUndefined();
+  });
+
   it("does not make pending Meeza or generic Fawry products selectable", () => {
     const selectableIds = [
       ...selectableIdsFor("bank"),

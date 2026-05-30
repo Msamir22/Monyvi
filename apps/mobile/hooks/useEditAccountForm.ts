@@ -199,9 +199,10 @@ export function useEditAccountForm(
         return;
       }
 
+      setIsCheckingUniqueness(true);
+
       uniquenessTimerRef.current = setTimeout(() => {
         void (async () => {
-          setIsCheckingUniqueness(true);
           const result = await checkAccountNameUniqueness(
             account.userId,
             trimmedName,

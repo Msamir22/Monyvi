@@ -66,12 +66,12 @@ function formatProviderName(
   return translateAccountType(accountType);
 }
 
-function formatBalance(balance: string, currency: string): string {
+function formatBalance(balance: string): string {
   const trimmed = balance.trim();
   if (!trimmed) {
-    return `0 ${currency}`;
+    return "0";
   }
-  return `${trimmed} ${currency}`;
+  return trimmed;
 }
 
 interface PreviewLogoProps {
@@ -158,7 +158,7 @@ export function AccountPreviewCard({
             {currency}
           </Text>
           <Text className="mt-0.5 text-lg font-black text-white">
-            {formatBalance(balance, currency)}
+            {formatBalance(balance)}
           </Text>
         </View>
       </View>

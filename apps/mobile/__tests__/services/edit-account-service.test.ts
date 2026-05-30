@@ -1102,6 +1102,46 @@ describe("edit-account-service", () => {
       );
     });
 
+    it("reactivates a dirty-deleted sender row instead of creating a duplicate", async () => {
+      const deletedSender = mockModel("sender-1", {
+        accountId: "acc-1",
+        senderName: "CIB",
+        normalizedSenderName: "cib",
+        deleted: true,
+      });
+      seedAccount("acc-1", {
+        name: "Bank Account",
+        type: "BANK",
+        isBank: true,
+      });
+      mockSeed("account_sms_senders", deletedSender);
+
+      await updateAccountWithBalanceAdjustment(
+        "acc-1",
+        "user-1",
+        {
+          name: "Bank Account",
+          balance: 0,
+          isDefault: false,
+          bankName: "CIB",
+          senderNames: ["CIB"],
+        },
+        null
+      );
+
+      expect(deletedSender.deleted).toBe(false);
+      expect(mockGetStore("account_sms_senders").size).toBe(1);
+      expect(Array.from(mockGetStore("account_sms_senders").values())).toEqual([
+        expect.objectContaining({
+          id: "sender-1",
+          accountId: "acc-1",
+          senderName: "CIB",
+          normalizedSenderName: "cib",
+          deleted: false,
+        }),
+      ]);
+    });
+
     it("creates missing bank details when editing a bank account with no detail row", async () => {
       const acc = seedAccount("acc-1", {
         name: "Bank Account",
