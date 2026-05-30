@@ -39,10 +39,10 @@ interface MockAccount {
   readonly isDigitalWallet?: boolean;
   readonly providerDisplayName?: string;
   readonly bankDetails: {
-    readonly fetch: jest.Mock<Promise<MockBankDetails[]>, []>;
+    readonly fetch?: jest.Mock<Promise<MockBankDetails[]>, []>;
   };
   readonly accountSmsSenders?: {
-    readonly fetch: jest.Mock<
+    readonly fetch?: jest.Mock<
       Promise<Array<{ senderName: string; deleted: boolean }>>,
       []
     >;
@@ -214,6 +214,32 @@ describe("useAccountById", () => {
     });
 
     expect(account.bankDetails.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses empty relation rows when a fallback relation cannot fetch", async () => {
+    const account: MockAccount = {
+      id: "acc-1",
+      userId: "user-1",
+      type: "BANK",
+      isBank: true,
+      providerDisplayName: "CIB",
+      bankDetails: {},
+      accountSmsSenders: {},
+    };
+    const { result } = renderHook("acc-1");
+
+    await RTR.act(async () => {
+      activeObserver?.next(account);
+      await Promise.resolve();
+    });
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.bankDetails).toEqual({
+      bankName: "CIB",
+      cardLast4: undefined,
+      smsSenderName: "",
+      smsSenderNames: [],
+    });
   });
 
   it("treats a foreign account id as not found", () => {

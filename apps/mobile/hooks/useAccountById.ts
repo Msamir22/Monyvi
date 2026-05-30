@@ -53,8 +53,17 @@ function subscribeToRelationRows<TRecord>(
   }
 
   let isSubscribed = true;
+  if (typeof relation.fetch !== "function") {
+    onNext([]);
+    return {
+      unsubscribe: () => {
+        isSubscribed = false;
+      },
+    };
+  }
+
   void relation
-    .fetch?.()
+    .fetch()
     .then((rows) => {
       if (isSubscribed) {
         onNext(rows);
