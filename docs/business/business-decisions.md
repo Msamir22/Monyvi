@@ -1,7 +1,6 @@
 # Monyvi Business Decisions
 
-**Status:** Active product source of truth  
-**Last updated:** 2026-05-10  
+**Status:** Active product source of truth **Last updated:** 2026-05-25
 **Scope:** Business and product rules confirmed by the current codebase and
 implementation history.
 
@@ -150,7 +149,13 @@ Business rules:
 - One account has exactly one currency.
 - Supported account currencies come from the generated `CurrencyType` enum and
   current market-rate support, not only EGP/USD/EUR.
-- Account names must be unique per user and currency, case-insensitive.
+- For accounts without a known provider identity, account names must be unique
+  per user and currency, case-insensitive.
+- For accounts with a known provider identity, account names must be unique per
+  user, currency, and provider identity (`institution_id`), case-insensitive.
+- `accounts.name` is the user's account nickname. Bank or wallet provider
+  display text is separate account metadata (`provider_display_name`) and known
+  providers also store the stable registry identity (`institution_id`).
 - The first active account created for a user is marked default.
 - At most one active account per user should be default.
 - Account type and currency are read-only after creation.
@@ -161,21 +166,25 @@ Business rules:
 - Deleting the default account clears the default flag; another account is not
   automatically promoted.
 
-### Bank Details
+### Bank Details And SMS Senders
 
-Bank details are child rows owned through an account. They store optional bank
-metadata used by SMS account resolution:
+Bank details are child rows owned through an account. They store only bank-
+specific metadata used by SMS account resolution:
 
-- Bank name.
 - Card last four digits.
-- SMS sender name.
 - Optional account number.
 
-An account may have at most one active bank details row. A different SMS sender
-or card identity should be represented as a separate account.
+Provider display names belong on the account so both bank and digital-wallet
+accounts can use the same provider model. SMS sender names belong in dedicated
+account sender rows so one bank or wallet account can store multiple sender
+aliases.
 
-SMS account matching should prefer sender plus card-last-four matches, then
-sender-only matches, then the user's default account.
+An account may have at most one active bank details row. A different card
+identity can be represented as a separate account when needed.
+
+SMS account matching should prefer sender plus card-last-four matches for bank
+accounts, then sender-only matches for bank or wallet accounts, then the user's
+default account.
 
 ### Transactions
 

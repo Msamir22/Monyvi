@@ -263,5 +263,32 @@ export const migrations = schemaMigrations({
         ),
       ],
     },
+    {
+      toVersion: 21,
+      steps: [
+        addColumns({
+          table: "accounts",
+          columns: [
+            { name: "institution_id", type: "string", isOptional: true },
+            {
+              name: "provider_display_name",
+              type: "string",
+              isOptional: true,
+            },
+          ],
+        }),
+        createTable({
+          name: "account_sms_senders",
+          columns: [
+            { name: "account_id", type: "string", isIndexed: true },
+            { name: "created_at", type: "number" },
+            { name: "deleted", type: "boolean" },
+            { name: "normalized_sender_name", type: "string", isIndexed: true },
+            { name: "sender_name", type: "string" },
+            { name: "updated_at", type: "number" },
+          ],
+        }),
+      ],
+    },
   ],
 });

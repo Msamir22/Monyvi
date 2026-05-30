@@ -19,6 +19,7 @@ import type { CurrencyType, AccountType } from "../../types";
 export abstract class BaseAccount extends Model {
   static table = "accounts";
   static associations: Associations = {
+    account_sms_senders: { type: "has_many", foreignKey: "account_id" },
     bank_details: { type: "has_many", foreignKey: "account_id" },
     debts: { type: "has_many", foreignKey: "account_id" },
     recurring_payments: { type: "has_many", foreignKey: "account_id" },
@@ -31,12 +32,15 @@ export abstract class BaseAccount extends Model {
   @readonly @date("created_at") createdAt!: Date;
   @field("currency") currency!: CurrencyType;
   @field("deleted") deleted!: boolean;
+  @field("institution_id") institutionId?: string;
   @field("is_default") isDefault!: boolean;
   @field("name") name!: string;
+  @field("provider_display_name") providerDisplayName?: string;
   @field("type") type!: AccountType;
   @date("updated_at") updatedAt!: Date;
   @field("user_id") userId!: string;
 
+  @children("account_sms_senders") accountSmsSenders!: Query<Model>;
   @children("bank_details") bankDetails!: Query<Model>;
   @children("debts") debts!: Query<Model>;
   @children("recurring_payments") recurringPayments!: Query<Model>;

@@ -340,6 +340,25 @@ describe("edit-account-service", () => {
       expect(result.isUnique).toBe(false);
     });
 
+    it("should treat the same name and currency as unique when the known provider differs", async () => {
+      seedAccount("acc-1", {
+        name: "Savings",
+        currency: "EGP",
+        userId: "user-1",
+        institutionId: "nbe",
+      });
+
+      const result = await checkAccountNameUniqueness(
+        "user-1",
+        "Savings",
+        "EGP",
+        undefined,
+        "cib"
+      );
+
+      expect(result.isUnique).toBe(true);
+    });
+
     it("should exclude the current account from the check", async () => {
       // Seed two accounts: acc-1 has the same name, acc-2 has a different name.
       // The mock returns all accounts (doesn't filter Q.where), but the JS
@@ -682,7 +701,16 @@ describe("edit-account-service", () => {
       mockDb.get.mockImplementation((tableName: string) => {
         if (tableName === "accounts") return accountsCollectionMock;
         if (tableName === "transactions") return { create: txCreate };
-        return { find: jest.fn(), query: jest.fn(), create: jest.fn() };
+        return {
+          find: jest.fn(),
+          query: jest.fn(() => ({ fetch: jest.fn(() => Promise.resolve([])) })),
+          create: jest.fn((builder: (r: Record<string, unknown>) => void) => {
+            const record = mockModel(`new-${tableName}-${Date.now()}`);
+            builder(record);
+            mockSeed(tableName, record);
+            return Promise.resolve(record);
+          }),
+        };
       });
     }
 
@@ -961,20 +989,26 @@ describe("edit-account-service", () => {
       expect(oldDefault.isDefault).toBe(false);
     });
 
-    it("updates bank details for bank accounts", async () => {
+    it("updates account provider metadata, sender rows, and bank card details for bank accounts", async () => {
       const bankDetail = mockModel("bd-1", {
         accountId: "acc-1",
-        bankName: "Old Bank",
         cardLast4: "1234",
-        smsSenderName: "OldSMS",
         deleted: false,
       });
-      seedAccount("acc-1", {
+      const existingSender = mockModel("sender-1", {
+        accountId: "acc-1",
+        senderName: "OldSMS",
+        normalizedSenderName: "oldsms",
+        deleted: false,
+      });
+      const account = seedAccount("acc-1", {
         name: "Bank Account",
         type: "BANK",
         isBank: true,
+        providerDisplayName: "Old Bank",
       });
       mockSeed("bank_details", bankDetail);
+      mockSeed("account_sms_senders", existingSender);
 
       await updateAccountWithBalanceAdjustment(
         "acc-1",
@@ -984,15 +1018,26 @@ describe("edit-account-service", () => {
           balance: 0,
           isDefault: false,
           bankName: "New Bank",
+          providerDisplayName: "New Bank",
           cardLast4: "5678",
-          smsSenderName: "NewSMS",
+          senderNames: ["NewSMS"],
         },
         null
       );
 
-      expect(bankDetail.bankName).toBe("New Bank");
+      expect(account.providerDisplayName).toBe("New Bank");
       expect(bankDetail.cardLast4).toBe("5678");
-      expect(bankDetail.smsSenderName).toBe("NewSMS");
+      expect(existingSender.deleted).toBe(true);
+      expect(Array.from(mockGetStore("account_sms_senders").values())).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            accountId: "acc-1",
+            senderName: "NewSMS",
+            normalizedSenderName: "newsms",
+            deleted: false,
+          }),
+        ])
+      );
     });
 
     it("creates missing bank details when editing a bank account with no detail row", async () => {
@@ -1012,7 +1057,7 @@ describe("edit-account-service", () => {
           isDefault: false,
           bankName: "CIB",
           cardLast4: "1234",
-          smsSenderName: "CIBSMS",
+          senderNames: ["CIBSMS"],
         },
         null
       );
@@ -1021,11 +1066,19 @@ describe("edit-account-service", () => {
       expect(createdDetails).toHaveLength(1);
       expect(createdDetails[0]).toMatchObject({
         accountId: "acc-1",
-        bankName: "CIB",
         cardLast4: "1234",
-        smsSenderName: "CIBSMS",
         deleted: false,
       });
+      expect(Array.from(mockGetStore("account_sms_senders").values())).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            accountId: "acc-1",
+            senderName: "CIBSMS",
+            normalizedSenderName: "cibsms",
+            deleted: false,
+          }),
+        ])
+      );
     });
 
     it("does not create an empty bank details row when no bank metadata is provided", async () => {

@@ -51,7 +51,7 @@ describe("sms-account-matcher - matchAccountCore", () => {
     isDefault: false,
     createdAt: baseDate,
     type: "BANK",
-    smsSenderName: "CIB",
+    smsSenderNames: ["CIB"],
     bankName: "Commercial International Bank",
     cardLast4: "1234",
   };
@@ -63,7 +63,7 @@ describe("sms-account-matcher - matchAccountCore", () => {
     isDefault: true, // Used for Step 4
     createdAt: new Date(baseDate.getTime() + 1000), // Created later
     type: "BANK",
-    smsSenderName: "NBE",
+    smsSenderNames: ["NBE"],
     cardLast4: "5678",
   };
 
@@ -74,6 +74,7 @@ describe("sms-account-matcher - matchAccountCore", () => {
     isDefault: false,
     createdAt: new Date(baseDate.getTime() - 1000), // Created first (for Step 5)
     type: "BANK", // maps to Step 5 fallback
+    smsSenderNames: [],
   };
 
   const accounts: AccountWithBankDetails[] = [accBank1, accBank2, accBank3];
@@ -149,6 +150,7 @@ describe("sms-account-matcher - matchAccountCore", () => {
         isDefault: false,
         createdAt: baseDate,
         type: "CASH",
+        smsSenderNames: [],
       },
     ];
 
@@ -175,6 +177,7 @@ describe("sms-account-matcher - fetchAccountsWithDetails", () => {
       isDefault: false,
       createdAt,
       type: "BANK",
+      providerDisplayName: "NBE",
     };
     const qnbAccount = {
       id: "acc_qnb",
@@ -183,18 +186,23 @@ describe("sms-account-matcher - fetchAccountsWithDetails", () => {
       isDefault: false,
       createdAt: new Date(createdAt.getTime() + 1000),
       type: "BANK",
+      providerDisplayName: "QNB",
     };
     const nbeDetails = {
       accountId: "acc_nbe",
-      bankName: "NBE",
-      smsSenderName: "NBE",
       cardLast4: "4321",
     };
     const qnbDetails = {
       accountId: "acc_qnb",
-      bankName: "QNB",
-      smsSenderName: "QNB",
       cardLast4: "5566",
+    };
+    const nbeSender = {
+      accountId: "acc_nbe",
+      senderName: "NBE",
+    };
+    const qnbSender = {
+      accountId: "acc_qnb",
+      senderName: "QNB",
     };
 
     mockQueryOwned.mockReturnValueOnce({
@@ -208,6 +216,12 @@ describe("sms-account-matcher - fetchAccountsWithDetails", () => {
         Promise<ReadonlyArray<typeof nbeDetails | typeof qnbDetails>>,
         []
       >(() => Promise.resolve([nbeDetails, qnbDetails])),
+    });
+    mockQueryChildrenOfOwnedParents.mockReturnValueOnce({
+      fetch: jest.fn<
+        Promise<ReadonlyArray<typeof nbeSender | typeof qnbSender>>,
+        []
+      >(() => Promise.resolve([nbeSender, qnbSender])),
     });
 
     const accounts = await fetchAccountsWithDetails("user-1", "BANK");
@@ -237,6 +251,7 @@ describe("sms-account-matcher - source-aware transaction matching", () => {
     isDefault: true,
     createdAt: baseDate,
     type: "CASH",
+    smsSenderNames: [],
   };
 
   const bankDefault: AccountWithBankDetails = {
@@ -246,6 +261,7 @@ describe("sms-account-matcher - source-aware transaction matching", () => {
     isDefault: true,
     createdAt: new Date(baseDate.getTime() + 1000),
     type: "BANK",
+    smsSenderNames: [],
   };
 
   const bankRegular: AccountWithBankDetails = {
@@ -255,6 +271,7 @@ describe("sms-account-matcher - source-aware transaction matching", () => {
     isDefault: false,
     createdAt: new Date(baseDate.getTime() + 2000),
     type: "BANK",
+    smsSenderNames: [],
   };
 
   function tx(overrides: Partial<TestTransaction> = {}): TestTransaction {
@@ -323,7 +340,7 @@ describe("sms-account-matcher - source-aware transaction matching", () => {
           isDefault: false,
           createdAt: baseDate,
           type: "BANK",
-          smsSenderName: "NBE",
+          smsSenderNames: ["NBE"],
           bankName: "NBE",
           cardLast4: "4321",
         },
@@ -334,7 +351,7 @@ describe("sms-account-matcher - source-aware transaction matching", () => {
           isDefault: false,
           createdAt: baseDate,
           type: "BANK",
-          smsSenderName: "QNB",
+          smsSenderNames: ["QNB"],
           bankName: "QNB",
           cardLast4: "5566",
         },
@@ -345,6 +362,86 @@ describe("sms-account-matcher - source-aware transaction matching", () => {
     expect(batches[0].get(0)).toMatchObject({
       accountId: "acc_bank_qnb",
       accountName: "E2E QNB Bank",
+      matchReason: "card_last4",
+    });
+  });
+
+  it("matches wallet SMS senders without bank details", () => {
+    const wallet: AccountWithBankDetails = {
+      id: "wallet-1",
+      name: "Vodafone wallet",
+      currency: "EGP",
+      isDefault: false,
+      createdAt: baseDate,
+      type: "DIGITAL_WALLET",
+      smsSenderNames: ["VFCash", "VodafoneCash"],
+      bankName: "Vodafone Cash",
+    };
+
+    const result = matchTransaction(tx({ originLabel: "VodafoneCash" }), [
+      cashDefault,
+      bankRegular,
+      wallet,
+    ]);
+
+    expect(result).toMatchObject({
+      accountId: "wallet-1",
+      accountName: "Vodafone wallet",
+      matchReason: "sms_sender",
+    });
+  });
+
+  it("checks every saved sender row for an account", () => {
+    const bank: AccountWithBankDetails = {
+      id: "bank-1",
+      name: "CIB",
+      currency: "EGP",
+      isDefault: false,
+      createdAt: baseDate,
+      type: "BANK",
+      smsSenderNames: ["CIB", "CIBEGYPT"],
+      bankName: "CIB",
+    };
+
+    const result = matchTransaction(tx({ originLabel: "CIBEGYPT" }), [bank]);
+
+    expect(result).toMatchObject({
+      accountId: "bank-1",
+      matchReason: "sms_sender",
+    });
+  });
+
+  it("keeps sender plus card last four ahead of sender-only matches", () => {
+    const firstSenderMatch: AccountWithBankDetails = {
+      id: "bank-sender-only",
+      name: "CIB Old Card",
+      currency: "EGP",
+      isDefault: false,
+      createdAt: baseDate,
+      type: "BANK",
+      smsSenderNames: ["CIB"],
+      bankName: "CIB",
+      cardLast4: "1111",
+    };
+    const cardMatch: AccountWithBankDetails = {
+      id: "bank-card-match",
+      name: "CIB New Card",
+      currency: "EGP",
+      isDefault: false,
+      createdAt: new Date(baseDate.getTime() + 1000),
+      type: "BANK",
+      smsSenderNames: ["CIB"],
+      bankName: "CIB",
+      cardLast4: "2222",
+    };
+
+    const result = matchTransaction(
+      tx({ originLabel: "CIB", cardLast4: "2222" }),
+      [firstSenderMatch, cardMatch]
+    );
+
+    expect(result).toMatchObject({
+      accountId: "bank-card-match",
       matchReason: "card_last4",
     });
   });

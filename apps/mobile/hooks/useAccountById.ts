@@ -12,7 +12,7 @@
  * @module useAccountById
  */
 
-import { Account, BankDetails, database } from "@monyvi/db";
+import { Account, AccountSmsSender, BankDetails, database } from "@monyvi/db";
 import { useEffect, useRef, useState } from "react";
 import { observeOwnedById } from "@/services/user-data-access";
 import { useCurrentUser } from "./useCurrentUser";
@@ -22,10 +22,21 @@ import { logger } from "../utils/logger";
 // Types
 // ---------------------------------------------------------------------------
 
-type BankDetailsData = Pick<
-  BankDetails,
-  "bankName" | "cardLast4" | "smsSenderName"
->;
+interface BankDetailsData {
+  readonly bankName?: string;
+  readonly cardLast4?: string;
+  readonly smsSenderName?: string;
+  readonly smsSenderNames?: readonly string[];
+}
+
+function fetchAccountSmsSenders(account: Account): Promise<AccountSmsSender[]> {
+  const relation = account.accountSmsSenders;
+  if (!relation) {
+    return Promise.resolve([]);
+  }
+
+  return relation.fetch() as Promise<AccountSmsSender[]>;
+}
 
 export interface UseAccountByIdResult {
   /** The observed Account model or null when not found / loading */
@@ -117,7 +128,7 @@ export function useAccountById(id: string | null): UseAccountByIdResult {
       return undefined;
     }
 
-    const detailsKey = `${account.id}:${account.isBank ? "BANK" : "NON_BANK"}`;
+    const detailsKey = `${account.id}:${account.type}`;
     if (bankDetailsKeyRef.current === detailsKey) {
       return undefined;
     }
@@ -125,7 +136,7 @@ export function useAccountById(id: string | null): UseAccountByIdResult {
 
     const loadBankDetails = async (): Promise<void> => {
       const requestId = ++bankDetailsRequestIdRef.current;
-      if (!account.isBank) {
+      if (!account.isBank && !account.isDigitalWallet) {
         if (!isActive || requestId !== bankDetailsRequestIdRef.current) return;
         setBankDetails(null);
         setIsLoading(false);
@@ -133,18 +144,32 @@ export function useAccountById(id: string | null): UseAccountByIdResult {
       }
 
       try {
-        const details = (await account.bankDetails.fetch()) as BankDetails[];
+        const [details, senderRows] = await Promise.all([
+          account.isBank
+            ? (account.bankDetails.fetch() as Promise<BankDetails[]>)
+            : Promise.resolve([]),
+          fetchAccountSmsSenders(account),
+        ]);
         if (!isActive || requestId !== bankDetailsRequestIdRef.current) return;
+
+        const smsSenderNames = senderRows
+          .filter((row) => !row.deleted)
+          .map((row) => row.senderName);
 
         if (details.length > 0) {
           const bd = details[0];
           setBankDetails({
-            bankName: bd.bankName,
+            bankName: account.providerDisplayName,
             cardLast4: bd.cardLast4,
-            smsSenderName: bd.smsSenderName,
+            smsSenderName: smsSenderNames.join(", "),
+            smsSenderNames,
           });
         } else {
-          setBankDetails(null);
+          setBankDetails({
+            bankName: account.providerDisplayName,
+            smsSenderName: smsSenderNames.join(", "),
+            smsSenderNames,
+          });
         }
       } catch (err: unknown) {
         if (!isActive || requestId !== bankDetailsRequestIdRef.current) return;

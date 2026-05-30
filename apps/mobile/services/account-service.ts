@@ -33,6 +33,7 @@ import { roundForCurrency } from "@monyvi/logic";
 import { Q } from "@nozbe/watermelondb";
 import { readIntroLocaleOverride } from "./intro-flag-service";
 import { queryOwned } from "./user-data-access";
+import { createAccountSmsSendersWithinWriter } from "./account-sms-sender-service";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -180,7 +181,12 @@ function buildCreateAccountKey(userId: string, data: AccountFormData): string {
     data.name.trim().toLowerCase(),
     data.currency,
     data.accountType,
+    data.institutionId ?? "manual",
   ].join("|");
+}
+
+function getProviderDisplayName(data: AccountFormData): string | undefined {
+  return data.providerDisplayName?.trim() || data.bankName?.trim() || undefined;
 }
 
 /**
@@ -236,10 +242,19 @@ export async function createAccountForUser(
         Q.where("deleted", Q.notEq(true))
       ).fetch();
 
-      const duplicateAccount = existingAccounts.some(
-        (account) =>
-          account.name.trim().toLowerCase() === trimmedName.toLowerCase()
-      );
+      const duplicateAccount = existingAccounts.some((account) => {
+        const hasSameName =
+          account.name.trim().toLowerCase() === trimmedName.toLowerCase();
+        if (!hasSameName) {
+          return false;
+        }
+
+        if (validatedData.institutionId) {
+          return account.institutionId === validatedData.institutionId;
+        }
+
+        return !account.institutionId;
+      });
 
       if (duplicateAccount) {
         throw new Error(CREATE_ACCOUNT_ERROR_CODES.DUPLICATE_ACCOUNT);
@@ -256,6 +271,8 @@ export async function createAccountForUser(
         acc.userId = normalizedUserId;
         acc.name = trimmedName;
         acc.type = validatedData.accountType;
+        acc.institutionId = validatedData.institutionId ?? undefined;
+        acc.providerDisplayName = getProviderDisplayName(validatedData);
         acc.balance = roundForCurrency(
           parseFloat(validatedData.balance),
           validatedData.currency
@@ -266,12 +283,15 @@ export async function createAccountForUser(
       });
       accountId = account.id;
 
+      await createAccountSmsSendersWithinWriter(
+        account.id,
+        validatedData.senderNames ?? []
+      );
+
       if (validatedData.accountType === "BANK") {
         await database.get<BankDetails>("bank_details").create((details) => {
           details.accountId = account.id;
-          details.bankName = validatedData.bankName?.trim();
           details.cardLast4 = validatedData.cardLast4?.trim();
-          details.smsSenderName = validatedData.smsSenderName?.trim();
           details.deleted = false;
         });
       }

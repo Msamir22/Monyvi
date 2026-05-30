@@ -18,6 +18,7 @@
  */
 
 import {
+  type AccountSmsSender,
   database,
   type Account,
   type BankDetails,
@@ -44,7 +45,7 @@ interface PendingAccount {
   readonly currency: CurrencyType;
   /** Always BANK for SMS-created accounts */
   readonly type: "BANK";
-  /** SMS sender display name (for bank_details.sms_sender_name) */
+  /** SMS sender display name saved to account_sms_senders */
   readonly senderDisplayName: string;
   /** Card last 4 digits from SMS body (for bank_details.card_last_4) */
   readonly cardLast4?: string;
@@ -76,7 +77,7 @@ interface PersistResult {
  *
  * For each `PendingAccount`:
  * 1. Prepares an `Account` record (type=BANK, with user's currency)
- * 2. Prepares a `BankDetails` record (sms_sender_name + card_last_4)
+ * 2. Prepares an `AccountSmsSender` record and optional card last four details
  *
  * Only accounts referenced by at least one transaction should be
  * passed here — the caller filters unreferenced accounts first.
@@ -121,7 +122,7 @@ async function persistPendingAccounts(
     const createdInBatch = new Map<string, string>(); // "name|currency" → realId
 
     // Collect all DB operations to commit atomically
-    const ops: Array<Account | BankDetails> = [];
+    const ops: Array<Account | AccountSmsSender | BankDetails> = [];
 
     // Deferred mappings — only applied after successful batch commit
     const pendingMappings: Array<{
@@ -170,12 +171,24 @@ async function persistPendingAccounts(
         });
       ops.push(account);
 
+      const normalizedSender = pending.senderDisplayName.trim().toLowerCase();
+      if (normalizedSender) {
+        const sender = database
+          .get<AccountSmsSender>("account_sms_senders")
+          .prepareCreate((record) => {
+            record.accountId = account.id;
+            record.senderName = pending.senderDisplayName.trim();
+            record.normalizedSenderName = normalizedSender;
+            record.deleted = false;
+          });
+        ops.push(sender);
+      }
+
       // Prepare BankDetails record
       const bankDetails = database
         .get<BankDetails>("bank_details")
         .prepareCreate((record) => {
           record.accountId = account.id;
-          record.smsSenderName = pending.senderDisplayName;
           record.cardLast4 = pending.cardLast4;
           record.deleted = false;
         });

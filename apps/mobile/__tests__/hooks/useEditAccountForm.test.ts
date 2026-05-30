@@ -1,50 +1,42 @@
-import React from "react";
+import { act, renderHook } from "@testing-library/react-native";
 import type { Account } from "@monyvi/db";
 
-interface ReactTestRendererInstance {
-  unmount: () => void;
+import { useEditAccountForm } from "../../hooks/useEditAccountForm";
+
+type TestCurrency = "EGP" | "USD";
+
+interface UniquenessResult {
+  readonly isUnique: boolean;
+  readonly error: string | null;
 }
 
-interface ReactTestRendererAct {
-  (callback: () => Promise<void>): Promise<void>;
-  (callback: () => void): void;
-}
-
-interface ReactTestRendererModule {
-  act: ReactTestRendererAct;
-  create: (element: React.ReactElement) => ReactTestRendererInstance;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
-const RTR: ReactTestRendererModule = require("react-test-renderer");
-
-const mockCheckAccountNameUniqueness = jest.fn();
+const mockCheckAccountNameUniqueness = jest.fn<
+  Promise<UniquenessResult>,
+  [string, string, TestCurrency, string | undefined, string | null]
+>();
 
 jest.mock("i18next", () => ({
   t: (key: string): string => key,
 }));
 
 jest.mock("../../services/edit-account-service", () => ({
-  checkAccountNameUniqueness: (...args: readonly unknown[]): Promise<unknown> =>
-    mockCheckAccountNameUniqueness(...args) as Promise<unknown>,
+  checkAccountNameUniqueness: (
+    userId: string,
+    name: string,
+    currency: TestCurrency,
+    excludeAccountId?: string,
+    institutionId?: string | null
+  ): Promise<UniquenessResult> =>
+    mockCheckAccountNameUniqueness(
+      userId,
+      name,
+      currency,
+      excludeAccountId,
+      institutionId ?? null
+    ),
 }));
 
-// Import AFTER mocks
-// eslint-disable-next-line import/first
-import { useEditAccountForm } from "../../hooks/useEditAccountForm";
-// eslint-disable-next-line import/first
-import type { EditAccountFormData } from "../../validation/account-validation";
-
-interface HookResult {
-  readonly formData: EditAccountFormData;
-  readonly isCheckingUniqueness: boolean;
-  readonly updateField: <K extends keyof EditAccountFormData>(
-    field: K,
-    value: EditAccountFormData[K]
-  ) => void;
-}
-
-const account = {
+const baseAccountData = {
   id: "acc-1",
   userId: "user-1",
   name: "Cash",
@@ -52,33 +44,33 @@ const account = {
   isDefault: false,
   type: "CASH",
   currency: "EGP",
-} as unknown as Account;
+  institutionId: undefined,
+  providerDisplayName: undefined,
+};
 
-function renderHook(): {
-  readonly result: { current: HookResult };
-  readonly unmount: () => void;
-} {
-  const ref: { current: HookResult } = {
-    current: {
-      formData: {
-        name: "Cash",
-        balance: "100",
-        bankName: "",
-        cardLast4: "",
-        smsSenderName: "",
-      },
-      isCheckingUniqueness: false,
-      updateField: () => undefined,
-    },
+const baseAccount = baseAccountData as Account;
+
+type AccountOverrides = Omit<
+  Partial<Account>,
+  "institutionId" | "providerDisplayName"
+> & {
+  readonly institutionId?: string | null;
+  readonly providerDisplayName?: string | null;
+};
+
+function createAccount(overrides: AccountOverrides = {}): Account {
+  const accountData = {
+    ...baseAccount,
+    ...overrides,
   };
 
-  const HookWrapper = (): React.JSX.Element | null => {
-    ref.current = useEditAccountForm(account, null) as HookResult;
-    return null;
-  };
+  return accountData as Account;
+}
 
-  const renderer = RTR.create(React.createElement(HookWrapper));
-  return { result: ref, unmount: () => renderer.unmount() };
+async function flushAct(): Promise<void> {
+  await act(async () => {
+    await Promise.resolve();
+  });
 }
 
 beforeEach(() => {
@@ -96,16 +88,16 @@ afterEach(() => {
 
 describe("useEditAccountForm", () => {
   it("does not mark uniqueness as checking until the debounce fires", async () => {
-    const { result } = renderHook();
+    const { result } = renderHook(() => useEditAccountForm(baseAccount, null));
 
-    RTR.act(() => {
+    act(() => {
       result.current.updateField("name", "Cash Plus");
     });
 
     expect(result.current.isCheckingUniqueness).toBe(false);
     expect(mockCheckAccountNameUniqueness).not.toHaveBeenCalled();
 
-    await RTR.act(async () => {
+    await act(async () => {
       jest.advanceTimersByTime(300);
       await Promise.resolve();
     });
@@ -115,16 +107,16 @@ describe("useEditAccountForm", () => {
   });
 
   it("coalesces rapid name edits into one uniqueness query", async () => {
-    const { result } = renderHook();
+    const { result } = renderHook(() => useEditAccountForm(baseAccount, null));
 
-    RTR.act(() => {
+    act(() => {
       result.current.updateField("name", "C");
       result.current.updateField("name", "Ca");
       result.current.updateField("name", "Cas");
       result.current.updateField("name", "Cash Plus");
     });
 
-    await RTR.act(async () => {
+    await act(async () => {
       jest.advanceTimersByTime(300);
       await Promise.resolve();
     });
@@ -134,7 +126,85 @@ describe("useEditAccountForm", () => {
       "user-1",
       "Cash Plus",
       "EGP",
-      "acc-1"
+      "acc-1",
+      null
     );
+  });
+
+  it("keeps account type immutable in the edit form data", () => {
+    const bankAccount = createAccount({ type: "BANK" });
+    const { result } = renderHook(() => useEditAccountForm(bankAccount, null));
+
+    expect(result.current.accountType).toBe("BANK");
+    expect("accountType" in result.current.formData).toBe(false);
+  });
+
+  it("loads known provider identity and sender names with null-safe IDs", () => {
+    const bankAccount = createAccount({
+      type: "BANK",
+      institutionId: "cib",
+      providerDisplayName: "CIB",
+    });
+
+    const { result } = renderHook(() =>
+      useEditAccountForm(bankAccount, {
+        bankName: "CIB",
+        cardLast4: "1234",
+        smsSenderNames: ["CIB", "CIBEGYPT"],
+      })
+    );
+
+    expect(result.current.formData.institutionId).toBe("cib");
+    expect(result.current.formData.providerDisplayName).toBe("CIB");
+    expect(result.current.formData.senderNames).toEqual(["CIB", "CIBEGYPT"]);
+  });
+
+  it("can replace the known provider and mirror sender chips to the legacy text field", async () => {
+    const bankAccount = createAccount({ type: "BANK" });
+    const { result } = renderHook(() => useEditAccountForm(bankAccount, null));
+
+    act(() => {
+      result.current.selectKnownInstitution("cib");
+    });
+
+    expect(result.current.formData.institutionId).toBe("cib");
+    expect(result.current.formData.providerDisplayName).toBe("CIB");
+    expect(result.current.formData.senderNames).toEqual(
+      expect.arrayContaining(["cib", "cibank", "cibegypt"])
+    );
+
+    act(() => {
+      result.current.updateSenderNames(["CIB", "CIBEGYPT"]);
+    });
+
+    expect(result.current.formData.smsSenderName).toBe("CIB, CIBEGYPT");
+
+    await flushAct();
+  });
+
+  it("marks the form dirty when all sender names are removed", () => {
+    const walletAccount = createAccount({
+      type: "DIGITAL_WALLET",
+      institutionId: null,
+      providerDisplayName: "QA Wallet",
+    });
+    const { result } = renderHook(() =>
+      useEditAccountForm(walletAccount, {
+        bankName: "",
+        cardLast4: "",
+        smsSenderNames: ["QAWALLET027"],
+      })
+    );
+
+    expect(result.current.isDirty).toBe(false);
+
+    act(() => {
+      result.current.updateSenderNames([]);
+    });
+
+    expect(result.current.formData.senderNames).toEqual([]);
+    expect(result.current.formData.smsSenderName).toBe("");
+    expect(result.current.isDirty).toBe(true);
+    expect(result.current.isValid).toBe(true);
   });
 });

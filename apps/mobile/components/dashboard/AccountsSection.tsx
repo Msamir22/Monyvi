@@ -4,11 +4,13 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Dimensions, Text, TouchableOpacity, View } from "react-native";
+import { Dimensions, Image, Text, TouchableOpacity, View } from "react-native";
 import { palette } from "@/constants/colors";
 import { AccountsSectionSkeleton } from "@/components/dashboard/skeletons/AccountsSectionSkeleton";
+import type { InstitutionLogo } from "@/constants/egyptian-institution-assets";
 import { buildAccountDisplayNames } from "@/utils/account-display";
 import { formatAccountBalance } from "@/utils/financial-display";
+import { resolveAccountInstitutionPresentation } from "@/services/account-institution-read-model-service";
 import { EmptyStateCard } from "../ui/EmptyStateCard";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -20,7 +22,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_GAP = 10;
 const CARD_HEIGHT = 100;
 const CARD_BORDER_RADIUS = 16;
-const ICON_CONTAINER_SIZE = 32;
+const ICON_CONTAINER_SIZE = 40;
 
 // =============================================================================
 // Types
@@ -40,6 +42,7 @@ interface AccountCardData {
   type: AccountType;
   gradient: readonly [string, string];
   iconName: string;
+  institutionLogo: InstitutionLogo | null;
 }
 
 interface AccountCardProps {
@@ -83,6 +86,11 @@ function AccountCard({ data, width }: AccountCardProps): React.JSX.Element {
   const handlePress = useCallback((): void => {
     router.push(`/edit-account?id=${data.id}`);
   }, [data.id]);
+  const InstitutionSvgLogo =
+    data.institutionLogo?.format === "svg" &&
+    typeof data.institutionLogo.source === "function"
+      ? data.institutionLogo.source
+      : null;
 
   return (
     <TouchableOpacity
@@ -108,9 +116,24 @@ function AccountCard({ data, width }: AccountCardProps): React.JSX.Element {
             height: ICON_CONTAINER_SIZE,
             borderRadius: ICON_CONTAINER_SIZE / 2,
           }}
-          className="bg-white/20 items-center justify-center"
+          className="bg-white/25 items-center justify-center"
+          testID={
+            data.institutionLogo
+              ? `dashboard-account-provider-logo-${data.id}`
+              : undefined
+          }
         >
-          <FontAwesome5 name={data.iconName} size={14} color="#FFFFFF" />
+          {InstitutionSvgLogo ? (
+            <InstitutionSvgLogo width={32} height={32} />
+          ) : data.institutionLogo?.format === "image" ? (
+            <Image
+              source={data.institutionLogo.source}
+              resizeMode="contain"
+              className="h-8 w-8"
+            />
+          ) : (
+            <FontAwesome5 name={data.iconName} size={14} color="#FFFFFF" />
+          )}
         </View>
 
         {/* Account Name */}
@@ -154,6 +177,8 @@ function AccountsSectionComponent({
   const cardData: AccountCardData[] = useMemo(() => {
     return accounts.slice(0, 3).map((account) => {
       const config = getAccountTypeConfig(account.type);
+      const institutionPresentation =
+        resolveAccountInstitutionPresentation(account);
       return {
         id: account.id,
         name: displayNames.get(account.id) ?? account.name,
@@ -161,6 +186,7 @@ function AccountsSectionComponent({
         type: account.type,
         gradient: config.gradient,
         iconName: config.iconName,
+        institutionLogo: institutionPresentation?.asset.logo ?? null,
       };
     });
   }, [accounts, displayNames]);

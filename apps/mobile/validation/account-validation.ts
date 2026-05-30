@@ -1,4 +1,4 @@
-import { AccountType, CurrencyType } from "@monyvi/db";
+import type { CurrencyType } from "@monyvi/db";
 import { t } from "i18next";
 import { z } from "zod";
 
@@ -23,47 +23,66 @@ export function isValidAccountBalance(
 /**
  * Zod schema for account form validation.
  */
-export const accountFormSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, "validation_name_required")
-    .max(50, "validation_name_max"),
-  accountType: z.enum([
-    "CASH",
-    "BANK",
-    "DIGITAL_WALLET",
-  ] as const) as z.ZodType<AccountType>,
-  currency: z
-    .string()
-    .min(1, "validation_currency_required") as z.ZodType<CurrencyType>,
-  balance: z
-    .string()
-    .min(1, "validation_initial_balance_required")
-    .refine(
-      (val) => isValidAccountBalance(val, { allowNegative: false }),
-      BALANCE_VALIDATION_MESSAGES.createInvalid
-    )
-    .refine(
-      (val) => parseFloat(val) >= 0,
-      "validation_initial_balance_non_negative"
-    ),
-  bankName: z
-    .string()
-    .max(50, "validation_bank_name_max")
-    .optional()
-    .or(z.literal("")),
-  cardLast4: z
-    .string()
-    .optional()
-    .or(z.literal(""))
-    .refine((val) => !val || /^\d{4}$/.test(val), "validation_card_last_4"),
-  smsSenderName: z
-    .string()
-    .max(100, "validation_sms_sender_name_max")
-    .optional()
-    .or(z.literal("")),
-});
+export const accountFormSchema = z
+  .object({
+    name: z
+      .string()
+      .trim()
+      .min(1, "validation_name_required")
+      .max(50, "validation_name_max"),
+    accountType: z.enum(["CASH", "BANK", "DIGITAL_WALLET"] as const),
+    currency: z
+      .string()
+      .min(1, "validation_currency_required") as z.ZodType<CurrencyType>,
+    balance: z
+      .string()
+      .min(1, "validation_initial_balance_required")
+      .refine(
+        (val) => isValidAccountBalance(val, { allowNegative: false }),
+        BALANCE_VALIDATION_MESSAGES.createInvalid
+      )
+      .refine(
+        (val) => parseFloat(val) >= 0,
+        "validation_initial_balance_non_negative"
+      ),
+    bankName: z
+      .string()
+      .max(50, "validation_bank_name_max")
+      .optional()
+      .or(z.literal("")),
+    institutionId: z.string().nullable().optional(),
+    providerDisplayName: z
+      .string()
+      .max(100, "validation_provider_display_name_max")
+      .optional()
+      .or(z.literal("")),
+    senderNames: z.array(z.string().trim().min(1)).optional(),
+    cardLast4: z
+      .string()
+      .optional()
+      .or(z.literal(""))
+      .refine((val) => !val || /^\d{4}$/.test(val), "validation_card_last_4"),
+    smsSenderName: z
+      .string()
+      .max(100, "validation_sms_sender_name_max")
+      .optional()
+      .or(z.literal("")),
+  })
+  .superRefine((data, ctx) => {
+    const needsProvider =
+      data.accountType === "BANK" || data.accountType === "DIGITAL_WALLET";
+    if (
+      needsProvider &&
+      !data.institutionId &&
+      !data.providerDisplayName?.trim()
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["providerDisplayName"],
+        message: "validation_provider_display_name_required",
+      });
+    }
+  });
 
 export type AccountFormData = z.infer<typeof accountFormSchema>;
 
@@ -124,6 +143,13 @@ export const editAccountFormSchema = z.object({
     .max(50, "validation_bank_name_max")
     .optional()
     .or(z.literal("")),
+  institutionId: z.string().nullable().optional(),
+  providerDisplayName: z
+    .string()
+    .max(100, "validation_provider_display_name_max")
+    .optional()
+    .or(z.literal("")),
+  senderNames: z.array(z.string().trim().min(1)).optional(),
   cardLast4: z
     .string()
     .optional()

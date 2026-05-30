@@ -1,9 +1,9 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   ScrollView,
   StatusBar,
@@ -11,32 +11,87 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { BankDetailsSection } from "@/components/add-account/BankDetailsSection";
+import { AccountPreviewCard } from "@/components/add-account/AccountPreviewCard";
+import { AccountTypeSelector } from "@/components/add-account/AccountTypeSelector";
+import { InstitutionProviderSection } from "@/components/add-account/InstitutionProviderSection";
+import { SmsMatchingSection } from "@/components/add-account/SmsMatchingSection";
+import { CurrencyPicker } from "@/components/currency/CurrencyPicker";
 import { PageHeader } from "@/components/navigation/PageHeader";
-import { Button } from "@/components/ui/Button";
-import { Dropdown } from "@/components/ui/Dropdown";
 import { TextField } from "@/components/ui/TextField";
-import { ACCOUNT_TYPES, CURRENCIES } from "@/constants/accounts";
-import { colors, palette } from "@/constants/colors";
+import { CURRENCIES } from "@/constants/accounts";
+import { palette } from "@/constants/colors";
 import { useTheme } from "@/context/ThemeContext";
 import {
   useAccountForm,
   useCreateAccount,
-  useKeyboardVisibility,
+  useEgyptianInstitutionEligibility,
 } from "@/hooks";
+import type { CurrencyType } from "@monyvi/db";
 
-const PRIMARY_BUTTON_SHADOW_STYLE = {
-  shadowColor: "rgba(5, 150, 105, 0.2)",
-  shadowOffset: { width: 0, height: 8 },
-  shadowOpacity: 1,
-  shadowRadius: 12,
-  elevation: 8,
-} as const;
+const LOWER_FORM_SCROLL_TARGET_Y = 100000;
+
+interface CurrencySelectFieldProps {
+  readonly value: CurrencyType;
+  readonly isOpen: boolean;
+  readonly onOpen: () => void;
+  readonly onClose: () => void;
+  readonly onChange: (currency: CurrencyType) => void;
+  readonly label: string;
+}
+
+function CurrencySelectField({
+  value,
+  isOpen,
+  onOpen,
+  onClose,
+  onChange,
+  label,
+}: CurrencySelectFieldProps): React.JSX.Element {
+  const selectedCurrency = CURRENCIES.find(
+    (currency) => currency.value === value
+  );
+
+  return (
+    <View className="mb-3">
+      <Text className="input-label mb-2">{label}</Text>
+      <View className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <TouchableOpacity
+          onPress={onOpen}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={label}
+          className="p-4"
+        >
+          <View className="flex-row items-center justify-between">
+            <View className="flex-1 flex-row items-center">
+              <Text className="me-3 w-8 text-xl">{selectedCurrency?.icon}</Text>
+              <Text className="flex-1 text-base font-medium text-slate-900 dark:text-white">
+                {selectedCurrency?.label ?? value}
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-down"
+              size={18}
+              color={palette.slate[500]}
+            />
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      <CurrencyPicker
+        visible={isOpen}
+        selectedCurrency={value}
+        onSelect={onChange}
+        onClose={onClose}
+      />
+    </View>
+  );
+}
 
 export default function AddAccount(): React.ReactNode {
   const insets = useSafeAreaInsets();
-  const isKeyboardVisible = useKeyboardVisibility();
   const { isDark } = useTheme();
   const { t } = useTranslation("accounts");
   const { t: tCommon } = useTranslation("common");
@@ -60,6 +115,9 @@ export default function AddAccount(): React.ReactNode {
     formData,
     errors,
     updateField,
+    selectKnownInstitution,
+    selectOtherInstitution,
+    updateSenderNames,
     validate,
     isValid,
     isCheckingUniqueness,
@@ -68,10 +126,62 @@ export default function AddAccount(): React.ReactNode {
   });
 
   const { createAccount, isSubmitting } = useCreateAccount();
+  const { isEligible: isKnownProviderEligible } =
+    useEgyptianInstitutionEligibility();
 
   // Local UI state
   const [isCurrencyOpen, setIsCurrencyOpen] = useState(false);
-  const [isBankDetailsExpanded, setIsBankDetailsExpanded] = useState(false);
+  const [isSmsMatchingExpanded, setIsSmsMatchingExpanded] = useState(true);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const smsFocusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const shouldScrollSmsFieldRef = useRef(false);
+
+  useEffect(() => {
+    const keyboardDidShow = Keyboard.addListener("keyboardDidShow", (event) => {
+      setKeyboardHeight(event.endCoordinates.height);
+
+      if (shouldScrollSmsFieldRef.current) {
+        if (smsFocusTimerRef.current) {
+          clearTimeout(smsFocusTimerRef.current);
+        }
+
+        smsFocusTimerRef.current = setTimeout(() => {
+          scrollViewRef.current?.scrollTo({
+            y: LOWER_FORM_SCROLL_TARGET_Y,
+            animated: true,
+          });
+        }, 80);
+      }
+    });
+    const keyboardDidHide = Keyboard.addListener("keyboardDidHide", () => {
+      setKeyboardHeight(0);
+      shouldScrollSmsFieldRef.current = false;
+    });
+
+    return () => {
+      keyboardDidShow.remove();
+      keyboardDidHide.remove();
+      if (smsFocusTimerRef.current) {
+        clearTimeout(smsFocusTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleSmsFieldFocus = useCallback((): void => {
+    shouldScrollSmsFieldRef.current = true;
+
+    if (smsFocusTimerRef.current) {
+      clearTimeout(smsFocusTimerRef.current);
+    }
+
+    smsFocusTimerRef.current = setTimeout(() => {
+      scrollViewRef.current?.scrollTo({
+        y: LOWER_FORM_SCROLL_TARGET_Y,
+        animated: true,
+      });
+    }, 250);
+  }, []);
 
   /**
    * Handles the save action by validating the form and calling the creation hook.
@@ -84,9 +194,17 @@ export default function AddAccount(): React.ReactNode {
     }
   };
 
+  const handleProviderDisplayNameChange = useCallback(
+    (value: string): void => {
+      updateField("providerDisplayName", value);
+      updateField("bankName", value);
+    },
+    [updateField]
+  );
+
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
       className="flex-1 bg-background dark:bg-background-dark"
     >
       <StatusBar
@@ -108,107 +226,30 @@ export default function AddAccount(): React.ReactNode {
       />
 
       <ScrollView
+        ref={scrollViewRef}
         className="flex-1"
         contentContainerStyle={{
-          paddingBottom: insets.bottom + 120,
+          paddingBottom: insets.bottom + 160,
         }}
         showsVerticalScrollIndicator={false}
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
       >
-        {/* Hero Illustration Section */}
-        <View className="mb-6 items-center px-4">
-          <View className="w-full rounded-[40px] items-center justify-center py-8 px-6 bg-nileGreen-50 dark:bg-nileGreen-900/30 border border-nileGreen-100 dark:border-nileGreen-800/50">
-            <View className="mb-4 w-20 h-20 rounded-3xl bg-nileGreen-500/10 items-center justify-center">
-              <Ionicons
-                name="wallet"
-                size={50}
-                color={palette.nileGreen[500]}
-              />
-            </View>
-            <Text className="mb-2 text-center text-xl font-black text-slate-900 dark:text-white">
-              {t("add_account_hero_title")}
-            </Text>
-            <Text className="text-center text-sm font-bold text-slate-500 dark:text-slate-400">
-              {t("add_account_hero_subtitle")}
-            </Text>
-          </View>
-        </View>
-
-        {/* Account Type Pills */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View
-            className="mb-8 flex-row justify-center gap-2.5 px-6"
-            accessibilityRole="radiogroup"
-          >
-            {ACCOUNT_TYPES.map((type) => {
-              const ACCOUNT_TYPE_LABEL_KEYS = {
-                CASH: "type_cash",
-                BANK: "type_bank",
-                DIGITAL_WALLET: "type_digital_wallet",
-              } as const;
-
-              const isSelected = formData.accountType === type.id;
-              const accountTypeLabel = t(ACCOUNT_TYPE_LABEL_KEYS[type.id]);
-              return (
-                <TouchableOpacity
-                  key={type.id}
-                  onPress={() => updateField("accountType", type.id)}
-                  activeOpacity={0.8}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: isSelected }}
-                  accessibilityLabel={
-                    isSelected
-                      ? `${accountTypeLabel}, ${tCommon("selected")}`
-                      : accountTypeLabel
-                  }
-                  className={`flex-row items-center rounded-2xl px-3 py-3 border ${
-                    isSelected
-                      ? "bg-nileGreen-600 border-nileGreen-600"
-                      : "bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
-                  }`}
-                  style={
-                    isSelected
-                      ? // eslint-disable-next-line react-native/no-inline-styles
-                        {
-                          shadowColor: "rgba(5, 150, 105, 0.2)",
-                          shadowOffset: { width: 0, height: 1 },
-                          shadowOpacity: 0.1,
-                          shadowRadius: 2,
-                          elevation: 2,
-                        }
-                      : undefined
-                  }
-                >
-                  <Ionicons
-                    name={type.icon}
-                    size={18}
-                    color={
-                      isSelected
-                        ? colors.white
-                        : isDark
-                          ? palette.slate[400]
-                          : palette.slate[600]
-                    }
-                    style={{ marginEnd: 8 }}
-                  />
-                  <Text
-                    className={`text-xs font-extrabold tracking-widest uppercase ${
-                      isSelected
-                        ? "text-white"
-                        : "text-slate-500 dark:text-slate-400"
-                    }`}
-                  >
-                    {accountTypeLabel}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </ScrollView>
-        {/* Form Container */}
         <View className="px-4">
-          {/* Account Name */}
+          <AccountPreviewCard
+            accountType={formData.accountType}
+            accountName={formData.name}
+            balance={formData.balance}
+            currency={formData.currency}
+            institutionId={formData.institutionId ?? null}
+            providerDisplayName={formData.providerDisplayName ?? ""}
+          />
+
+          <AccountTypeSelector
+            value={formData.accountType}
+            onChange={(accountType) => updateField("accountType", accountType)}
+          />
+
           <TextField
             label={t("account_name")}
             placeholder={
@@ -224,18 +265,34 @@ export default function AddAccount(): React.ReactNode {
             maxLength={50}
           />
 
-          {/* Currency Selector */}
-          <Dropdown
+          {(formData.accountType === "BANK" ||
+            formData.accountType === "DIGITAL_WALLET") && (
+            <InstitutionProviderSection
+              accountType={formData.accountType}
+              isKnownProviderEligible={isKnownProviderEligible}
+              institutionId={formData.institutionId ?? null}
+              providerDisplayName={formData.providerDisplayName ?? ""}
+              providerDisplayNameError={errors.providerDisplayName}
+              senderNames={formData.senderNames ?? []}
+              showSenderChips={false}
+              showHelpText={false}
+              className="mb-1"
+              onSelectKnownInstitution={selectKnownInstitution}
+              onSelectOtherInstitution={selectOtherInstitution}
+              onProviderDisplayNameChange={handleProviderDisplayNameChange}
+              onSenderNamesChange={updateSenderNames}
+            />
+          )}
+
+          <CurrencySelectField
             label={t("currency")}
-            items={CURRENCIES}
             value={formData.currency}
-            onChange={(val) => updateField("currency", val)}
             isOpen={isCurrencyOpen}
-            onToggle={() => setIsCurrencyOpen(!isCurrencyOpen)}
-            className="mt-2"
+            onOpen={() => setIsCurrencyOpen(true)}
+            onClose={() => setIsCurrencyOpen(false)}
+            onChange={(currency) => updateField("currency", currency)}
           />
 
-          {/* Initial Balance */}
           <TextField
             label={t("initial_balance")}
             placeholder="0"
@@ -247,47 +304,31 @@ export default function AddAccount(): React.ReactNode {
             keyboardType="numeric"
           />
 
-          {/* Conditional Bank Details Section */}
-          {formData.accountType === "BANK" && (
-            <BankDetailsSection
-              expanded={isBankDetailsExpanded}
-              onToggleExpand={() =>
-                setIsBankDetailsExpanded(!isBankDetailsExpanded)
-              }
-              bankName={formData.bankName || ""}
-              cardLast4={formData.cardLast4 || ""}
-              cardLast4Error={errors.cardLast4}
-              smsSenderName={formData.smsSenderName || ""}
-              onBankNameChange={(val) => updateField("bankName", val)}
-              onCardLast4Change={(val) => {
-                const cleaned = val.replace(/\D/g, "").slice(0, 4);
-                updateField("cardLast4", cleaned);
-              }}
-              onSmsSenderNameChange={(val) => updateField("smsSenderName", val)}
-            />
-          )}
-        </View>
-      </ScrollView>
-
-      {/* Fixed Bottom Button - Hidden when keyboard is visible to prevent covering screen */}
-      {!isKeyboardVisible && (
-        <View
-          className="absolute bottom-0 start-0 end-0 px-6 pt-6 pb-10 bg-white dark:bg-background-dark border-t border-slate-200 dark:border-slate-800"
-          style={{ paddingBottom: insets.bottom + 16 }}
-        >
-          <Button
-            title={isSubmitting ? t("saving") : t("add_new_account")}
-            onPress={() => {
-              void handleSave();
+          <SmsMatchingSection
+            accountType={formData.accountType}
+            institutionId={formData.institutionId ?? null}
+            senderNames={formData.senderNames ?? []}
+            cardLast4={formData.cardLast4 || ""}
+            cardLast4Error={errors.cardLast4}
+            expanded={isSmsMatchingExpanded}
+            onToggleExpanded={() =>
+              setIsSmsMatchingExpanded(!isSmsMatchingExpanded)
+            }
+            onSenderNamesChange={updateSenderNames}
+            onFieldFocus={handleSmsFieldFocus}
+            onCardLast4Change={(val) => {
+              const cleaned = val.replace(/\D/g, "").slice(0, 4);
+              updateField("cardLast4", cleaned);
             }}
-            isLoading={isSubmitting}
-            disabled={isSubmitting || isCheckingUniqueness || !isValid}
-            variant="primary"
-            size="lg"
-            style={PRIMARY_BUTTON_SHADOW_STYLE}
           />
         </View>
-      )}
+        {keyboardHeight > 0 ? (
+          <View
+            // eslint-disable-next-line react-native/no-inline-styles
+            style={{ height: keyboardHeight }}
+          />
+        ) : null}
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }

@@ -37,6 +37,7 @@ import {
   queryChildrenOfOwnedParent,
   queryOwned,
 } from "./user-data-access";
+import { replaceAccountSmsSendersWithinWriter } from "./account-sms-sender-service";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -93,6 +94,9 @@ export interface UpdateAccountData {
   readonly name: string;
   readonly balance: number;
   readonly isDefault: boolean;
+  readonly institutionId?: string | null;
+  readonly providerDisplayName?: string;
+  readonly senderNames?: readonly string[];
   readonly bankName?: string;
   readonly cardLast4?: string;
   readonly smsSenderName?: string;
@@ -139,11 +143,7 @@ function prepareSoftDelete<TRecord extends SoftDeletableRecord>(
 }
 
 function hasBankDetailsData(data: UpdateAccountData): boolean {
-  return (
-    Boolean(data.bankName?.trim()) ||
-    Boolean(data.cardLast4?.trim()) ||
-    Boolean(data.smsSenderName?.trim())
-  );
+  return Boolean(data.cardLast4?.trim());
 }
 
 // ---------------------------------------------------------------------------
@@ -166,7 +166,8 @@ export async function checkAccountNameUniqueness(
   userId: string,
   name: string,
   currency: CurrencyType,
-  excludeAccountId?: string
+  excludeAccountId?: string,
+  institutionId?: string | null
 ): Promise<UniquenessCheckResult> {
   try {
     const trimmedName = name.trim().toLowerCase();
@@ -193,9 +194,15 @@ export async function checkAccountNameUniqueness(
 
     // Case-insensitive name comparison — WatermelonDB doesn't support
     // case-insensitive queries, so we filter in JS.
-    const isDuplicate = existingAccounts.some(
-      (account) => account.name.trim().toLowerCase() === trimmedName
-    );
+    const normalizedInstitutionId = institutionId ?? null;
+    const isDuplicate = existingAccounts.some((account) => {
+      const hasSameName = account.name.trim().toLowerCase() === trimmedName;
+      if (!hasSameName) {
+        return false;
+      }
+
+      return (account.institutionId ?? null) === normalizedInstitutionId;
+    });
 
     return { isUnique: !isDuplicate };
   } catch (error) {
@@ -364,7 +371,16 @@ export async function updateAccountWithinWriter(
     acc.name = data.name.trim();
     acc.balance = roundForCurrency(data.balance, existingAccount.currency);
     acc.isDefault = data.isDefault;
+    acc.institutionId = data.institutionId ?? undefined;
+    acc.providerDisplayName =
+      data.providerDisplayName?.trim() || data.bankName?.trim() || undefined;
   });
+
+  await replaceAccountSmsSendersWithinWriter(
+    existingAccount,
+    currentUserId,
+    data.senderNames ?? []
+  );
 
   // Update bank details if this is a bank account
   if (existingAccount.isBank) {
@@ -378,16 +394,12 @@ export async function updateAccountWithinWriter(
 
     if (activeBankDetail) {
       await activeBankDetail.update((bd) => {
-        bd.bankName = data.bankName;
         bd.cardLast4 = data.cardLast4;
-        bd.smsSenderName = data.smsSenderName;
       });
     } else if (hasBankDetailsData(data)) {
       await database.get<BankDetails>("bank_details").create((bd) => {
         bd.accountId = accountId;
-        bd.bankName = data.bankName;
         bd.cardLast4 = data.cardLast4;
-        bd.smsSenderName = data.smsSenderName;
         bd.deleted = false;
       });
     }

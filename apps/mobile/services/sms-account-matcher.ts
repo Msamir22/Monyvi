@@ -10,7 +10,7 @@
  * 1. Card last 4 + sender match against bank_details
  * 2. Sender match alone against bank_details / account name
  * 3. Name + currency match via bank registry (isKnownFinancialSender)
- * 4. Default bank account (isDefault flag)
+ * 4. Default bank or wallet account (isDefault flag)
  *
  * Architecture & Design Rationale:
  * - Pattern: Strategy (multi-strategy matching with priority ordering)
@@ -25,6 +25,7 @@
 
 import {
   Account,
+  AccountSmsSender,
   AccountType,
   BankDetails,
   database,
@@ -65,7 +66,7 @@ interface AccountWithBankDetails {
   readonly isDefault: boolean;
   readonly createdAt: Date;
   readonly type: AccountType;
-  readonly smsSenderName?: string;
+  readonly smsSenderNames: readonly string[];
   readonly bankName?: string;
   readonly cardLast4?: string;
 }
@@ -270,10 +271,26 @@ async function fetchAccountsWithDetails(
           "account_id",
           Q.where("deleted", false)
         ).fetch();
+  const allSenderRows =
+    accountIds.length === 0
+      ? []
+      : await queryChildrenOfOwnedParents(
+          database.get<AccountSmsSender>("account_sms_senders"),
+          accounts,
+          userId,
+          "account_id",
+          Q.where("deleted", false)
+        ).fetch();
 
   const bankDetailsByAccountId = new Map<string, BankDetails>();
   for (const row of allBankDetails) {
     bankDetailsByAccountId.set(row.accountId, row);
+  }
+  const senderNamesByAccountId = new Map<string, string[]>();
+  for (const row of allSenderRows) {
+    const senderNames = senderNamesByAccountId.get(row.accountId) ?? [];
+    senderNames.push(row.senderName);
+    senderNamesByAccountId.set(row.accountId, senderNames);
   }
 
   function pushAccountWithDetails(
@@ -287,8 +304,8 @@ async function fetchAccountsWithDetails(
       isDefault: account.isDefault,
       createdAt: account.createdAt,
       type: account.type,
-      smsSenderName: bankDetails?.smsSenderName ?? undefined,
-      bankName: bankDetails?.bankName ?? undefined,
+      smsSenderNames: senderNamesByAccountId.get(account.id) ?? [],
+      bankName: account.providerDisplayName ?? undefined,
       cardLast4: bankDetails?.cardLast4 ?? undefined,
     });
   }
@@ -330,11 +347,13 @@ function matchAccountCore(
     const matchedAccount = accounts.find(
       (acc) =>
         acc.cardLast4 === cardLast4 &&
-        isSenderMatch(senderDisplayName, {
-          bankSmsSenderName: acc.smsSenderName,
-          bankName: acc.bankName,
-          accountName: acc.name,
-        })
+        acc.smsSenderNames.some((senderName) =>
+          isSenderMatch(senderDisplayName, {
+            bankSmsSenderName: senderName,
+            bankName: acc.bankName,
+            accountName: acc.name,
+          })
+        )
     );
     if (matchedAccount) {
       return {
@@ -347,11 +366,13 @@ function matchAccountCore(
 
   // Step 2: Sender match alone against bank_details / account name
   const matchedAccount = accounts.find((acc) =>
-    isSenderMatch(senderDisplayName, {
-      bankSmsSenderName: acc.smsSenderName,
-      bankName: acc.bankName,
-      accountName: acc.name,
-    })
+    acc.smsSenderNames.some((senderName) =>
+      isSenderMatch(senderDisplayName, {
+        bankSmsSenderName: senderName,
+        bankName: acc.bankName,
+        accountName: acc.name,
+      })
+    )
   );
   if (matchedAccount) {
     return {
@@ -427,7 +448,9 @@ function matchTransaction(
     return matchVoiceTransaction(transaction, accounts);
   }
 
-  const bankAccounts = accounts.filter((acc) => acc.type === "BANK");
+  const smsMatchableAccounts = accounts.filter(
+    (acc) => acc.type === "BANK" || acc.type === "DIGITAL_WALLET"
+  );
   const input: MatchInput = {
     // Use originLabel as the sender identifier (SMS: sender address)
     senderDisplayName: transaction.originLabel ?? "",
@@ -438,7 +461,7 @@ function matchTransaction(
     currency: transaction.currency ?? undefined,
   };
 
-  return matchAccountCore(input, bankAccounts);
+  return matchAccountCore(input, smsMatchableAccounts);
 }
 
 function matchVoiceTransaction(

@@ -1,0 +1,195 @@
+appId: com.monyvi.app
+---
+# Issue 389: Egyptian institution presets account journey.
+# Preconditions:
+# - Run through the local E2E wrapper after seed/bootstrap.
+# - Preferred currency is EGP, so bank/wallet preset pickers are eligible.
+# - The seeded account data is reset before CI-style runs.
+
+- runFlow: ../helpers/setup.yaml
+
+# Navigate from Transactions to Accounts.
+- tapOn: "Accounts"
+- extendedWaitUntil:
+    visible: "Accounts"
+    timeout: 30000
+
+# Known bank: selecting a preset should prefill sender chips and save in <= 90s.
+- tapOn:
+    id: "header-right-action"
+- extendedWaitUntil:
+    visible: "Add Account"
+    timeout: 30000
+- tapOn: "Bank Account"
+- assertVisible: "Bank"
+- assertVisible: "Why provider details matter"
+- tapOn: "Choose a provider"
+- tapOn: "Search"
+- inputText: "CIB"
+- waitForAnimationToEnd
+- tapOn: "CIB \\(Commercial International Bank\\)"
+- scrollUntilVisible:
+    element: "Account Name"
+    direction: UP
+    centerElement: true
+- tapOn: "Account Name"
+- inputText: "E2E CIB Preset"
+- waitForAnimationToEnd
+- tapOn:
+    id: "header-save"
+- extendedWaitUntil:
+    visible: "E2E CIB Preset"
+    timeout: 90000
+
+# Edit known bank: provider info control remains available.
+- tapOn: "E2E CIB Preset"
+- extendedWaitUntil:
+    visible: "Edit Account"
+    timeout: 30000
+- assertVisible: "Bank"
+- assertVisible: "Why provider details matter"
+- tapOn:
+    id: "header-back"
+- extendedWaitUntil:
+    visible: "Accounts"
+    timeout: 30000
+
+# Known wallet: separate wallet picker should show wallet providers and save in <= 90s.
+- tapOn:
+    id: "header-right-action"
+- extendedWaitUntil:
+    visible: "Add Account"
+    timeout: 30000
+- tapOn: "Digital Wallet"
+- assertVisible: "Wallet"
+- assertVisible: "Why provider details matter"
+- tapOn: "Choose a provider"
+- tapOn: "Search"
+- inputText: "Vodafone"
+- waitForAnimationToEnd
+- tapOn: "Vodafone Cash \\(Vodafone Cash\\)"
+- scrollUntilVisible:
+    element: "Account Name"
+    direction: UP
+    centerElement: true
+- tapOn: "Account Name"
+- inputText: "E2E Vodafone Preset"
+- waitForAnimationToEnd
+- tapOn:
+    id: "header-save"
+- extendedWaitUntil:
+    visible: "E2E Vodafone Preset"
+    timeout: 90000
+
+# Edit known wallet: provider info control remains available on wallet accounts too.
+- tapOn: "E2E Vodafone Preset"
+- extendedWaitUntil:
+    visible: "Edit Account"
+    timeout: 30000
+- assertVisible: "Wallet"
+- assertVisible: "Why provider details matter"
+- tapOn:
+    id: "header-back"
+- extendedWaitUntil:
+    visible: "Accounts"
+    timeout: 30000
+
+# Other bank: user can bypass presets and enter free-text provider/sender values.
+- tapOn:
+    id: "header-right-action"
+- extendedWaitUntil:
+    visible: "Add Account"
+    timeout: 30000
+- tapOn: "Bank Account"
+- tapOn: "Choose a provider"
+- tapOn: "Search"
+- inputText: "ZZZ"
+- waitForAnimationToEnd
+- tapOn: "Other"
+- tapOn: "Provider name"
+- inputText: "E2E Manual Bank"
+- waitForAnimationToEnd
+- tapOn: "Add sender"
+- inputText: "E2EBANK"
+- waitForAnimationToEnd
+- tapOn: "Add"
+- assertVisible: "E2EBANK"
+- scrollUntilVisible:
+    element: "Account Name"
+    direction: UP
+    centerElement: true
+- tapOn: "Account Name"
+- inputText: "E2E Other Bank"
+- waitForAnimationToEnd
+- tapOn:
+    id: "header-save"
+- extendedWaitUntil:
+    visible: "E2E Other Bank"
+    timeout: 30000
+
+# Other wallet: user can bypass wallet presets and enter free-text provider/sender values.
+- tapOn:
+    id: "header-right-action"
+- extendedWaitUntil:
+    visible: "Add Account"
+    timeout: 30000
+- tapOn: "Digital Wallet"
+- tapOn: "Choose a provider"
+- tapOn: "Search"
+- inputText: "ZZZ"
+- waitForAnimationToEnd
+- tapOn: "Other"
+- tapOn: "Provider name"
+- inputText: "E2E Manual Wallet"
+- waitForAnimationToEnd
+- tapOn: "Add sender"
+- inputText: "E2EWALLET"
+- waitForAnimationToEnd
+- tapOn: "Add"
+- assertVisible: "E2EWALLET"
+- scrollUntilVisible:
+    element: "Account Name"
+    direction: UP
+    centerElement: true
+- tapOn: "Account Name"
+- inputText: "E2E Other Wallet"
+- waitForAnimationToEnd
+- tapOn:
+    id: "header-save"
+- extendedWaitUntil:
+    visible: "E2E Other Wallet"
+    timeout: 30000
+
+# Account-type switch during create: Bank picker changes to wallet picker and clears provider choice.
+- tapOn:
+    id: "header-right-action"
+- extendedWaitUntil:
+    visible: "Add Account"
+    timeout: 30000
+- tapOn: "Bank Account"
+- tapOn: "Choose a provider"
+- tapOn: "Search"
+- inputText: "CIB"
+- waitForAnimationToEnd
+- assertVisible: "CIB \\(Commercial International Bank\\)"
+- tapOn: "Close provider list"
+- tapOn: "Digital Wallet"
+- tapOn: "Choose a provider"
+- tapOn: "Search"
+- inputText: "Vodafone"
+- waitForAnimationToEnd
+- assertVisible: "Vodafone Cash \\(Vodafone Cash\\)"
+- assertNotVisible: "CIB \\(Commercial International Bank\\)"
+- tapOn: "Vodafone Cash \\(Vodafone Cash\\)"
+- scrollUntilVisible:
+    element: "Account Name"
+    direction: UP
+    centerElement: true
+- tapOn: "Account Name"
+- inputText: "E2E Switch Wallet"
+- waitForAnimationToEnd
+- tapOn:
+    id: "header-save"
+- extendedWaitUntil:
+    visible: "E2E Switch Wallet"
+    timeout: 30000

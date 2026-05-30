@@ -14,6 +14,44 @@ export type Database = {
   };
   public: {
     Tables: {
+      account_sms_senders: {
+        Row: {
+          account_id: string;
+          created_at: string;
+          deleted: boolean;
+          id: string;
+          normalized_sender_name: string;
+          sender_name: string;
+          updated_at: string;
+        };
+        Insert: {
+          account_id: string;
+          created_at?: string;
+          deleted?: boolean;
+          id?: string;
+          normalized_sender_name: string;
+          sender_name: string;
+          updated_at?: string;
+        };
+        Update: {
+          account_id?: string;
+          created_at?: string;
+          deleted?: boolean;
+          id?: string;
+          normalized_sender_name?: string;
+          sender_name?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "account_sms_senders_account_id_fkey";
+            columns: ["account_id"];
+            isOneToOne: false;
+            referencedRelation: "accounts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       accounts: {
         Row: {
           balance: number;
@@ -21,8 +59,10 @@ export type Database = {
           currency: Database["public"]["Enums"]["currency_type"];
           deleted: boolean;
           id: string;
+          institution_id: string | null;
           is_default: boolean;
           name: string;
+          provider_display_name: string | null;
           type: Database["public"]["Enums"]["account_type"];
           updated_at: string;
           user_id: string;
@@ -33,8 +73,10 @@ export type Database = {
           currency?: Database["public"]["Enums"]["currency_type"];
           deleted?: boolean;
           id?: string;
+          institution_id?: string | null;
           is_default?: boolean;
           name: string;
+          provider_display_name?: string | null;
           type: Database["public"]["Enums"]["account_type"];
           updated_at?: string;
           user_id: string;
@@ -45,8 +87,10 @@ export type Database = {
           currency?: Database["public"]["Enums"]["currency_type"];
           deleted?: boolean;
           id?: string;
+          institution_id?: string | null;
           is_default?: boolean;
           name?: string;
+          provider_display_name?: string | null;
           type?: Database["public"]["Enums"]["account_type"];
           updated_at?: string;
           user_id?: string;
@@ -146,34 +190,28 @@ export type Database = {
         Row: {
           account_id: string;
           account_number: string | null;
-          bank_name: string | null;
           card_last_4: string | null;
           created_at: string;
           deleted: boolean;
           id: string;
-          sms_sender_name: string | null;
           updated_at: string;
         };
         Insert: {
           account_id: string;
           account_number?: string | null;
-          bank_name?: string | null;
           card_last_4?: string | null;
           created_at?: string;
           deleted?: boolean;
           id?: string;
-          sms_sender_name?: string | null;
           updated_at?: string;
         };
         Update: {
           account_id?: string;
           account_number?: string | null;
-          bank_name?: string | null;
           card_last_4?: string | null;
           created_at?: string;
           deleted?: boolean;
           id?: string;
-          sms_sender_name?: string | null;
           updated_at?: string;
         };
         Relationships: [
