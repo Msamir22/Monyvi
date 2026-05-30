@@ -29,6 +29,50 @@ interface BankDetailsData {
   readonly smsSenderNames?: readonly string[];
 }
 
+interface RelationSubscription {
+  unsubscribe: () => void;
+}
+
+interface ObservableRelation<TRecord> {
+  observe?: () => {
+    subscribe: (handlers: {
+      readonly next: (rows: readonly TRecord[]) => void;
+      readonly error: (error: unknown) => void;
+    }) => RelationSubscription;
+  };
+  fetch?: () => Promise<readonly TRecord[]>;
+}
+
+function subscribeToRelationRows<TRecord>(
+  relation: ObservableRelation<TRecord>,
+  onNext: (rows: readonly TRecord[]) => void,
+  onError: (error: unknown) => void
+): RelationSubscription {
+  if (typeof relation.observe === "function") {
+    return relation.observe().subscribe({ next: onNext, error: onError });
+  }
+
+  let isSubscribed = true;
+  void relation
+    .fetch?.()
+    .then((rows) => {
+      if (isSubscribed) {
+        onNext(rows);
+      }
+    })
+    .catch((error: unknown) => {
+      if (isSubscribed) {
+        onError(error);
+      }
+    });
+
+  return {
+    unsubscribe: () => {
+      isSubscribed = false;
+    },
+  };
+}
+
 export interface UseAccountByIdResult {
   /** The observed Account model or null when not found / loading */
   readonly account: Account | null;
@@ -142,32 +186,34 @@ export function useAccountById(id: string | null): UseAccountByIdResult {
       setIsLoading(false);
     };
 
-    const senderSubscription = account.accountSmsSenders.observe().subscribe({
-      next: (senderRows) => {
-        latestSenders = senderRows as unknown as readonly AccountSmsSender[];
+    const senderSubscription = subscribeToRelationRows<AccountSmsSender>(
+      account.accountSmsSenders as unknown as ObservableRelation<AccountSmsSender>,
+      (senderRows) => {
+        latestSenders = senderRows;
         hasSenderEmission = true;
         emitDetails();
       },
-      error: (err: unknown) => {
+      (err: unknown) => {
         logger.error("useAccountById_sender_rows_observe_failed", err);
         setBankDetails(null);
         setIsLoading(false);
-      },
-    });
+      }
+    );
 
     const bankDetailsSubscription = account.isBank
-      ? account.bankDetails.observe().subscribe({
-          next: (detailsRows) => {
-            latestDetails = detailsRows as unknown as readonly BankDetails[];
+      ? subscribeToRelationRows<BankDetails>(
+          account.bankDetails as unknown as ObservableRelation<BankDetails>,
+          (detailsRows) => {
+            latestDetails = detailsRows;
             hasDetailsEmission = true;
             emitDetails();
           },
-          error: (err: unknown) => {
+          (err: unknown) => {
             logger.error("useAccountById_bank_details_observe_failed", err);
             setBankDetails(null);
             setIsLoading(false);
-          },
-        })
+          }
+        )
       : null;
 
     return (): void => {
