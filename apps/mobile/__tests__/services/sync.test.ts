@@ -532,6 +532,72 @@ describe("syncDatabase", () => {
     expect(pushedTables).toEqual(["accounts", "account_sms_senders"]);
   });
 
+  it("pushes same-table deletions before replacement creates", async () => {
+    mockInsert.mockResolvedValue({ error: null });
+    mockUpsert.mockResolvedValue({ error: null });
+    mockUpdateIn.mockResolvedValue({ error: null });
+    mockSynchronize.mockImplementation(
+      async (args: {
+        pushChanges: (input: {
+          changes: Record<string, unknown>;
+          lastPulledAt: number | null;
+        }) => Promise<unknown>;
+      }) => {
+        await args.pushChanges({
+          changes: {
+            accounts: {
+              created: [
+                {
+                  id: "account-new",
+                  user_id: "current-user",
+                  name: "Cash",
+                  currency: "EGP",
+                  institution_id: null,
+                  deleted: false,
+                },
+              ],
+              updated: [
+                {
+                  id: "account-old",
+                  user_id: "current-user",
+                  name: "Cash",
+                  currency: "EGP",
+                  institution_id: null,
+                  deleted: true,
+                },
+              ],
+              deleted: ["account-hard-deleted"],
+            },
+          },
+          lastPulledAt: null,
+        });
+      }
+    );
+
+    await expect(syncDatabase(mockDatabase)).resolves.toBeUndefined();
+
+    expect(mockUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "account-old",
+        deleted: true,
+      }),
+      { onConflict: "id" }
+    );
+    expect(mockUpdateIn).toHaveBeenCalledWith("id", ["account-hard-deleted"]);
+    expect(mockInsert).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: "account-new",
+        deleted: false,
+      }),
+    ]);
+    expect(mockUpsert.mock.invocationCallOrder[0]).toBeLessThan(
+      mockInsert.mock.invocationCallOrder[0]
+    );
+    expect(mockUpdateIn.mock.invocationCallOrder[0]).toBeLessThan(
+      mockInsert.mock.invocationCallOrder[0]
+    );
+  });
+
   it("allows child-table soft-delete updates when the owned parent is already soft-deleted", async () => {
     mockForeignProfilesFetch.mockResolvedValue([
       { id: "account-1", user_id: "current-user", deleted: true },

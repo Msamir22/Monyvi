@@ -1,17 +1,4 @@
-import * as manualQaSeed from "../../scripts/manual-qa-seed";
-
-interface ManualQaSeedConfig {
-  readonly email: string;
-  readonly password: string;
-}
-
-interface ManualQaSeedModule {
-  readonly getManualQaSeedConfig: (
-    env: Record<string, string>
-  ) => ManualQaSeedConfig;
-}
-
-const { getManualQaSeedConfig } = manualQaSeed as unknown as ManualQaSeedModule;
+import { getManualQaSeedConfig } from "../../scripts/manual-qa-seed";
 
 describe("manual-qa-seed script helpers", () => {
   it("requires an explicit local manual QA password", () => {

@@ -97,27 +97,10 @@ export async function pushChanges(
             )
           : null;
 
-      if (tableChanges.created.length > 0) {
-        const records: Array<Record<string, unknown>> =
-          tableChanges.created.map((record) => {
-            assertPushRecordBelongsToCurrentUser(
-              table,
-              record,
-              userId,
-              childConfig,
-              activeParentIds
-            );
-            return transformToSupabase(table, record, userId, isChildTable);
-          });
-
-        const { error } = await getSupabaseWriteTable(table).insert(records);
-        if (error) {
-          throw createSyncTableError("insert", table, error);
-        }
-      }
-
-      if (tableChanges.updated.length > 0) {
-        for (const record of tableChanges.updated) {
+      const upsertRecords = async (
+        records: ReadonlyArray<Record<string, unknown>>
+      ): Promise<void> => {
+        for (const record of records) {
           assertPushRecordBelongsToCurrentUser(
             table,
             record,
@@ -140,6 +123,15 @@ export async function pushChanges(
             throw createSyncTableError("upsert", table, error);
           }
         }
+      };
+
+      const softDeletedUpdates = tableChanges.updated.filter(isDeletedRecord);
+      const activeUpdates = tableChanges.updated.filter(
+        (record) => !isDeletedRecord(record)
+      );
+
+      if (softDeletedUpdates.length > 0) {
+        await upsertRecords(softDeletedUpdates);
       }
 
       if (tableChanges.deleted.length > 0) {
@@ -158,6 +150,29 @@ export async function pushChanges(
         if (error) {
           throw createSyncTableError("delete", table, error);
         }
+      }
+
+      if (tableChanges.created.length > 0) {
+        const records: Array<Record<string, unknown>> =
+          tableChanges.created.map((record) => {
+            assertPushRecordBelongsToCurrentUser(
+              table,
+              record,
+              userId,
+              childConfig,
+              activeParentIds
+            );
+            return transformToSupabase(table, record, userId, isChildTable);
+          });
+
+        const { error } = await getSupabaseWriteTable(table).insert(records);
+        if (error) {
+          throw createSyncTableError("insert", table, error);
+        }
+      }
+
+      if (activeUpdates.length > 0) {
+        await upsertRecords(activeUpdates);
       }
     } catch (err) {
       logger.error("sync.push.table.failed", err, { table });
