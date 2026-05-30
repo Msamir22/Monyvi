@@ -18,11 +18,23 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 /** A label + field row placeholder. */
 function FormRowSkeleton(): React.JSX.Element {
   return (
-    <View className="mb-5">
+    <View className="mb-4">
       <Skeleton width={100} height={12} borderRadius={4} />
       <View className="mt-2">
-        <Skeleton width="100%" height={48} borderRadius={12} />
+        <Skeleton width="100%" height={52} borderRadius={12} />
       </View>
+    </View>
+  );
+}
+
+function ProviderFieldSkeleton(): React.JSX.Element {
+  return (
+    <View className="mb-4">
+      <View className="mb-2 flex-row items-center justify-between">
+        <Skeleton width={52} height={12} borderRadius={4} />
+        <Skeleton width={18} height={18} borderRadius={9} />
+      </View>
+      <Skeleton width="100%" height={54} borderRadius={12} />
     </View>
   );
 }
@@ -52,38 +64,45 @@ export function EditAccountSkeleton(): React.JSX.Element {
       >
         <View className="px-4">
           {/* Compact account preview card */}
-          <View className="mb-6 h-36 flex-row items-center rounded-[40px] bg-nileGreen-700 px-6">
-            <Skeleton width={72} height={72} borderRadius={22} />
-            <View className="ms-4 flex-1">
-              <Skeleton width="72%" height={22} borderRadius={5} />
-              <View className="mt-3">
-                <Skeleton width="45%" height={14} borderRadius={4} />
+          <View className="mb-5 rounded-[28px] bg-nileGreen-700 px-5 py-4">
+            <View className="flex-row items-center justify-between">
+              <View className="flex-1 flex-row items-center">
+                <Skeleton width={44} height={44} borderRadius={16} />
+                <View className="ms-3 flex-1">
+                  <Skeleton width="68%" height={18} borderRadius={5} />
+                  <View className="mt-2">
+                    <Skeleton width="42%" height={12} borderRadius={4} />
+                  </View>
+                </View>
               </View>
-            </View>
-            <View className="items-end">
-              <Skeleton width={48} height={14} borderRadius={4} />
-              <View className="mt-3">
-                <Skeleton width={84} height={24} borderRadius={5} />
+              <View className="ms-3 items-end">
+                <Skeleton width={36} height={12} borderRadius={4} />
+                <View className="mt-2">
+                  <Skeleton width={84} height={18} borderRadius={5} />
+                </View>
               </View>
-            </View>
-          </View>
-
-          {/* Account type selector skeleton */}
-          <View className="mb-5">
-            <Skeleton width={120} height={12} borderRadius={4} />
-            <View className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
-              <Skeleton width="100%" height={52} borderRadius={0} />
-              <View className="h-px bg-slate-100 dark:bg-slate-700" />
-              <Skeleton width="100%" height={52} borderRadius={0} />
-              <View className="h-px bg-slate-100 dark:bg-slate-700" />
-              <Skeleton width="100%" height={52} borderRadius={0} />
             </View>
           </View>
 
           <FormRowSkeleton />
           <FormRowSkeleton />
           <FormRowSkeleton />
+          <ProviderFieldSkeleton />
           <FormRowSkeleton />
+
+          {/* SMS detection section */}
+          <View className="mb-5 rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+            <View className="flex-row items-center px-4 py-4">
+              <Skeleton width={36} height={36} borderRadius={12} />
+              <View className="ms-3 flex-1">
+                <Skeleton width={148} height={16} borderRadius={4} />
+                <View className="mt-2">
+                  <Skeleton width="78%" height={12} borderRadius={4} />
+                </View>
+              </View>
+              <Skeleton width={18} height={18} borderRadius={9} />
+            </View>
+          </View>
 
           {/* Default toggle row */}
           <View className="flex-row items-center justify-between py-4 px-1 mb-3">

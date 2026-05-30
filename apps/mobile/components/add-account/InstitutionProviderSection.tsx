@@ -114,11 +114,11 @@ export function InstitutionProviderSection({
           onPress={() => setIsWhySheetVisible(true)}
           accessibilityRole="button"
           accessibilityLabel={t("provider_details_info")}
-          className="p-1.5"
+          className="p-1"
         >
           <Ionicons
             name="information-circle-outline"
-            size={16}
+            size={14}
             color={palette.nileGreen[500]}
           />
         </TouchableOpacity>

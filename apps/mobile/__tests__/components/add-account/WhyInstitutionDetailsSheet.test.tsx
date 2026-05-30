@@ -4,9 +4,8 @@ import { fireEvent, render, screen } from "@testing-library/react-native";
 import { WhyInstitutionDetailsSheet } from "../../../components/add-account/WhyInstitutionDetailsSheet";
 
 const translations: Record<string, string> = {
-  why_provider_details_title: "Better SMS matching",
-  why_provider_details_body:
-    "Bank or wallet details help match SMS to this account.",
+  why_provider_details_title: "Message detection",
+  why_provider_details_body: "Helps Monyvi detect SMS for this account.",
   got_it: "Got it",
 };
 
@@ -37,9 +36,9 @@ describe("WhyInstitutionDetailsSheet", () => {
 
     render(<WhyInstitutionDetailsSheet visible={true} onClose={onClose} />);
 
-    expect(screen.getByText("Better SMS matching")).toBeTruthy();
+    expect(screen.getByText("Message detection")).toBeTruthy();
     expect(
-      screen.getByText("Bank or wallet details help match SMS to this account.")
+      screen.getByText("Helps Monyvi detect SMS for this account.")
     ).toBeTruthy();
 
     fireEvent.press(screen.getByText("Got it"));
