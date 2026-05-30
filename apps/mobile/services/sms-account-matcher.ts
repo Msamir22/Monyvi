@@ -96,10 +96,20 @@ const DEFAULT_BATCH_SIZE = 20;
  * like "CIB" via `includes()`. Direct equality checks are unaffected.
  */
 const MIN_SUBSTRING_MATCH_LENGTH = 3;
+const MIN_LOOSE_SENDER_CHIP_LENGTH = 4;
 
 /** Escape special regex characters in a string to prevent injection / ReDoS. */
 function escapeRegExp(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function isTokenBoundaryMatch(
+  normalizedSender: string,
+  normalizedPattern: string
+): boolean {
+  return new RegExp(
+    `(^|[^a-z0-9])${escapeRegExp(normalizedPattern)}([^a-z0-9]|$)`
+  ).test(normalizedSender);
 }
 
 /**
@@ -193,8 +203,16 @@ function isSenderMatch(
     normalizedBankSmsSenderName.length >= MIN_SUBSTRING_MATCH_LENGTH
   ) {
     if (
-      normalizedSender.includes(normalizedBankSmsSenderName) ||
-      normalizedBankSmsSenderName.includes(normalizedSender)
+      normalizedBankSmsSenderName.length < MIN_LOOSE_SENDER_CHIP_LENGTH &&
+      isTokenBoundaryMatch(normalizedSender, normalizedBankSmsSenderName)
+    ) {
+      return true;
+    }
+
+    if (
+      normalizedBankSmsSenderName.length >= MIN_LOOSE_SENDER_CHIP_LENGTH &&
+      (normalizedSender.includes(normalizedBankSmsSenderName) ||
+        normalizedBankSmsSenderName.includes(normalizedSender))
     ) {
       return true;
     }
@@ -243,8 +261,6 @@ function doesAccountMatchSender(
   return account.smsSenderNames.some((senderName) =>
     isSenderMatch(senderDisplayName, {
       bankSmsSenderName: senderName,
-      bankName: account.bankName,
-      accountName: account.name,
     })
   );
 }

@@ -433,6 +433,26 @@ describe("sms-account-matcher - source-aware transaction matching", () => {
     });
   });
 
+  it("does not use loose provider matching when saved sender chips exist", () => {
+    const bank: AccountWithBankDetails = {
+      id: "bank-abc",
+      name: "Bank ABC Account",
+      currency: "EGP",
+      isDefault: false,
+      createdAt: baseDate,
+      type: "BANK",
+      smsSenderNames: ["abc"],
+      bankName: "Bank ABC",
+    };
+
+    const result = matchTransaction(tx({ originLabel: "ABCStore" }), [bank]);
+
+    expect(result).toMatchObject({
+      accountId: null,
+      matchReason: "none",
+    });
+  });
+
   it("keeps sender plus card last four ahead of sender-only matches", () => {
     const firstSenderMatch: AccountWithBankDetails = {
       id: "bank-sender-only",

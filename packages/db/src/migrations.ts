@@ -341,9 +341,14 @@ select
   coalesce("bank_details"."created_at", strftime('%s', 'now') * 1000),
   coalesce("bank_details"."updated_at", strftime('%s', 'now') * 1000),
   0,
-  'created',
+  case
+    when "accounts"."_status" = 'created' then 'created'
+    when coalesce("bank_details"."_status", 'synced') != 'synced' then 'created'
+    else 'synced'
+  end,
   ''
 from "bank_details"
+join "accounts" on "accounts"."id" = "bank_details"."account_id"
 where coalesce("bank_details"."deleted", 0) != 1
   and "bank_details"."sms_sender_name" is not null
   and trim("bank_details"."sms_sender_name") != '';`

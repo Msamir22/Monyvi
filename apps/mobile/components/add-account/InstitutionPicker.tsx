@@ -41,8 +41,14 @@ interface InstitutionPickerProps {
 function getInstitutionLabel(institution: {
   readonly shortName: string;
   readonly fullName: string;
+  readonly nameAr?: string;
+  readonly language: string;
 }): string {
-  return `${institution.shortName} (${institution.fullName})`;
+  const fullName =
+    institution.language.startsWith("ar") && institution.nameAr
+      ? institution.nameAr
+      : institution.fullName;
+  return `${institution.shortName} (${fullName})`;
 }
 
 function getPickerTitleKey(type: InstitutionPickerType): string {
@@ -105,7 +111,8 @@ export function InstitutionPicker({
   onSelectInstitution,
   onSelectOther,
 }: InstitutionPickerProps): JSX.Element {
-  const { t } = useTranslation("accounts");
+  const { t, i18n } = useTranslation("accounts");
+  const language = i18n?.language ?? "en";
   const { height: windowHeight } = useWindowDimensions();
   const [searchText, setSearchText] = useState("");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -124,7 +131,10 @@ export function InstitutionPicker({
       ? isOtherSelected
         ? t("institution_other")
         : null
-      : getInstitutionLabel(selectedInstitution);
+      : getInstitutionLabel({
+          ...selectedInstitution,
+          language,
+        });
   const selectedLogo =
     selectedInstitution === null
       ? isOtherSelected
@@ -257,7 +267,10 @@ export function InstitutionPicker({
                     keyboardShouldPersistTaps="handled"
                     showsVerticalScrollIndicator={false}
                     renderItem={({ item }) => {
-                      const label = getInstitutionLabel(item);
+                      const label = getInstitutionLabel({
+                        ...item,
+                        language,
+                      });
                       const isSelected = item.id === selectedInstitutionId;
                       const asset = getEgyptianInstitutionAsset(item.id, type);
 

@@ -16,13 +16,23 @@ const translations: Record<string, string> = {
   institution_wallet_label: "Wallet",
 };
 
+let mockCurrentLanguage = "en";
+
 jest.mock("react-i18next", () => ({
-  useTranslation: (): { readonly t: (key: string) => string } => ({
+  useTranslation: (): {
+    readonly t: (key: string) => string;
+    readonly i18n: { readonly language: string };
+  } => ({
     t: (key: string): string => translations[key] ?? key,
+    i18n: { language: mockCurrentLanguage },
   }),
 }));
 
 describe("InstitutionPicker", () => {
+  beforeEach(() => {
+    mockCurrentLanguage = "en";
+  });
+
   it("shows only selectable banks with short-name-first labels", () => {
     render(
       <InstitutionPicker
@@ -166,6 +176,24 @@ describe("InstitutionPicker", () => {
       screen.getByText("CIB (Commercial International Bank)")
     ).toBeTruthy();
     expect(screen.queryByText("NBE (National Bank of Egypt)")).toBeNull();
+  });
+
+  it("renders Arabic provider names in Arabic UI", () => {
+    mockCurrentLanguage = "ar";
+
+    render(
+      <InstitutionPicker
+        type="bank"
+        selectedInstitutionId={null}
+        onSelectInstitution={jest.fn()}
+        onSelectOther={jest.fn()}
+      />
+    );
+
+    fireEvent.press(screen.getByLabelText("Choose bank"));
+    fireEvent.changeText(screen.getByPlaceholderText("Search"), "CIB");
+
+    expect(screen.getByText("CIB (البنك التجاري الدولي)")).toBeTruthy();
   });
 
   it("clears search text when switching provider type", () => {
