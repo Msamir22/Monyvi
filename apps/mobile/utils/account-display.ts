@@ -36,6 +36,9 @@
  * @module account-display
  */
 
+import type { AccountType } from "@monyvi/db";
+import { getInstitutionById } from "@monyvi/logic";
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -45,11 +48,51 @@ export interface AccountDisplayInput {
   readonly id: string;
   readonly name: string;
   readonly currency: string;
+  readonly type?: AccountType;
+  readonly institutionId?: string | null;
+  readonly providerDisplayName?: string | null;
 }
 
 // =============================================================================
 // Public API
 // =============================================================================
+
+function getProviderSuffix(account: AccountDisplayInput): string | null {
+  const providerDisplayName = account.providerDisplayName?.trim();
+  if (account.institutionId) {
+    const institution = getInstitutionById(account.institutionId);
+    const expectedInstitutionType =
+      account.type === "BANK"
+        ? "bank"
+        : account.type === "DIGITAL_WALLET"
+          ? "wallet"
+          : null;
+    if (
+      institution?.selectable &&
+      (expectedInstitutionType === null ||
+        institution.type === expectedInstitutionType)
+    ) {
+      return institution.shortName;
+    }
+  }
+
+  return providerDisplayName || null;
+}
+
+function formatDuplicateDisplayName(
+  account: AccountDisplayInput,
+  hasSameCurrencyDuplicate: boolean
+): string {
+  const trimmedName = account.name.trim();
+  if (!hasSameCurrencyDuplicate) {
+    return `${trimmedName} (${account.currency})`;
+  }
+
+  const providerSuffix = getProviderSuffix(account);
+  return providerSuffix
+    ? `${trimmedName} (${account.currency}, ${providerSuffix})`
+    : `${trimmedName} (${account.currency})`;
+}
 
 /**
  * Returns the display name for a single account, suffixing the currency in
@@ -66,14 +109,17 @@ export function resolveAccountDisplayName(
 ): string {
   const trimmedName = account.name.trim();
   let duplicateCount = 0;
+  let sameCurrencyDuplicateCount = 0;
   for (const other of allAccounts) {
     if (other.name.trim() === trimmedName) {
       duplicateCount += 1;
-      if (duplicateCount > 1) break;
+      if (other.currency === account.currency) {
+        sameCurrencyDuplicateCount += 1;
+      }
     }
   }
   if (duplicateCount <= 1) return trimmedName;
-  return `${trimmedName} (${account.currency})`;
+  return formatDuplicateDisplayName(account, sameCurrencyDuplicateCount > 1);
 }
 
 /**
@@ -89,16 +135,24 @@ export function buildAccountDisplayNames(
   accounts: readonly AccountDisplayInput[]
 ): Map<string, string> {
   const counts = new Map<string, number>();
+  const currencyCounts = new Map<string, number>();
   for (const a of accounts) {
     const k = a.name.trim();
     counts.set(k, (counts.get(k) ?? 0) + 1);
+    const currencyKey = `${k}\u0000${a.currency}`;
+    currencyCounts.set(currencyKey, (currencyCounts.get(currencyKey) ?? 0) + 1);
   }
 
   const out = new Map<string, string>();
   for (const a of accounts) {
     const k = a.name.trim();
     const isDuplicate = (counts.get(k) ?? 0) > 1;
-    out.set(a.id, isDuplicate ? `${k} (${a.currency})` : k);
+    const hasSameCurrencyDuplicate =
+      (currencyCounts.get(`${k}\u0000${a.currency}`) ?? 0) > 1;
+    out.set(
+      a.id,
+      isDuplicate ? formatDuplicateDisplayName(a, hasSameCurrencyDuplicate) : k
+    );
   }
   return out;
 }

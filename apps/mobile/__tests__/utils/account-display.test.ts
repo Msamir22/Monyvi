@@ -82,6 +82,28 @@ describe("resolveAccountDisplayName", () => {
     expect(resolveAccountDisplayName(accounts[2], accounts)).toBe("Cash (EUR)");
   });
 
+  it("adds provider identity when duplicate names also share the same currency", () => {
+    const accounts: AccountDisplayInput[] = [
+      {
+        ...acct("1", "Main", "EGP"),
+        type: "BANK",
+        institutionId: "cib",
+      },
+      {
+        ...acct("2", "Main", "EGP"),
+        type: "BANK",
+        institutionId: "nbe",
+      },
+    ];
+
+    expect(resolveAccountDisplayName(accounts[0], accounts)).toBe(
+      "Main (EGP, CIB)"
+    );
+    expect(resolveAccountDisplayName(accounts[1], accounts)).toBe(
+      "Main (EGP, NBE)"
+    );
+  });
+
   it("handles a single-account list (no possible duplicates)", () => {
     const accounts = [acct("1", "Cash", "EGP")];
     expect(resolveAccountDisplayName(accounts[0], accounts)).toBe("Cash");
@@ -155,6 +177,25 @@ describe("buildAccountDisplayNames", () => {
     expect(map.get("1")).toBe("Cash (EGP)");
     expect(map.get("2")).toBe("Cash (USD)");
     expect(map.get("3")).toBe("Cash (EUR)");
+  });
+
+  it("disambiguates same-currency provider accounts by provider", () => {
+    const accounts: AccountDisplayInput[] = [
+      {
+        ...acct("1", "Main", "EGP"),
+        type: "BANK",
+        institutionId: "cib",
+      },
+      {
+        ...acct("2", "Main", "EGP"),
+        type: "DIGITAL_WALLET",
+        providerDisplayName: "Family Wallet",
+      },
+    ];
+    const map = buildAccountDisplayNames(accounts);
+
+    expect(map.get("1")).toBe("Main (EGP, CIB)");
+    expect(map.get("2")).toBe("Main (EGP, Family Wallet)");
   });
 
   it("does NOT mutate the input array or any account object", () => {

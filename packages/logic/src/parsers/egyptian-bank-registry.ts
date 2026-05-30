@@ -1,413 +1,682 @@
 /**
- * Egyptian Financial Institution Sender Registry
+ * Egyptian Financial Institution Registry
  *
- * Lightweight registry of known Egyptian bank, wallet, and fintech
- * SMS sender IDs. Used by the SMS pipeline to filter messages from
- * recognized financial institutions before sending them to AI parsing.
- *
- * Architecture & Design Rationale:
- * - Pattern: Registry / Lookup Map
- * - Why: O(1) sender lookup instead of O(n) regex scanning.
- *   Single responsibility — only identifies senders, no parsing logic.
- * - SOLID: SRP — sender identification is separate from SMS parsing (SRP).
- *   Open/Closed — new banks are added by extending the array, not
- *   modifying existing code.
- *
- * @module parsers/egyptian-bank-registry
+ * Canonical catalog for Egyptian bank/wallet provider metadata and verified SMS
+ * sender aliases. The mobile app derives provider dropdowns and sender presets
+ * from this file, so new selectable providers should be added here first.
  */
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+export type EgyptianInstitutionType = "bank" | "wallet" | "payment";
+export type EgyptianInstitutionAuditStatus =
+  | "included"
+  | "excluded"
+  | "legacy-only"
+  | "pending"
+  | "renamed";
 
-/** Type of financial institution. */
-type InstitutionType = "bank" | "wallet" | "payment" | "bnpl";
-
-/** Metadata about a recognized financial sender. */
-export interface BankInfo {
-  /** Full official name (e.g., "Commercial International Bank"). */
-  readonly fullName: string;
-  /** Short display name (e.g., "CIB"). */
+export interface EgyptianFinancialInstitution {
+  readonly id: string;
+  readonly type: EgyptianInstitutionType;
   readonly shortName: string;
-  /** Institution type for routing logic. */
-  readonly type: InstitutionType;
-}
-
-// ---------------------------------------------------------------------------
-// Registry Data
-// ---------------------------------------------------------------------------
-
-/**
- * Raw registry entries: each entry maps one or more SMS sender ID
- * substrings → BankInfo metadata.
- *
- * Sender IDs are stored lowercase. Matching is case-insensitive
- * substring match against the SMS address field.
- */
-interface RegistryEntry {
+  readonly fullName: string;
+  readonly nameAr?: string;
   readonly senderPatterns: readonly string[];
-  readonly info: BankInfo;
+  readonly selectable: boolean;
+  readonly legacyIds?: readonly string[];
+  readonly auditStatus: EgyptianInstitutionAuditStatus;
+  readonly auditNote: string;
 }
 
-const REGISTRY_ENTRIES: readonly RegistryEntry[] = [
-  // ── Egyptian Public Banks ──────────────────────────────────────────────
-  {
-    senderPatterns: ["nbe", "nbegypt", "nbebank", "nbemobile"],
-    info: {
-      fullName: "National Bank of Egypt",
-      shortName: "NBE",
-      type: "bank",
-    },
-  },
-  {
-    senderPatterns: ["banquemisr", "bmisr", "bm"],
-    info: { fullName: "Banque Misr", shortName: "Banque Misr", type: "bank" },
-  },
-  {
-    senderPatterns: ["banquecaire", "bdc"],
-    info: {
-      fullName: "Banque du Caire",
-      shortName: "Banque du Caire",
-      type: "bank",
-    },
-  },
-  {
-    senderPatterns: ["alexbank", "alexalerts"],
-    info: {
-      fullName: "Bank of Alexandria",
-      shortName: "AlexBank",
-      type: "bank",
-    },
-  },
-  {
-    senderPatterns: ["agribank", "abe"],
-    info: {
-      fullName: "Agricultural Bank of Egypt",
-      shortName: "Agri Bank",
-      type: "bank",
-    },
-  },
-  {
-    senderPatterns: ["ealb"],
-    info: {
-      fullName: "Egyptian Arab Land Bank",
-      shortName: "EALB",
-      type: "bank",
-    },
-  },
-  {
-    senderPatterns: ["idbegypt", "idb"],
-    info: {
-      fullName: "Industrial Development Bank",
-      shortName: "IDB",
-      type: "bank",
-    },
-  },
-  {
-    senderPatterns: ["unitedbank", "ub"],
-    info: {
-      fullName: "The United Bank",
-      shortName: "United Bank",
-      type: "bank",
-    },
-  },
-  {
-    senderPatterns: ["scbank", "scb"],
-    info: { fullName: "Suez Canal Bank", shortName: "SC Bank", type: "bank" },
-  },
-  {
-    senderPatterns: ["hdbank", "hdb"],
-    info: {
-      fullName: "Housing & Development Bank",
-      shortName: "HD Bank",
-      type: "bank",
-    },
-  },
-  {
-    senderPatterns: ["edbbank", "edb"],
-    info: {
-      fullName: "Export Development Bank",
-      shortName: "EDB",
-      type: "bank",
-    },
-  },
+export type BankInfo = EgyptianFinancialInstitution;
 
-  // ── Egyptian Private Banks ─────────────────────────────────────────────
+export const EGYPTIAN_FINANCIAL_INSTITUTIONS = [
   {
-    senderPatterns: ["cib", "cibank", "cibegypt"],
-    info: {
-      fullName: "Commercial International Bank",
-      shortName: "CIB",
-      type: "bank",
-    },
+    id: "adcb-egypt",
+    type: "bank",
+    shortName: "ADCB",
+    fullName: "Abu Dhabi Commercial Bank Egypt",
+    nameAr: "بنك أبوظبي التجاري مصر",
+    senderPatterns: ["adcb", "adcbe", "adcbeegypt"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
   },
   {
-    senderPatterns: ["qnb", "qnbalahli"],
-    info: { fullName: "QNB Al Ahli", shortName: "QNB", type: "bank" },
+    id: "adib-egypt",
+    type: "bank",
+    shortName: "ADIB",
+    fullName: "Abu Dhabi Islamic Bank Egypt",
+    nameAr: "مصرف أبوظبي الإسلامي مصر",
+    senderPatterns: ["adib", "adibegypt"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
   },
   {
-    senderPatterns: ["aaib"],
-    info: {
-      fullName: "Arab African International Bank",
-      shortName: "AAIB",
-      type: "bank",
-    },
+    id: "agricultural-bank-of-egypt",
+    type: "bank",
+    shortName: "ABE",
+    fullName: "Agricultural Bank of Egypt",
+    nameAr: "البنك الزراعي المصري",
+    senderPatterns: ["agribank", "abe", "abegypt"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
   },
   {
-    senderPatterns: ["faisal", "faisalbank"],
-    info: {
-      fullName: "Faisal Islamic Bank of Egypt",
-      shortName: "Faisal Bank",
-      type: "bank",
-    },
-  },
-  {
-    senderPatterns: ["albaraka"],
-    info: {
-      fullName: "Al Baraka Bank Egypt",
-      shortName: "Al Baraka",
-      type: "bank",
-    },
-  },
-  {
-    senderPatterns: ["egbank", "egb"],
-    info: {
-      fullName: "Egyptian Gulf Bank",
-      shortName: "EG Bank",
-      type: "bank",
-    },
-  },
-  {
-    senderPatterns: ["aib", "arabintl"],
-    info: {
-      fullName: "Arab International Bank",
-      shortName: "AIB",
-      type: "bank",
-    },
-  },
-  {
-    senderPatterns: ["ainves", "ainvest"],
-    info: {
-      fullName: "Arab Investment Bank",
-      shortName: "Arab Invest",
-      type: "bank",
-    },
-  },
-  {
-    senderPatterns: ["midbank"],
-    info: { fullName: "MIDBank", shortName: "MIDBank", type: "bank" },
-  },
-  {
-    senderPatterns: ["saib"],
-    info: {
-      fullName: "Societe Arabe Internationale de Banque",
-      shortName: "SAIB",
-      type: "bank",
-    },
-  },
-
-  // ── International Banks in Egypt ───────────────────────────────────────
-  {
-    senderPatterns: ["hsbc", "hsbcegypt"],
-    info: { fullName: "HSBC Egypt", shortName: "HSBC", type: "bank" },
-  },
-  {
-    senderPatterns: ["caegypt", "ca-egypt", "creditagri"],
-    info: {
-      fullName: "Credit Agricole Egypt",
-      shortName: "Credit Agricole",
-      type: "bank",
-    },
-  },
-  {
-    senderPatterns: ["adib"],
-    info: {
-      fullName: "Abu Dhabi Islamic Bank Egypt",
-      shortName: "ADIB",
-      type: "bank",
-    },
-  },
-  {
-    senderPatterns: ["adcb"],
-    info: {
-      fullName: "Abu Dhabi Commercial Bank Egypt",
-      shortName: "ADCB",
-      type: "bank",
-    },
-  },
-  {
-    senderPatterns: ["emiratesnbd", "enbd"],
-    info: {
-      fullName: "Emirates NBD Egypt",
-      shortName: "Emirates NBD",
-      type: "bank",
-    },
-  },
-  {
-    senderPatterns: ["fabmisr", "fab"],
-    info: {
-      fullName: "First Abu Dhabi Bank Misr",
-      shortName: "FAB Misr",
-      type: "bank",
-    },
-  },
-  {
-    senderPatterns: ["mashreq", "mashreqbank", "mashreq-egy"],
-    info: {
-      fullName: "Mashreq Bank Egypt",
-      shortName: "Mashreq",
-      type: "bank",
-    },
-  },
-  {
-    senderPatterns: ["citi", "citibank"],
-    info: { fullName: "Citibank Egypt", shortName: "Citibank", type: "bank" },
-  },
-  {
-    senderPatterns: ["awb", "attijari", "attijariwafa"],
-    info: {
-      fullName: "Attijariwafa Bank Egypt",
-      shortName: "Attijariwafa",
-      type: "bank",
-    },
-  },
-  {
+    id: "abk-egypt",
+    type: "bank",
+    shortName: "ABK Egypt",
+    fullName: "Al Ahli Bank of Kuwait - Egypt",
+    nameAr: "البنك الأهلي الكويتي - مصر",
     senderPatterns: ["abk", "abkegypt"],
-    info: {
-      fullName: "Al Ahli Bank of Kuwait - Egypt",
-      shortName: "ABK Egypt",
-      type: "bank",
-    },
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
   },
   {
+    id: "al-baraka-egypt",
+    type: "bank",
+    shortName: "Al Baraka",
+    fullName: "Al Baraka Bank Egypt",
+    nameAr: "بنك البركة مصر",
+    senderPatterns: ["albaraka", "baraka"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
+  },
+  {
+    id: "aaib",
+    type: "bank",
+    shortName: "AAIB",
+    fullName: "Arab African International Bank",
+    nameAr: "البنك العربي الأفريقي الدولي",
+    senderPatterns: ["aaib"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
+  },
+  {
+    id: "arab-bank",
+    type: "bank",
+    shortName: "Arab Bank",
+    fullName: "Arab Bank PLC",
+    nameAr: "البنك العربي",
+    senderPatterns: ["arabbank", "arab-bank"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
+  },
+  {
+    id: "arab-international-bank",
+    type: "bank",
+    shortName: "AIB",
+    fullName: "Arab International Bank",
+    nameAr: "المصرف العربي الدولي",
+    senderPatterns: ["aib", "arabintl", "arabinternationalbank"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
+  },
+  {
+    id: "attijariwafa-bank-egypt",
+    type: "bank",
+    shortName: "Attijariwafa",
+    fullName: "Attijariwafa Bank Egypt",
+    nameAr: "التجاري وفا بنك إيجيبت",
+    senderPatterns: ["awb", "attijari", "attijariwafa"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
+  },
+  {
+    id: "bank-abc",
+    type: "bank",
+    shortName: "Bank ABC",
+    fullName: "Bank ABC Egypt",
+    nameAr: "بنك ABC مصر",
+    senderPatterns: ["bankabc", "abc", "blom"],
+    selectable: true,
+    legacyIds: ["blom-bank"],
+    auditStatus: "included",
+    auditNote: "BLOM is retained as legacy alias after Bank ABC integration.",
+  },
+  {
+    id: "bank-nxt",
+    type: "bank",
+    shortName: "Bank NXT",
+    fullName: "Bank NXT",
+    nameAr: "بنك نكست",
+    senderPatterns: ["banknxt", "nxt", "ainvest", "aibank"],
+    selectable: true,
+    legacyIds: ["arab-investment-bank", "aibank"],
+    auditStatus: "renamed",
+    auditNote: "Current identity replacing Arab Investment Bank/aiBANK.",
+  },
+  {
+    id: "alexbank",
+    type: "bank",
+    shortName: "AlexBank",
+    fullName: "Bank of Alexandria",
+    nameAr: "بنك الإسكندرية",
+    senderPatterns: ["alexbank", "alexalerts"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
+  },
+  {
+    id: "banque-du-caire",
+    type: "bank",
+    shortName: "Banque du Caire",
+    fullName: "Banque du Caire",
+    nameAr: "بنك القاهرة",
+    senderPatterns: ["banquecaire", "bdc"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
+  },
+  {
+    id: "banque-misr",
+    type: "bank",
+    shortName: "Banque Misr",
+    fullName: "Banque Misr",
+    nameAr: "بنك مصر",
+    senderPatterns: ["banquemisr", "bmisr", "bm"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
+  },
+  {
+    id: "citibank-egypt",
+    type: "bank",
+    shortName: "Citi",
+    fullName: "Citi Bank Egypt",
+    nameAr: "سيتي بنك مصر",
+    senderPatterns: ["citi", "citibank", "citibankegypt"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
+  },
+  {
+    id: "cib",
+    type: "bank",
+    shortName: "CIB",
+    fullName: "Commercial International Bank",
+    nameAr: "البنك التجاري الدولي",
+    senderPatterns: ["cib", "cibank", "cibegypt"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
+  },
+  {
+    id: "credit-agricole-egypt",
+    type: "bank",
+    shortName: "Credit Agricole",
+    fullName: "Credit Agricole Egypt",
+    nameAr: "كريدي أجريكول مصر",
+    senderPatterns: ["caegypt", "ca-egypt", "creditagri", "creditagricole"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
+  },
+  {
+    id: "egyptian-arab-land-bank",
+    type: "bank",
+    shortName: "EALB",
+    fullName: "Egyptian Arab Land Bank",
+    nameAr: "البنك العقاري المصري العربي",
+    senderPatterns: ["ealb"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
+  },
+  {
+    id: "eg-bank",
+    type: "bank",
+    shortName: "EG Bank",
+    fullName: "Egyptian Gulf Bank",
+    nameAr: "البنك المصري الخليجي",
+    senderPatterns: ["egbank", "egb"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
+  },
+  {
+    id: "emirates-nbd-egypt",
+    type: "bank",
+    shortName: "Emirates NBD",
+    fullName: "Emirates NBD Egypt",
+    nameAr: "بنك الإمارات دبي الوطني مصر",
+    senderPatterns: ["emiratesnbd", "enbd"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
+  },
+  {
+    id: "edb-egypt",
+    type: "bank",
+    shortName: "EDB",
+    fullName: "Export Development Bank of Egypt",
+    nameAr: "البنك المصري لتنمية الصادرات",
+    senderPatterns: ["edbbank", "edb"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
+  },
+  {
+    id: "faisal-islamic-bank-egypt",
+    type: "bank",
+    shortName: "Faisal Bank",
+    fullName: "Faisal Islamic Bank of Egypt",
+    nameAr: "بنك فيصل الإسلامي المصري",
+    senderPatterns: ["faisal", "faisalbank"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
+  },
+  {
+    id: "fab-misr",
+    type: "bank",
+    shortName: "FAB Misr",
+    fullName: "First Abu Dhabi Bank Misr",
+    nameAr: "بنك أبوظبي الأول مصر",
+    senderPatterns: ["fabmisr", "fab"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
+  },
+  {
+    id: "hdb-egypt",
+    type: "bank",
+    shortName: "HDB",
+    fullName: "Housing and Development Bank",
+    nameAr: "بنك التعمير والإسكان",
+    senderPatterns: ["hdbank", "hdb"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
+  },
+  {
+    id: "hsbc-egypt",
+    type: "bank",
+    shortName: "HSBC",
+    fullName: "HSBC Bank Egypt",
+    nameAr: "بنك إتش إس بي سي مصر",
+    senderPatterns: ["hsbc", "hsbcegypt"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
+  },
+  {
+    id: "industrial-development-bank",
+    type: "bank",
+    shortName: "IDB",
+    fullName: "Industrial Development Bank",
+    nameAr: "بنك التنمية الصناعية",
+    senderPatterns: ["idbegypt", "idb"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
+  },
+  {
+    id: "kfh-egypt",
+    type: "bank",
+    shortName: "KFH Egypt",
+    fullName: "KFH Egypt",
+    nameAr: "بيت التمويل الكويتي مصر",
+    senderPatterns: ["kfh", "kfhegypt", "aub", "ahliunited"],
+    selectable: true,
+    legacyIds: ["aub", "ahli-united-bank-egypt"],
+    auditStatus: "renamed",
+    auditNote: "Current identity replacing Ahli United Bank Egypt.",
+  },
+  {
+    id: "mashreq-egypt",
+    type: "bank",
+    shortName: "Mashreq",
+    fullName: "Mashreq Bank",
+    nameAr: "بنك المشرق",
+    senderPatterns: ["mashreq", "mashreqbank", "mashreq-egy"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
+  },
+  {
+    id: "midbank",
+    type: "bank",
+    shortName: "MIDBank",
+    fullName: "MIDBank",
+    nameAr: "ميد بنك",
+    senderPatterns: ["midbank"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
+  },
+  {
+    id: "nbe",
+    type: "bank",
+    shortName: "NBE",
+    fullName: "National Bank of Egypt",
+    nameAr: "البنك الأهلي المصري",
+    senderPatterns: ["nbe", "nbegypt", "nbebank", "nbemobile"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
+  },
+  {
+    id: "nbk-egypt",
+    type: "bank",
+    shortName: "NBK Egypt",
+    fullName: "National Bank of Kuwait - Egypt",
+    nameAr: "بنك الكويت الوطني - مصر",
     senderPatterns: ["nbk", "nbkegypt"],
-    info: {
-      fullName: "National Bank of Kuwait - Egypt",
-      shortName: "NBK Egypt",
-      type: "bank",
-    },
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
   },
   {
-    senderPatterns: ["aub"],
-    info: {
-      fullName: "Ahli United Bank Egypt",
-      shortName: "AUB",
-      type: "bank",
-    },
+    id: "qnb-egypt",
+    type: "bank",
+    shortName: "QNB",
+    fullName: "QNB Egypt",
+    nameAr: "بنك QNB مصر",
+    senderPatterns: ["qnb", "qnbegypt", "qnbalahli"],
+    selectable: true,
+    legacyIds: ["qnb-al-ahli"],
+    auditStatus: "renamed",
+    auditNote: "Current display name is QNB Egypt; QNB Al Ahli kept as alias.",
   },
   {
-    senderPatterns: ["arabbank"],
-    info: { fullName: "Arab Bank PLC", shortName: "Arab Bank", type: "bank" },
+    id: "saib",
+    type: "bank",
+    shortName: "SAIB",
+    fullName: "SAIB",
+    nameAr: "بنك الشركة المصرفية العربية الدولية",
+    senderPatterns: ["saib"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
   },
   {
-    senderPatterns: ["bankabc", "abc"],
-    info: { fullName: "Bank ABC Egypt", shortName: "Bank ABC", type: "bank" },
+    id: "standard-chartered",
+    type: "bank",
+    shortName: "Standard Chartered",
+    fullName: "Standard Chartered Bank",
+    nameAr: "ستاندرد تشارترد بنك",
+    senderPatterns: ["standardchartered", "sc-egypt", "scb-egypt"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Added from registry audit; missing from the previous file.",
   },
   {
-    senderPatterns: ["blom"],
-    info: { fullName: "BLOM Bank Egypt", shortName: "BLOM", type: "bank" },
+    id: "suez-canal-bank",
+    type: "bank",
+    shortName: "SC Bank",
+    fullName: "Suez Canal Bank",
+    nameAr: "بنك قناة السويس",
+    senderPatterns: ["scbank", "suezcanalbank"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
   },
+  {
+    id: "the-united-bank",
+    type: "bank",
+    shortName: "United Bank",
+    fullName: "The United Bank",
+    nameAr: "المصرف المتحد",
+    senderPatterns: ["unitedbank", "ub"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active bank in Egypt audit list.",
+  },
+  {
+    id: "vodafone-cash",
+    type: "wallet",
+    shortName: "Vodafone Cash",
+    fullName: "Vodafone Cash",
+    nameAr: "فودافون كاش",
+    senderPatterns: ["vf-cash", "vfcash", "vodafonecash"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active telecom wallet in NTRA audit.",
+  },
+  {
+    id: "e-and-cash",
+    type: "wallet",
+    shortName: "e& money",
+    fullName: "e& money",
+    nameAr: "إي آند موني",
+    senderPatterns: [
+      "e&money",
+      "eandmoney",
+      "e&cash",
+      "eandcash",
+      "etisalatcash",
+      "etisalat-cash",
+    ],
+    selectable: true,
+    legacyIds: ["etisalat-cash"],
+    auditStatus: "renamed",
+    auditNote:
+      "Product-confirmed display uses current e& money branding; e& Cash and Etisalat Cash remain sender/legacy aliases.",
+  },
+  {
+    id: "orange-cash",
+    type: "wallet",
+    shortName: "Orange Cash",
+    fullName: "Orange Cash",
+    nameAr: "أورنج كاش",
+    senderPatterns: ["orangecash", "orange-cash"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active telecom wallet in NTRA audit.",
+  },
+  {
+    id: "we-pay",
+    type: "wallet",
+    shortName: "WE Pay",
+    fullName: "WE Pay",
+    nameAr: "وي باي",
+    senderPatterns: ["wepay", "we-pay"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote: "Active telecom wallet in NTRA audit.",
+  },
+  {
+    id: "nbe-phone-cash",
+    type: "wallet",
+    shortName: "NBE Phone Cash",
+    fullName: "NBE Phone Cash",
+    senderPatterns: [],
+    selectable: false,
+    auditStatus: "pending",
+    auditNote:
+      "Meeza-listed bank wallet; needs current availability verification before dropdown inclusion.",
+  },
+  {
+    id: "bm-wallet",
+    type: "wallet",
+    shortName: "BM Wallet",
+    fullName: "Banque Misr Wallet",
+    senderPatterns: [],
+    selectable: false,
+    auditStatus: "pending",
+    auditNote:
+      "Meeza-listed bank wallet; needs current availability verification before dropdown inclusion.",
+  },
+  {
+    id: "qahera-cash",
+    type: "wallet",
+    shortName: "Qahera Cash",
+    fullName: "Qahera Cash",
+    senderPatterns: [],
+    selectable: false,
+    auditStatus: "pending",
+    auditNote:
+      "Meeza-listed bank wallet; needs current availability verification before dropdown inclusion.",
+  },
+  {
+    id: "qnb-wallet",
+    type: "wallet",
+    shortName: "QNB Wallet",
+    fullName: "QNB E-Wallet",
+    senderPatterns: [],
+    selectable: false,
+    auditStatus: "pending",
+    auditNote:
+      "Meeza-listed bank wallet; needs current availability verification before dropdown inclusion.",
+  },
+  {
+    id: "credit-agricole-banki-wallet",
+    type: "wallet",
+    shortName: "banki Wallet",
+    fullName: "Credit Agricole banki Wallet",
+    senderPatterns: [],
+    selectable: false,
+    auditStatus: "pending",
+    auditNote:
+      "Meeza-listed bank wallet; needs current availability verification before dropdown inclusion.",
+  },
+  {
+    id: "nbk-mobile-wallet",
+    type: "wallet",
+    shortName: "NBK Wallet",
+    fullName: "NBK Mobile Wallet",
+    senderPatterns: [],
+    selectable: false,
+    auditStatus: "pending",
+    auditNote:
+      "Meeza-listed bank wallet; needs current availability verification before dropdown inclusion.",
+  },
+  {
+    id: "aipay",
+    type: "wallet",
+    shortName: "aiPAY",
+    fullName: "Bank NXT aiPAY",
+    senderPatterns: [],
+    selectable: false,
+    auditStatus: "pending",
+    auditNote:
+      "Meeza-listed bank wallet; needs current availability verification before dropdown inclusion.",
+  },
+  {
+    id: "myfawry-yellowcard",
+    type: "wallet",
+    shortName: "myFawry Yellowcard",
+    fullName: "myFawry Yellowcard",
+    senderPatterns: [],
+    selectable: false,
+    auditStatus: "pending",
+    auditNote:
+      "Needs confirmed balance-holding account behavior before dropdown inclusion.",
+  },
+  {
+    id: "fawry",
+    type: "payment",
+    shortName: "Fawry",
+    fullName: "Fawry",
+    senderPatterns: [],
+    selectable: false,
+    auditStatus: "excluded",
+    auditNote:
+      "Generic payment network is not a wallet account provider for this feature.",
+  },
+  {
+    id: "onebank",
+    type: "bank",
+    shortName: "onebank",
+    fullName: "onebank",
+    senderPatterns: [],
+    selectable: false,
+    auditStatus: "pending",
+    auditNote: "Pending public consumer account availability verification.",
+  },
+] as const satisfies readonly EgyptianFinancialInstitution[];
 
-  // ── Digital Wallets & Fintechs ─────────────────────────────────────────
-  {
-    senderPatterns: ["vf-cash", "vfcash"],
-    info: {
-      fullName: "Vodafone Cash",
-      shortName: "Vodafone Cash",
-      type: "wallet",
-    },
-  },
-  {
-    senderPatterns: ["orangecash"],
-    info: { fullName: "Orange Cash", shortName: "Orange Cash", type: "wallet" },
-  },
-  {
-    senderPatterns: ["wepay"],
-    info: {
-      fullName: "WE Pay",
-      shortName: "WE Pay",
-      type: "wallet",
-    },
-  },
-];
+export type EgyptianInstitutionId =
+  (typeof EGYPTIAN_FINANCIAL_INSTITUTIONS)[number]["id"];
+export type SelectableEgyptianInstitution = Extract<
+  (typeof EGYPTIAN_FINANCIAL_INSTITUTIONS)[number],
+  { readonly selectable: true }
+>;
+export type SelectableEgyptianInstitutionId =
+  SelectableEgyptianInstitution["id"];
 
-// ---------------------------------------------------------------------------
-// Lookup Map (built once at import time)
-// ---------------------------------------------------------------------------
+const INSTITUTION_BY_ID = new Map<string, EgyptianFinancialInstitution>(
+  EGYPTIAN_FINANCIAL_INSTITUTIONS.map((institution) => [
+    institution.id,
+    institution,
+  ])
+);
 
-/**
- * Pre-built map from lowercase sender substring → BankInfo.
- * Used for O(1) exact-match lookups after normalizing the sender address.
- */
-const SENDER_LOOKUP_MAP: ReadonlyMap<string, BankInfo> = buildLookupMap();
+const SENDER_LOOKUP_MAP: ReadonlyMap<string, EgyptianFinancialInstitution> =
+  buildLookupMap();
+const MIN_SUBSTRING_PATTERN_LENGTH = 4;
 
-function buildLookupMap(): Map<string, BankInfo> {
-  const map = new Map<string, BankInfo>();
-  for (const entry of REGISTRY_ENTRIES) {
-    for (const pattern of entry.senderPatterns) {
-      map.set(pattern.toLowerCase(), entry.info);
+function buildLookupMap(): Map<string, EgyptianFinancialInstitution> {
+  const map = new Map<string, EgyptianFinancialInstitution>();
+
+  for (const institution of EGYPTIAN_FINANCIAL_INSTITUTIONS) {
+    for (const pattern of institution.senderPatterns) {
+      map.set(normalizeSenderPattern(pattern), institution);
     }
   }
+
   return map;
 }
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
+function normalizeSenderPattern(senderAddress: string): string {
+  return senderAddress.trim().toLowerCase();
+}
 
-/**
- * Check if an SMS sender address belongs to a known Egyptian
- * financial institution.
- *
- * Performs case-insensitive matching against the registry.
- * First tries exact match, then falls back to substring search
- * for addresses that contain extra prefixes/suffixes
- * (e.g., "CIB-EGYPT" → matches "cib").
- *
- * @param senderAddress - Raw SMS sender address (e.g., "CIB", "NBE", "VF-Cash")
- * @returns BankInfo if matched, undefined otherwise
- *
- * @example
- * ```ts
- * isKnownFinancialSender("CIB");        // → { fullName: "Commercial International Bank", ... }
- * isKnownFinancialSender("CIB-EGYPT");  // → { fullName: "Commercial International Bank", ... }
- * isKnownFinancialSender("Vodafone");   // → { fullName: "Vodafone Cash", ... }
- * isKnownFinancialSender("Telecom");    // → undefined
- * ```
- */
 export function isKnownFinancialSender(
   senderAddress: string
-): BankInfo | undefined {
-  if (!senderAddress) {
+): EgyptianFinancialInstitution | undefined {
+  const normalized = normalizeSenderPattern(senderAddress);
+  if (!normalized) {
     return undefined;
   }
 
-  const normalized = senderAddress.trim().toLowerCase();
-
-  // Fast path: exact match (most common case)
   const exactMatch = SENDER_LOOKUP_MAP.get(normalized);
   if (exactMatch) {
     return exactMatch;
   }
 
-  // Slow path: check if normalized sender contains any known pattern
-  // Handles cases like "CIB-EGYPT", "HSBC_EG", "NBE Bank", etc.
-  for (const [pattern, info] of SENDER_LOOKUP_MAP) {
-    // Only match patterns ≥ 2 chars to avoid false positives from
-    // very short substrings (e.g., "we" matching "answer")
-    if (pattern.length >= 2 && normalized.includes(pattern)) {
-      return info;
+  for (const [pattern, institution] of SENDER_LOOKUP_MAP) {
+    if (
+      pattern.length >= MIN_SUBSTRING_PATTERN_LENGTH &&
+      normalized.includes(pattern)
+    ) {
+      return institution;
     }
   }
 
   return undefined;
 }
 
-/**
- * Get all registered sender patterns for debugging or display.
- *
- * @returns Readonly map of all sender patterns → BankInfo
- */
-export function getAllFinancialSenders(): ReadonlyMap<string, BankInfo> {
+export function getAllFinancialSenders(): ReadonlyMap<
+  string,
+  EgyptianFinancialInstitution
+> {
   return SENDER_LOOKUP_MAP;
+}
+
+export function getSelectableEgyptianInstitutions(
+  type: "bank" | "wallet"
+): readonly SelectableEgyptianInstitution[] {
+  return EGYPTIAN_FINANCIAL_INSTITUTIONS.filter(
+    (institution): institution is SelectableEgyptianInstitution =>
+      institution.type === type && institution.selectable
+  );
+}
+
+export function getInstitutionById(
+  id: string
+): EgyptianFinancialInstitution | undefined {
+  return INSTITUTION_BY_ID.get(id);
+}
+
+export function getSenderPatternsForInstitution(id: string): readonly string[] {
+  return getInstitutionById(id)?.senderPatterns ?? [];
 }

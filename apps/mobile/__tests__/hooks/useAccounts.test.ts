@@ -183,7 +183,7 @@ function renderUseAccountsHook(): {
   };
 
   const HookWrapper = (): React.JSX.Element | null => {
-    ref.current = useAccounts() as unknown as UseAccountsResult;
+    ref.current = useAccounts();
     return null;
   };
 
@@ -247,6 +247,8 @@ describe("useAccounts", () => {
       "balance",
       "is_default",
       "name",
+      "institution_id",
+      "provider_display_name",
     ]);
     expect(mockAccountsObserve).not.toHaveBeenCalled();
 
@@ -262,6 +264,8 @@ describe("useBankAccounts", () => {
       "balance",
       "is_default",
       "name",
+      "institution_id",
+      "provider_display_name",
     ]);
     expect(mockAccountsObserve).not.toHaveBeenCalled();
 

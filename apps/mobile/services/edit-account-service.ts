@@ -16,6 +16,7 @@
 
 import {
   Account,
+  AccountSmsSender,
   BankDetails,
   Debt,
   RecurringPayment,
@@ -37,6 +38,7 @@ import {
   queryChildrenOfOwnedParent,
   queryOwned,
 } from "./user-data-access";
+import { replaceAccountSmsSendersWithinWriter } from "./account-sms-sender-service";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -93,6 +95,9 @@ export interface UpdateAccountData {
   readonly name: string;
   readonly balance: number;
   readonly isDefault: boolean;
+  readonly institutionId?: string | null;
+  readonly providerDisplayName?: string;
+  readonly senderNames?: readonly string[];
   readonly bankName?: string;
   readonly cardLast4?: string;
   readonly smsSenderName?: string;
@@ -139,11 +144,7 @@ function prepareSoftDelete<TRecord extends SoftDeletableRecord>(
 }
 
 function hasBankDetailsData(data: UpdateAccountData): boolean {
-  return (
-    Boolean(data.bankName?.trim()) ||
-    Boolean(data.cardLast4?.trim()) ||
-    Boolean(data.smsSenderName?.trim())
-  );
+  return Boolean(data.cardLast4?.trim());
 }
 
 // ---------------------------------------------------------------------------
@@ -166,7 +167,8 @@ export async function checkAccountNameUniqueness(
   userId: string,
   name: string,
   currency: CurrencyType,
-  excludeAccountId?: string
+  excludeAccountId?: string,
+  institutionId?: string | null
 ): Promise<UniquenessCheckResult> {
   try {
     const trimmedName = name.trim().toLowerCase();
@@ -193,9 +195,15 @@ export async function checkAccountNameUniqueness(
 
     // Case-insensitive name comparison — WatermelonDB doesn't support
     // case-insensitive queries, so we filter in JS.
-    const isDuplicate = existingAccounts.some(
-      (account) => account.name.trim().toLowerCase() === trimmedName
-    );
+    const normalizedInstitutionId = institutionId ?? null;
+    const isDuplicate = existingAccounts.some((account) => {
+      const hasSameName = account.name.trim().toLowerCase() === trimmedName;
+      if (!hasSameName) {
+        return false;
+      }
+
+      return (account.institutionId ?? null) === normalizedInstitutionId;
+    });
 
     return { isUnique: !isDuplicate };
   } catch (error) {
@@ -364,7 +372,16 @@ export async function updateAccountWithinWriter(
     acc.name = data.name.trim();
     acc.balance = roundForCurrency(data.balance, existingAccount.currency);
     acc.isDefault = data.isDefault;
+    acc.institutionId = data.institutionId ?? undefined;
+    acc.providerDisplayName =
+      data.providerDisplayName?.trim() || data.bankName?.trim() || undefined;
   });
+
+  await replaceAccountSmsSendersWithinWriter(
+    existingAccount,
+    currentUserId,
+    data.senderNames ?? []
+  );
 
   // Update bank details if this is a bank account
   if (existingAccount.isBank) {
@@ -378,16 +395,12 @@ export async function updateAccountWithinWriter(
 
     if (activeBankDetail) {
       await activeBankDetail.update((bd) => {
-        bd.bankName = data.bankName;
         bd.cardLast4 = data.cardLast4;
-        bd.smsSenderName = data.smsSenderName;
       });
     } else if (hasBankDetailsData(data)) {
       await database.get<BankDetails>("bank_details").create((bd) => {
         bd.accountId = accountId;
-        bd.bankName = data.bankName;
         bd.cardLast4 = data.cardLast4;
-        bd.smsSenderName = data.smsSenderName;
         bd.deleted = false;
       });
     }
@@ -405,11 +418,12 @@ export async function updateAccountWithinWriter(
  *
  * Deletes in this order within a single write block:
  * 1. bank_details
- * 2. transactions
- * 3. transfers (where account is from_account OR to_account)
- * 4. debts
- * 5. recurring_payments
- * 6. The account itself
+ * 2. account_sms_senders
+ * 3. transactions
+ * 4. transfers (where account is from_account OR to_account)
+ * 5. debts
+ * 6. recurring_payments
+ * 7. The account itself
  *
  * Uses the domain `deleted` column for sync-safe soft deletes.
  *
@@ -455,6 +469,7 @@ export async function deleteAccountWithCascade(
       // Fetch all non-deleted children via explicit filtered queries.
       const [
         bankDetailRecords,
+        accountSmsSenderRecords,
         transactionRecords,
         fromTransfers,
         toTransfers,
@@ -463,6 +478,13 @@ export async function deleteAccountWithCascade(
       ] = await Promise.all([
         queryChildrenOfOwnedParent(
           database.get<BankDetails>("bank_details"),
+          account,
+          currentUserId,
+          "account_id",
+          Q.where("deleted", false)
+        ).fetch(),
+        queryChildrenOfOwnedParent(
+          database.get<AccountSmsSender>("account_sms_senders"),
           account,
           currentUserId,
           "account_id",
@@ -503,6 +525,7 @@ export async function deleteAccountWithCascade(
       // Batch all domain soft-deletes into a single write for performance.
       const batchOps: SoftDeletableRecord[] = [
         ...bankDetailRecords.map((record) => prepareSoftDelete(record)),
+        ...accountSmsSenderRecords.map((record) => prepareSoftDelete(record)),
         ...transactionRecords.map((record) => prepareSoftDelete(record)),
         ...fromTransfers.map((record) => prepareSoftDelete(record)),
         ...toTransfers.map((record) => prepareSoftDelete(record)),

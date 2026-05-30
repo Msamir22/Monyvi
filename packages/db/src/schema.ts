@@ -7,8 +7,20 @@
 import { appSchema, tableSchema } from "@nozbe/watermelondb";
 
 export const schema = appSchema({
-  version: 20,
+  version: 21,
   tables: [
+    tableSchema({
+      name: "account_sms_senders",
+      columns: [
+        { name: "account_id", type: "string", isIndexed: true },
+        { name: "created_at", type: "number" },
+        { name: "deleted", type: "boolean" },
+        { name: "normalized_sender_name", type: "string" },
+        { name: "sender_name", type: "string" },
+        { name: "updated_at", type: "number" },
+      ],
+    }),
+
     tableSchema({
       name: "accounts",
       columns: [
@@ -16,8 +28,15 @@ export const schema = appSchema({
         { name: "created_at", type: "number" },
         { name: "currency", type: "string" },
         { name: "deleted", type: "boolean" },
+        {
+          name: "institution_id",
+          type: "string",
+          isOptional: true,
+          isIndexed: true,
+        },
         { name: "is_default", type: "boolean" },
         { name: "name", type: "string" },
+        { name: "provider_display_name", type: "string", isOptional: true },
         { name: "type", type: "string" },
         { name: "updated_at", type: "number" },
         { name: "user_id", type: "string", isIndexed: true },
@@ -60,11 +79,9 @@ export const schema = appSchema({
       columns: [
         { name: "account_id", type: "string", isIndexed: true },
         { name: "account_number", type: "string", isOptional: true },
-        { name: "bank_name", type: "string", isOptional: true },
         { name: "card_last_4", type: "string", isOptional: true },
         { name: "created_at", type: "number" },
         { name: "deleted", type: "boolean" },
-        { name: "sms_sender_name", type: "string", isOptional: true },
         { name: "updated_at", type: "number" },
       ],
     }),

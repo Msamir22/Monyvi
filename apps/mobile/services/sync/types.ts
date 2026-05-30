@@ -44,7 +44,10 @@ export type ChildTableConfigFor<TTable extends WritableSupabaseTablesNames> =
       : never
     : never;
 
-export type ChildTableName = "asset_metals" | "bank_details";
+export type ChildTableName =
+  | "account_sms_senders"
+  | "asset_metals"
+  | "bank_details";
 export type ChildParentTableName = "assets" | "accounts";
 export interface ChildTableConfig {
   readonly parentTable: ChildParentTableName;

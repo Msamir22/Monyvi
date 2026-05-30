@@ -1,10 +1,11 @@
 import { palette } from "@/constants/colors";
+import type { InstitutionLogo } from "@/constants/egyptian-institution-assets";
 import { formatAccountBalance } from "@/utils/financial-display";
 import { Account, MarketRate } from "@monyvi/db";
 import { convertCurrency, formatCurrency } from "@monyvi/logic";
 import { Ionicons } from "@expo/vector-icons";
 import { memo, useCallback, useMemo } from "react";
-import { Text, TouchableOpacity, View } from "react-native";
+import { Image, Text, TouchableOpacity, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
 interface AccountCardProps {
@@ -23,6 +24,8 @@ interface AccountCardProps {
    * Falls back to the raw `account.name` when omitted.
    */
   displayName?: string;
+  providerLabel?: string | null;
+  institutionLogo?: InstitutionLogo | null;
 }
 
 /**
@@ -40,6 +43,8 @@ function AccountCardImpl({
   latestRates,
   onPress,
   displayName,
+  providerLabel = null,
+  institutionLogo = null,
 }: AccountCardProps): React.JSX.Element {
   const { t } = useTranslation("accounts");
   const handlePress = useCallback(() => {
@@ -59,6 +64,11 @@ function AccountCardImpl({
           return { icon: "wallet", color: palette.nileGreen[500] };
       }
     }, [account.type]);
+  const InstitutionSvgLogo =
+    institutionLogo?.format === "svg" &&
+    typeof institutionLogo.source === "function"
+      ? institutionLogo.source
+      : null;
 
   const subtitle = useMemo(() => {
     if (account.currency !== "USD" && latestRates) {
@@ -76,15 +86,22 @@ function AccountCardImpl({
 
     switch (account.type) {
       case "BANK":
-        return t("type_bank");
+        return providerLabel ?? t("type_bank");
       case "DIGITAL_WALLET":
-        return t("type_digital_wallet");
+        return providerLabel ?? t("type_digital_wallet");
       case "CASH":
         return t("type_cash");
       default:
         return "";
     }
-  }, [account.currency, account.balance, account.type, latestRates, t]);
+  }, [
+    account.currency,
+    account.balance,
+    account.type,
+    latestRates,
+    providerLabel,
+    t,
+  ]);
 
   return (
     <TouchableOpacity
@@ -108,7 +125,17 @@ function AccountCardImpl({
           className="w-12 h-12 rounded-2xl items-center justify-center me-4"
           style={{ backgroundColor: `${config.color}15` }}
         >
-          <Ionicons name={config.icon} size={24} color={config.color} />
+          {InstitutionSvgLogo ? (
+            <InstitutionSvgLogo width={28} height={28} />
+          ) : institutionLogo?.format === "image" ? (
+            <Image
+              source={institutionLogo.source}
+              resizeMode="contain"
+              className="h-7 w-7"
+            />
+          ) : (
+            <Ionicons name={config.icon} size={24} color={config.color} />
+          )}
         </View>
 
         {/* Content */}

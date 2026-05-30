@@ -14,18 +14,19 @@
  * Phase 4 (US1): Full edit form, save flow, and validation
  */
 
-import { BankDetailsSection } from "@/components/add-account/BankDetailsSection";
+import { AccountPreviewCard } from "@/components/add-account/AccountPreviewCard";
+import { InstitutionProviderSection } from "@/components/add-account/InstitutionProviderSection";
+import { SmsMatchingSection } from "@/components/add-account/SmsMatchingSection";
 import { BalanceChangedSheet } from "@/components/edit-account/BalanceChangedSheet";
 import { DeleteAccountSheet } from "@/components/edit-account/DeleteAccountSheet";
 import { ReadOnlyDropdown } from "@/components/edit-account/ReadOnlyDropdown";
 import { PageHeader } from "@/components/navigation/PageHeader";
-import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/TextField";
 import { useToast } from "@/components/ui/Toast";
 import { CURRENCIES } from "@/constants/accounts";
 import { palette } from "@/constants/colors";
 import { useTheme } from "@/context/ThemeContext";
-import { useKeyboardVisibility } from "@/hooks";
+import { useEgyptianInstitutionEligibility } from "@/hooks/useEgyptianInstitutionEligibility";
 import { useAccountById, UseAccountByIdResult } from "@/hooks/useAccountById";
 import { useAccountDisplayName } from "@/hooks/useAccountDisplayNames";
 import { useDeleteAccount } from "@/hooks/useDeleteAccount";
@@ -37,10 +38,17 @@ import { Ionicons } from "@expo/vector-icons";
 import type { Account } from "@monyvi/db";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import {
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   ScrollView,
   StatusBar,
@@ -51,24 +59,18 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { EditAccountSkeleton } from "@/components/edit-account/EditAccountSkeleton";
 
-const PRIMARY_BUTTON_SHADOW_STYLE = {
-  shadowColor: "rgba(5, 150, 105, 0.2)",
-  shadowOffset: { width: 0, height: 8 },
-  shadowOpacity: 1,
-  shadowRadius: 12,
-  elevation: 8,
-} as const;
-
 // =============================================================================
 // Component
 // =============================================================================
+
+const LOWER_FORM_SCROLL_TARGET_Y = 100000;
+const BALANCE_FIELD_SCROLL_TARGET_Y = 360;
 
 export default function EditAccount(): React.ReactNode {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isDark } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const isKeyboardVisible = useKeyboardVisibility();
   const { t } = useTranslation("accounts");
   const { t: tCommon } = useTranslation("common");
 
@@ -116,7 +118,6 @@ export default function EditAccount(): React.ReactNode {
       account={account}
       bankDetails={bankDetails}
       isDark={isDark}
-      isKeyboardVisible={isKeyboardVisible}
       bottomInset={insets.bottom}
     />
   );
@@ -130,7 +131,6 @@ interface EditAccountFormProps {
   readonly account: Account;
   readonly bankDetails: UseAccountByIdResult["bankDetails"];
   readonly isDark: boolean;
-  readonly isKeyboardVisible: boolean;
   readonly bottomInset: number;
 }
 
@@ -138,7 +138,6 @@ function EditAccountForm({
   account,
   bankDetails,
   isDark,
-  isKeyboardVisible,
   bottomInset,
 }: EditAccountFormProps): React.JSX.Element {
   const { t } = useTranslation("accounts");
@@ -159,15 +158,81 @@ function EditAccountForm({
     isDefault,
     originalBalance,
     updateField,
+    selectKnownInstitution,
+    selectOtherInstitution,
+    updateSenderNames,
     toggleDefault,
     validate,
   } = useEditAccountForm(account, bankDetails);
+  const { isEligible: isKnownProviderEligible } =
+    useEgyptianInstitutionEligibility();
 
-  const [isBankDetailsExpanded, setIsBankDetailsExpanded] = useState(
-    Boolean(bankDetails)
-  );
+  const [isSmsMatchingExpanded, setIsSmsMatchingExpanded] = useState(false);
   const [showBalanceSheet, setShowBalanceSheet] = useState(false);
   const [showDeleteSheet, setShowDeleteSheet] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const smsFocusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const shouldScrollSmsFieldRef = useRef(false);
+
+  useEffect(() => {
+    const keyboardDidShow = Keyboard.addListener("keyboardDidShow", (event) => {
+      setKeyboardHeight(event.endCoordinates.height);
+
+      if (shouldScrollSmsFieldRef.current) {
+        if (smsFocusTimerRef.current) {
+          clearTimeout(smsFocusTimerRef.current);
+        }
+
+        smsFocusTimerRef.current = setTimeout(() => {
+          scrollViewRef.current?.scrollTo({
+            y: LOWER_FORM_SCROLL_TARGET_Y,
+            animated: true,
+          });
+        }, 80);
+      }
+    });
+    const keyboardDidHide = Keyboard.addListener("keyboardDidHide", () => {
+      setKeyboardHeight(0);
+      shouldScrollSmsFieldRef.current = false;
+    });
+
+    return () => {
+      keyboardDidShow.remove();
+      keyboardDidHide.remove();
+      if (smsFocusTimerRef.current) {
+        clearTimeout(smsFocusTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleSmsFieldFocus = useCallback((): void => {
+    shouldScrollSmsFieldRef.current = true;
+
+    if (smsFocusTimerRef.current) {
+      clearTimeout(smsFocusTimerRef.current);
+    }
+
+    smsFocusTimerRef.current = setTimeout(() => {
+      scrollViewRef.current?.scrollTo({
+        y: LOWER_FORM_SCROLL_TARGET_Y,
+        animated: true,
+      });
+    }, 250);
+  }, []);
+
+  const handleBalanceFieldFocus = useCallback((): void => {
+    if (smsFocusTimerRef.current) {
+      clearTimeout(smsFocusTimerRef.current);
+    }
+
+    smsFocusTimerRef.current = setTimeout(() => {
+      scrollViewRef.current?.scrollTo({
+        y: BALANCE_FIELD_SCROLL_TARGET_Y,
+        animated: true,
+      });
+    }, 250);
+  }, []);
 
   const { performUpdate, isSubmitting } = useUpdateAccount();
   const {
@@ -211,6 +276,9 @@ function EditAccountForm({
       name: formData.name,
       balance: parsedBalance,
       isDefault,
+      institutionId: formData.institutionId ?? null,
+      providerDisplayName: formData.providerDisplayName,
+      senderNames: formData.senderNames,
       bankName: formData.bankName,
       cardLast4: formData.cardLast4,
       smsSenderName: formData.smsSenderName,
@@ -292,9 +360,16 @@ function EditAccountForm({
     [buildUpdateData, currency, account.id, performUpdate]
   );
 
+  const handleProviderDisplayNameChange = useCallback(
+    (value: string): void => {
+      updateField("providerDisplayName", value);
+    },
+    [updateField]
+  );
+
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
       className="flex-1 bg-background dark:bg-background-dark"
     >
       <StatusBar
@@ -316,56 +391,37 @@ function EditAccountForm({
       />
 
       <ScrollView
+        ref={scrollViewRef}
         className="flex-1"
         contentContainerStyle={{
-          paddingBottom: bottomInset + 120,
+          paddingBottom: bottomInset + 160,
         }}
         showsVerticalScrollIndicator={false}
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
       >
-        {/* Hero Section with Account Avatar */}
-        <View className="mb-6 items-center px-4">
-          <View className="w-full rounded-[40px] items-center justify-center py-8 px-6 bg-nileGreen-50 dark:bg-nileGreen-900/30 border border-nileGreen-100 dark:border-nileGreen-800/50">
-            <View className="mb-4 w-20 h-20 rounded-3xl bg-nileGreen-500/10 items-center justify-center">
-              <Ionicons
-                name={
-                  accountType === "BANK"
-                    ? "business"
-                    : accountType === "DIGITAL_WALLET"
-                      ? "phone-portrait"
-                      : "cash"
-                }
-                size={50}
-                color={palette.nileGreen[500]}
-              />
-            </View>
-            <Text className="mb-2 text-center text-xl font-black text-slate-900 dark:text-white">
-              {displayName || account.name}
-            </Text>
-            <Text className="text-center text-sm font-bold text-slate-500 dark:text-slate-400">
-              {accountTypeLabel} • {currency}
-            </Text>
-          </View>
-        </View>
-
-        {/* Form Container */}
         <View className="px-4">
-          {/* Account Type (Read-Only) */}
+          <AccountPreviewCard
+            accountType={accountType}
+            accountName={formData.name || displayName || account.name}
+            balance={formData.balance}
+            currency={currency}
+            institutionId={formData.institutionId ?? null}
+            providerDisplayName={formData.providerDisplayName ?? ""}
+          />
+
           <ReadOnlyDropdown
             label={t("account_type")}
             displayValue={accountTypeLabel}
             icon={accountTypeIcon}
           />
 
-          {/* Currency (Read-Only) */}
           <ReadOnlyDropdown
             label={t("currency")}
             displayValue={currencyLabel}
             icon={currencyIcon}
           />
 
-          {/* Account Name */}
           <TextField
             label={t("account_name")}
             placeholder={t("account_name_placeholder_bank")}
@@ -375,7 +431,24 @@ function EditAccountForm({
             maxLength={50}
           />
 
-          {/* Balance */}
+          {(accountType === "BANK" || accountType === "DIGITAL_WALLET") && (
+            <InstitutionProviderSection
+              accountType={accountType}
+              isKnownProviderEligible={isKnownProviderEligible}
+              institutionId={formData.institutionId ?? null}
+              providerDisplayName={formData.providerDisplayName ?? ""}
+              providerDisplayNameError={errors.providerDisplayName}
+              senderNames={formData.senderNames ?? []}
+              showSenderChips={false}
+              showHelpText={false}
+              className="mb-1"
+              onSelectKnownInstitution={selectKnownInstitution}
+              onSelectOtherInstitution={selectOtherInstitution}
+              onProviderDisplayNameChange={handleProviderDisplayNameChange}
+              onSenderNamesChange={updateSenderNames}
+            />
+          )}
+
           <TextField
             label={t("balance")}
             placeholder="0"
@@ -385,6 +458,7 @@ function EditAccountForm({
             }}
             error={errors.balance}
             keyboardType="numeric"
+            onFocus={handleBalanceFieldFocus}
           />
 
           {/* Default Account Toggle */}
@@ -437,25 +511,23 @@ function EditAccountForm({
             </View>
           </TouchableOpacity>
 
-          {/* Conditional Bank Details Section */}
-          {accountType === "BANK" && (
-            <BankDetailsSection
-              expanded={isBankDetailsExpanded}
-              onToggleExpand={() =>
-                setIsBankDetailsExpanded(!isBankDetailsExpanded)
-              }
-              bankName={formData.bankName ?? ""}
-              cardLast4={formData.cardLast4 ?? ""}
-              cardLast4Error={errors.cardLast4}
-              smsSenderName={formData.smsSenderName ?? ""}
-              onBankNameChange={(val) => updateField("bankName", val)}
-              onCardLast4Change={(val) => {
-                const cleaned = val.replace(/\D/g, "").slice(0, 4);
-                updateField("cardLast4", cleaned);
-              }}
-              onSmsSenderNameChange={(val) => updateField("smsSenderName", val)}
-            />
-          )}
+          <SmsMatchingSection
+            accountType={accountType}
+            institutionId={formData.institutionId ?? null}
+            senderNames={formData.senderNames ?? []}
+            cardLast4={formData.cardLast4 ?? ""}
+            cardLast4Error={errors.cardLast4}
+            expanded={isSmsMatchingExpanded}
+            onToggleExpanded={() =>
+              setIsSmsMatchingExpanded(!isSmsMatchingExpanded)
+            }
+            onSenderNamesChange={updateSenderNames}
+            onFieldFocus={handleSmsFieldFocus}
+            onCardLast4Change={(val) => {
+              const cleaned = val.replace(/\D/g, "").slice(0, 4);
+              updateField("cardLast4", cleaned);
+            }}
+          />
 
           {/* Danger Zone */}
           <View className="mt-8 rounded-2xl border border-red-200 dark:border-red-800/30 bg-red-50/50 dark:bg-red-900/10 p-4">
@@ -484,27 +556,14 @@ function EditAccountForm({
             </TouchableOpacity>
           </View>
         </View>
+        {keyboardHeight > 0 ? (
+          <View
+            // eslint-disable-next-line react-native/no-inline-styles
+            style={{ height: keyboardHeight }}
+          />
+        ) : null}
       </ScrollView>
 
-      {/* Fixed Bottom Save Button */}
-      {!isKeyboardVisible && (
-        <View
-          className="absolute bottom-0 start-0 end-0 px-6 pt-6 pb-10 bg-white dark:bg-background-dark border-t border-slate-200 dark:border-slate-800"
-          style={{ paddingBottom: bottomInset + 16 }}
-        >
-          <Button
-            title={isSubmitting ? t("saving") : t("save_changes")}
-            onPress={() => {
-              handleSave();
-            }}
-            isLoading={isSubmitting}
-            disabled={!isDirty || !isValid || isCheckingUniqueness}
-            variant="primary"
-            size="lg"
-            style={PRIMARY_BUTTON_SHADOW_STYLE}
-          />
-        </View>
-      )}
       {/* Balance Changed Sheet */}
       <BalanceChangedSheet
         visible={showBalanceSheet}

@@ -84,6 +84,9 @@ describe("e2e-seed script helpers", () => {
     expect(E2E_TABLE_DELETE_ORDER.indexOf("transfers")).toBeLessThan(
       E2E_TABLE_DELETE_ORDER.indexOf("accounts")
     );
+    expect(E2E_TABLE_DELETE_ORDER.indexOf("account_sms_senders")).toBeLessThan(
+      E2E_TABLE_DELETE_ORDER.indexOf("accounts")
+    );
     expect(E2E_TABLE_DELETE_ORDER.at(-1)).toBe("profiles");
   });
 
@@ -108,8 +111,14 @@ describe("e2e-seed script helpers", () => {
         operation.startsWith("delete:bank_details:account_id:")
       )
     ).toHaveLength(2);
+    expect(
+      operations.filter((operation) =>
+        operation.startsWith("delete:account_sms_senders:account_id:")
+      )
+    ).toHaveLength(4);
     expect(operations).toContain("upsert:profiles:user-e2e");
     expect(operations).toContain("upsert:accounts:4");
+    expect(operations).toContain("upsert:account_sms_senders:3");
     expect(operations).toContain("upsert:transactions:2");
     expect(operations).toContain("upsert:transfers:1");
     expect(operations).toContain(

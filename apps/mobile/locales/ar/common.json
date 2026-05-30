@@ -183,7 +183,7 @@
   "section_recent_transactions": "المعاملات الأخيرة",
   "sync_failed_title": "تعذر تحميل حسابك",
   "sync_failed_chip": "فشل المزامنة",
-  "sync_failed_description": "حاولنا تنزيل أحدث بياناتك لكن لم نتمكن من الوصول إلى الخوادم.",
+  "sync_failed_description": "تعذر تحديث حسابك الآن.",
   "sign_out": "تسجيل الخروج",
   "sync_helper_text": "لا يزال لا يعمل؟ تحقق من اتصالك بالإنترنت.",
   "cash_account_creation_failed": "فشل إنشاء الحساب النقدي"

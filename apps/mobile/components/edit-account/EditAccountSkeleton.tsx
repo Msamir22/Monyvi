@@ -18,11 +18,23 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 /** A label + field row placeholder. */
 function FormRowSkeleton(): React.JSX.Element {
   return (
-    <View className="mb-5">
+    <View className="mb-4">
       <Skeleton width={100} height={12} borderRadius={4} />
-      <View style={{ marginTop: 8 }}>
-        <Skeleton width="100%" height={48} borderRadius={12} />
+      <View className="mt-2">
+        <Skeleton width="100%" height={52} borderRadius={12} />
       </View>
+    </View>
+  );
+}
+
+function ProviderFieldSkeleton(): React.JSX.Element {
+  return (
+    <View className="mb-4">
+      <View className="mb-2 flex-row items-center justify-between">
+        <Skeleton width={52} height={12} borderRadius={4} />
+        <Skeleton width={18} height={18} borderRadius={9} />
+      </View>
+      <Skeleton width="100%" height={54} borderRadius={12} />
     </View>
   );
 }
@@ -50,25 +62,47 @@ export function EditAccountSkeleton(): React.JSX.Element {
         contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Hero card */}
-        <View className="mb-6 items-center px-4">
-          <View className="w-full rounded-[40px] items-center justify-center py-8 px-6 bg-nileGreen-50 dark:bg-nileGreen-900/30 border border-nileGreen-100 dark:border-nileGreen-800/50">
-            <View className="mb-4">
-              <Skeleton width={80} height={80} borderRadius={24} />
-            </View>
-            <View className="mb-2">
-              <Skeleton width={160} height={22} borderRadius={4} />
-            </View>
-            <Skeleton width={100} height={14} borderRadius={4} />
-          </View>
-        </View>
-
-        {/* Form rows */}
         <View className="px-4">
+          {/* Compact account preview card */}
+          <View className="mb-5 rounded-[28px] bg-nileGreen-700 px-5 py-4">
+            <View className="flex-row items-center justify-between">
+              <View className="flex-1 flex-row items-center">
+                <Skeleton width={44} height={44} borderRadius={16} />
+                <View className="ms-3 flex-1">
+                  <Skeleton width="68%" height={18} borderRadius={5} />
+                  <View className="mt-2">
+                    <Skeleton width="42%" height={12} borderRadius={4} />
+                  </View>
+                </View>
+              </View>
+              <View className="ms-3 items-end">
+                <Skeleton width={36} height={12} borderRadius={4} />
+                <View className="mt-2">
+                  <Skeleton width={84} height={18} borderRadius={5} />
+                </View>
+              </View>
+            </View>
+          </View>
+
           <FormRowSkeleton />
           <FormRowSkeleton />
           <FormRowSkeleton />
+          <ProviderFieldSkeleton />
           <FormRowSkeleton />
+
+          {/* SMS detection section */}
+          <View className="mb-5 rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+            <View className="flex-row items-center px-4 py-4">
+              <Skeleton width={36} height={36} borderRadius={12} />
+              <View className="ms-3 flex-1">
+                <Skeleton width={148} height={16} borderRadius={4} />
+                <View className="mt-2">
+                  <Skeleton width="78%" height={12} borderRadius={4} />
+                </View>
+              </View>
+              <Skeleton width={18} height={18} borderRadius={9} />
+            </View>
+          </View>
 
           {/* Default toggle row */}
           <View className="flex-row items-center justify-between py-4 px-1 mb-3">
@@ -76,7 +110,7 @@ export function EditAccountSkeleton(): React.JSX.Element {
               <Skeleton width={22} height={22} borderRadius={11} />
               <View className="ms-3 flex-1">
                 <Skeleton width={130} height={16} borderRadius={4} />
-                <View style={{ marginTop: 6 }}>
+                <View className="mt-1.5">
                   <Skeleton width="80%" height={12} borderRadius={4} />
                 </View>
               </View>
@@ -87,10 +121,10 @@ export function EditAccountSkeleton(): React.JSX.Element {
           {/* Danger zone */}
           <View className="mt-8 rounded-2xl border border-red-200 dark:border-red-800/30 bg-red-50/50 dark:bg-red-900/10 p-4">
             <Skeleton width={110} height={14} borderRadius={4} />
-            <View style={{ marginTop: 8 }}>
+            <View className="mt-2">
               <Skeleton width="90%" height={14} borderRadius={4} />
             </View>
-            <View style={{ marginTop: 16 }}>
+            <View className="mt-4">
               <Skeleton width="100%" height={44} borderRadius={12} />
             </View>
           </View>

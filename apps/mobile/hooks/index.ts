@@ -26,6 +26,7 @@ export {
 } from "./useRecurringPayments";
 export { useKeyboardVisibility } from "./useKeyboardVisibility";
 export { useAccountForm } from "./useAccountForm";
+export { useEgyptianInstitutionEligibility } from "./useEgyptianInstitutionEligibility";
 export { useCreateAccount } from "./useCreateAccount";
 export { useAccountById } from "./useAccountById";
 export { useUpdateAccount } from "./useUpdateAccount";

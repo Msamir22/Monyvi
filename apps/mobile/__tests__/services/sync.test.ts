@@ -39,7 +39,10 @@ let selectResult: SupabaseResult = { data: [], error: null };
 jest.mock("@monyvi/db", () => ({
   schema: {
     tables: {
+      account_sms_senders: {},
+      accounts: {},
       asset_metals: {},
+      assets: {},
       profiles: {},
       transactions: {},
       transfers: {},
@@ -466,6 +469,183 @@ describe("syncDatabase", () => {
     );
     expect(mockWatermelonWhere).toHaveBeenCalledWith("deleted", false);
     expect(mockInsert).not.toHaveBeenCalled();
+  });
+
+  it("pushes parent account rows before new SMS sender child rows", async () => {
+    mockForeignProfilesFetch.mockResolvedValue([
+      { id: "account-1", user_id: "current-user", deleted: false },
+    ]);
+    mockInsert.mockResolvedValue({ error: null });
+    mockSynchronize.mockImplementation(
+      async (args: {
+        pushChanges: (input: {
+          changes: Record<string, unknown>;
+          lastPulledAt: number | null;
+        }) => Promise<unknown>;
+      }) => {
+        await args.pushChanges({
+          changes: {
+            account_sms_senders: {
+              created: [
+                {
+                  id: "sender-1",
+                  account_id: "account-1",
+                  sender_name: "CIB",
+                  normalized_sender_name: "cib",
+                  created_at: Date.UTC(2026, 0, 15, 10),
+                  updated_at: Date.UTC(2026, 0, 15, 10),
+                  deleted: false,
+                },
+              ],
+              updated: [],
+              deleted: [],
+            },
+            accounts: {
+              created: [
+                {
+                  id: "account-1",
+                  user_id: "current-user",
+                  name: "CIB",
+                  currency: "EGP",
+                  type: "BANK",
+                  balance: 0,
+                  created_at: Date.UTC(2026, 0, 15, 10),
+                  updated_at: Date.UTC(2026, 0, 15, 10),
+                  deleted: false,
+                },
+              ],
+              updated: [],
+              deleted: [],
+            },
+          },
+          lastPulledAt: null,
+        });
+      }
+    );
+
+    await expect(syncDatabase(mockDatabase)).resolves.toBeUndefined();
+
+    const pushedTables = mockFrom.mock.calls.map(
+      ([table]: readonly [string]) => table
+    );
+
+    expect(pushedTables).toEqual(["accounts", "account_sms_senders"]);
+  });
+
+  it("pushes same-table deletions before replacement creates", async () => {
+    mockInsert.mockResolvedValue({ error: null });
+    mockUpsert.mockResolvedValue({ error: null });
+    mockUpdateIn.mockResolvedValue({ error: null });
+    mockSynchronize.mockImplementation(
+      async (args: {
+        pushChanges: (input: {
+          changes: Record<string, unknown>;
+          lastPulledAt: number | null;
+        }) => Promise<unknown>;
+      }) => {
+        await args.pushChanges({
+          changes: {
+            accounts: {
+              created: [
+                {
+                  id: "account-new",
+                  user_id: "current-user",
+                  name: "Cash",
+                  currency: "EGP",
+                  institution_id: null,
+                  deleted: false,
+                },
+              ],
+              updated: [
+                {
+                  id: "account-old",
+                  user_id: "current-user",
+                  name: "Cash",
+                  currency: "EGP",
+                  institution_id: null,
+                  deleted: true,
+                },
+              ],
+              deleted: ["account-hard-deleted"],
+            },
+          },
+          lastPulledAt: null,
+        });
+      }
+    );
+
+    await expect(syncDatabase(mockDatabase)).resolves.toBeUndefined();
+
+    expect(mockUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "account-old",
+        deleted: true,
+      }),
+      { onConflict: "id" }
+    );
+    expect(mockUpdateIn).toHaveBeenCalledWith("id", ["account-hard-deleted"]);
+    expect(mockInsert).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: "account-new",
+        deleted: false,
+      }),
+    ]);
+    expect(mockUpsert.mock.invocationCallOrder[0]).toBeLessThan(
+      mockInsert.mock.invocationCallOrder[0]
+    );
+    expect(mockUpdateIn.mock.invocationCallOrder[0]).toBeLessThan(
+      mockInsert.mock.invocationCallOrder[0]
+    );
+  });
+
+  it("allows child-table soft-delete updates when the owned parent is already soft-deleted", async () => {
+    mockForeignProfilesFetch.mockResolvedValue([
+      { id: "account-1", user_id: "current-user", deleted: true },
+    ]);
+    mockUpsert.mockResolvedValue({ error: null });
+    mockSynchronize.mockImplementation(
+      async (args: {
+        pushChanges: (input: {
+          changes: Record<string, unknown>;
+          lastPulledAt: number | null;
+        }) => Promise<unknown>;
+      }) => {
+        await args.pushChanges({
+          changes: {
+            account_sms_senders: {
+              created: [],
+              updated: [
+                {
+                  id: "sender-1",
+                  account_id: "account-1",
+                  sender_name: "CIB",
+                  normalized_sender_name: "cib",
+                  created_at: Date.UTC(2026, 0, 15, 10),
+                  updated_at: Date.UTC(2026, 0, 15, 11),
+                  deleted: true,
+                },
+              ],
+              deleted: [],
+            },
+          },
+          lastPulledAt: null,
+        });
+      }
+    );
+
+    await expect(syncDatabase(mockDatabase)).resolves.toBeUndefined();
+
+    expect(mockDatabaseGet).toHaveBeenCalledWith("accounts");
+    expect(mockWatermelonWhere).toHaveBeenCalledWith("user_id", "current-user");
+    expect(mockWatermelonWhere).not.toHaveBeenCalledWith("deleted", false);
+    expect(mockUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "sender-1",
+        account_id: "account-1",
+        deleted: true,
+      }),
+      { onConflict: "id" }
+    );
   });
 
   it("rejects child-table updates when parent lookup fails", async () => {

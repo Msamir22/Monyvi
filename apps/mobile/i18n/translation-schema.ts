@@ -253,6 +253,7 @@ interface AccountsTranslations {
   readonly edit_account: string;
   readonly account_count: PluralKeys;
   readonly balance: string;
+  readonly account_preview: string;
   readonly account_name: string;
   readonly account_name_placeholder_cash: string;
   readonly account_name_placeholder_bank: string;
@@ -271,6 +272,39 @@ interface AccountsTranslations {
   readonly initial_balance: string;
   readonly account_number: string;
   readonly bank_name: string;
+  readonly sms_sender_names: string;
+  readonly sms_sender_help: string;
+  readonly sms_matching_optional: string;
+  readonly sms_matching_help: string;
+  readonly provider_details_section: string;
+  readonly provider_details_help: string;
+  readonly provider_details_info: string;
+  readonly institution_bank_label: string;
+  readonly institution_wallet_label: string;
+  readonly institution_bank_help: string;
+  readonly institution_wallet_help: string;
+  readonly institution_dropdown_placeholder: string;
+  readonly institution_dropdown_accessibility: string;
+  readonly institution_dropdown_close: string;
+  readonly institution_bank_dropdown_placeholder: string;
+  readonly institution_bank_dropdown_accessibility: string;
+  readonly institution_bank_dropdown_close: string;
+  readonly institution_wallet_dropdown_placeholder: string;
+  readonly institution_wallet_dropdown_accessibility: string;
+  readonly institution_wallet_dropdown_close: string;
+  readonly institution_search_placeholder: string;
+  readonly institution_other: string;
+  readonly provider_name: string;
+  readonly manual_bank_name: string;
+  readonly manual_wallet_name: string;
+  readonly provider_name_placeholder_bank: string;
+  readonly provider_name_placeholder_wallet: string;
+  readonly sender_add_placeholder: string;
+  readonly sender_add_accessibility: string;
+  readonly sender_add_action: string;
+  readonly sender_remove_accessibility: string;
+  readonly sender_duplicate_error: string;
+  readonly sender_unverified: string;
   readonly add_new_account: string;
   readonly no_accounts_title: string;
   readonly no_accounts_message: string;
@@ -292,6 +326,7 @@ interface AccountsTranslations {
   readonly account_type_bank: string;
   readonly account_type_digital_wallet: string;
   readonly account_type_cash: string;
+  readonly validation_provider_display_name_required: string;
 }
 
 /** Settings namespace */
@@ -616,7 +651,6 @@ interface AuthTranslations {
   readonly sign_up_button: string;
   readonly guest_button: string;
   readonly account_created: string;
-  readonly signed_in_success: string;
   readonly verification_email_sent: string;
   readonly resend_verification_failed: string;
   readonly reset_email_failed: string;

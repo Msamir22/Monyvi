@@ -16,6 +16,7 @@ import { SectionErrorBoundary } from "@/components/ui/SectionErrorBoundary";
 import { StarryBackground } from "@/components/ui/StarryBackground";
 import { useToast } from "@/components/ui/Toast";
 import { palette } from "@/constants/colors";
+import type { InstitutionLogo } from "@/constants/egyptian-institution-assets";
 import { TAB_BAR_HEIGHT } from "@/constants/ui";
 
 import { useTopAccounts } from "@/hooks/useAccounts";
@@ -28,11 +29,12 @@ import { useSmsSync } from "@/hooks/useSmsSync";
 import { useRecentTransactions } from "@/hooks/useTransactions";
 import { useDatabaseReady } from "@/providers/DatabaseProvider";
 import { useSync } from "@/providers/SyncProvider";
+import { resolveAccountInstitutionPresentation } from "@/utils/account-institution-presentation";
 import { logger } from "@/utils/logger";
 import type { CurrencyType } from "@monyvi/db";
 import { CURRENCY_INFO_MAP } from "@monyvi/logic";
 import { useRouter } from "expo-router";
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { RefreshControl, ScrollView, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
@@ -162,6 +164,15 @@ export default function DashboardScreen(): React.JSX.Element {
     }
   }, [sync, showToast, t]);
 
+  const institutionLogosByAccountId = useMemo(() => {
+    const logos = new Map<string, InstitutionLogo | null>();
+    for (const account of accounts) {
+      const presentation = resolveAccountInstitutionPresentation(account);
+      logos.set(account.id, presentation?.asset.logo ?? null);
+    }
+    return logos;
+  }, [accounts]);
+
   // Overall loading state
   const isLoading = accountsLoading || ratesLoading || netWorthLoading;
 
@@ -238,6 +249,7 @@ export default function DashboardScreen(): React.JSX.Element {
             <AccountsSection
               accounts={accounts}
               isLoading={accountsLoading}
+              institutionLogosByAccountId={institutionLogosByAccountId}
               cashAccountRef={cashAccountRef}
             />
           </SectionErrorBoundary>

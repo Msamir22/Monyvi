@@ -263,5 +263,100 @@ export const migrations = schemaMigrations({
         ),
       ],
     },
+    {
+      toVersion: 21,
+      steps: [
+        addColumns({
+          table: "accounts",
+          columns: [
+            { name: "institution_id", type: "string", isOptional: true },
+            {
+              name: "provider_display_name",
+              type: "string",
+              isOptional: true,
+            },
+          ],
+        }),
+        createTable({
+          name: "account_sms_senders",
+          columns: [
+            { name: "account_id", type: "string", isIndexed: true },
+            { name: "created_at", type: "number" },
+            { name: "deleted", type: "boolean" },
+            { name: "normalized_sender_name", type: "string", isIndexed: true },
+            { name: "sender_name", type: "string" },
+            { name: "updated_at", type: "number" },
+          ],
+        }),
+        unsafeExecuteSql(
+          `update "accounts"
+set
+  "provider_display_name" = (
+    select trim("bank_details"."bank_name")
+    from "bank_details"
+    where "bank_details"."account_id" = "accounts"."id"
+      and coalesce("bank_details"."deleted", 0) != 1
+      and "bank_details"."bank_name" is not null
+      and trim("bank_details"."bank_name") != ''
+    order by "bank_details"."created_at" asc
+    limit 1
+  ),
+  "_status" = case
+    when "_status" = 'created' then 'created'
+    else 'updated'
+  end,
+  "_changed" = case
+    when "_status" = 'created' then "_changed"
+    when "_changed" is null or "_changed" = '' then 'provider_display_name'
+    when instr(',' || "_changed" || ',', ',provider_display_name,') > 0 then "_changed"
+    else "_changed" || ',provider_display_name'
+  end
+where ("provider_display_name" is null or trim("provider_display_name") = '')
+  and exists (
+    select 1
+    from "bank_details"
+    where "bank_details"."account_id" = "accounts"."id"
+      and coalesce("bank_details"."deleted", 0) != 1
+      and "bank_details"."bank_name" is not null
+      and trim("bank_details"."bank_name") != ''
+  );`
+        ),
+        unsafeExecuteSql(
+          `insert or ignore into "account_sms_senders" (
+  "id",
+  "account_id",
+  "sender_name",
+  "normalized_sender_name",
+  "created_at",
+  "updated_at",
+  "deleted",
+  "_status",
+  "_changed"
+)
+select
+  lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(6))),
+  "bank_details"."account_id",
+  trim("bank_details"."sms_sender_name"),
+  lower(trim("bank_details"."sms_sender_name")),
+  coalesce("bank_details"."created_at", strftime('%s', 'now') * 1000),
+  coalesce("bank_details"."updated_at", strftime('%s', 'now') * 1000),
+  0,
+  case
+    when "accounts"."_status" = 'created' then 'created'
+    when coalesce("bank_details"."_status", 'synced') != 'synced' then 'created'
+    else 'synced'
+  end,
+  ''
+from "bank_details"
+join "accounts" on "accounts"."id" = "bank_details"."account_id"
+where coalesce("bank_details"."deleted", 0) != 1
+  and "bank_details"."sms_sender_name" is not null
+  and trim("bank_details"."sms_sender_name") != '';`
+        ),
+        unsafeExecuteSql(
+          'create unique index if not exists "account_sms_senders_one_active_normalized" on "account_sms_senders" ("account_id", "normalized_sender_name") where coalesce("deleted", 0) != 1;'
+        ),
+      ],
+    },
   ],
 });

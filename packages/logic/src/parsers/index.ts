@@ -13,5 +13,19 @@ export {
   type SmsFingerprintInput,
 } from "./sms-hash";
 export { isLikelyFinancialSms } from "./sms-keyword-filter";
-export { isKnownFinancialSender } from "./egyptian-bank-registry";
-export type { BankInfo } from "./egyptian-bank-registry";
+export {
+  EGYPTIAN_FINANCIAL_INSTITUTIONS,
+  getAllFinancialSenders,
+  getInstitutionById,
+  getSelectableEgyptianInstitutions,
+  getSenderPatternsForInstitution,
+  isKnownFinancialSender,
+} from "./egyptian-bank-registry";
+export type {
+  BankInfo,
+  EgyptianFinancialInstitution,
+  EgyptianInstitutionAuditStatus,
+  EgyptianInstitutionId,
+  EgyptianInstitutionType,
+  SelectableEgyptianInstitutionId,
+} from "./egyptian-bank-registry";

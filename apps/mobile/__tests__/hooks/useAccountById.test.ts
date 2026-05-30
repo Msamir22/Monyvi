@@ -34,9 +34,18 @@ interface MockBankDetails {
 interface MockAccount {
   readonly id: string;
   readonly userId: string;
+  readonly type: "BANK" | "CASH" | "DIGITAL_WALLET";
   readonly isBank: boolean;
+  readonly isDigitalWallet?: boolean;
+  readonly providerDisplayName?: string;
   readonly bankDetails: {
-    readonly fetch: jest.Mock<Promise<MockBankDetails[]>, []>;
+    readonly fetch?: jest.Mock<Promise<MockBankDetails[]>, []>;
+  };
+  readonly accountSmsSenders?: {
+    readonly fetch?: jest.Mock<
+      Promise<Array<{ senderName: string; deleted: boolean }>>,
+      []
+    >;
   };
 }
 
@@ -51,6 +60,7 @@ interface UseAccountByIdResult {
     readonly bankName: string;
     readonly cardLast4: string;
     readonly smsSenderName: string;
+    readonly smsSenderNames: readonly string[];
   } | null;
   readonly isLoading: boolean;
 }
@@ -129,9 +139,16 @@ describe("useAccountById", () => {
     const account: MockAccount = {
       id: "acc-1",
       userId: "user-1",
+      type: "BANK",
       isBank: true,
+      providerDisplayName: "CIB",
       bankDetails: {
         fetch: jest.fn(() => deferredDetails.promise),
+      },
+      accountSmsSenders: {
+        fetch: jest.fn(() =>
+          Promise.resolve([{ senderName: "CIBSMS", deleted: false }])
+        ),
       },
     };
     const { result } = renderHook("acc-1");
@@ -147,9 +164,7 @@ describe("useAccountById", () => {
     await RTR.act(async () => {
       deferredDetails.resolve([
         {
-          bankName: "CIB",
           cardLast4: "1234",
-          smsSenderName: "CIBSMS",
         },
       ]);
       await deferredDetails.promise;
@@ -160,6 +175,7 @@ describe("useAccountById", () => {
       bankName: "CIB",
       cardLast4: "1234",
       smsSenderName: "CIBSMS",
+      smsSenderNames: ["CIBSMS"],
     });
   });
 
@@ -167,16 +183,21 @@ describe("useAccountById", () => {
     const account: MockAccount = {
       id: "acc-1",
       userId: "user-1",
+      type: "BANK",
       isBank: true,
+      providerDisplayName: "CIB",
       bankDetails: {
         fetch: jest.fn(() =>
           Promise.resolve([
             {
-              bankName: "CIB",
               cardLast4: "1234",
-              smsSenderName: "CIBSMS",
             },
           ])
+        ),
+      },
+      accountSmsSenders: {
+        fetch: jest.fn(() =>
+          Promise.resolve([{ senderName: "CIBSMS", deleted: false }])
         ),
       },
     };
@@ -195,10 +216,37 @@ describe("useAccountById", () => {
     expect(account.bankDetails.fetch).toHaveBeenCalledTimes(1);
   });
 
+  it("uses empty relation rows when a fallback relation cannot fetch", async () => {
+    const account: MockAccount = {
+      id: "acc-1",
+      userId: "user-1",
+      type: "BANK",
+      isBank: true,
+      providerDisplayName: "CIB",
+      bankDetails: {},
+      accountSmsSenders: {},
+    };
+    const { result } = renderHook("acc-1");
+
+    await RTR.act(async () => {
+      activeObserver?.next(account);
+      await Promise.resolve();
+    });
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.bankDetails).toEqual({
+      bankName: "CIB",
+      cardLast4: undefined,
+      smsSenderName: "",
+      smsSenderNames: [],
+    });
+  });
+
   it("treats a foreign account id as not found", () => {
     const account: MockAccount = {
       id: "acc-foreign",
       userId: "other-user",
+      type: "CASH",
       isBank: false,
       bankDetails: {
         fetch: jest.fn(() => Promise.resolve([])),

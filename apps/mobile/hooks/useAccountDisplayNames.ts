@@ -59,12 +59,18 @@ export function useAccountDisplayName(account: Account | null): string {
         id: a.id,
         name: a.name,
         currency: a.currency,
+        type: a.type,
+        institutionId: a.institutionId ?? null,
+        providerDisplayName: a.providerDisplayName ?? null,
       })
     );
     const target: AccountDisplayInput = {
       id: account.id,
       name: account.name,
       currency: account.currency,
+      type: account.type,
+      institutionId: account.institutionId ?? null,
+      providerDisplayName: account.providerDisplayName ?? null,
     };
     return resolveAccountDisplayName(target, visible);
   }, [account, accounts]);

@@ -28,6 +28,7 @@ const E2E_TABLE_DELETE_ORDER = [
   "daily_snapshot_assets",
   "daily_snapshot_balance",
   "daily_snapshot_net_worth",
+  "account_sms_senders",
   "bank_details",
   "accounts",
   "user_category_settings",
@@ -65,6 +66,11 @@ function buildSeedIds(userId) {
     bankDetails: {
       nbe: deterministicUuid(userId, "bank-detail:nbe"),
       qnb: deterministicUuid(userId, "bank-detail:qnb"),
+    },
+    accountSmsSenders: {
+      nbe: deterministicUuid(userId, "account-sms-sender:nbe"),
+      qnb: deterministicUuid(userId, "account-sms-sender:qnb"),
+      wallet: deterministicUuid(userId, "account-sms-sender:wallet"),
     },
     transactions: {
       expense: deterministicUuid(userId, "transaction:expense"),
@@ -326,6 +332,29 @@ async function deleteScopedRows(client, table, userId, seedIds) {
     );
   }
 
+  if (table === "account_sms_senders") {
+    const deleteBuilder = client.from(table).delete();
+    if (typeof deleteBuilder.in !== "function") {
+      const fallbackDeleteResults = await Promise.all(
+        Object.values(seedIds.accounts).map((accountId) =>
+          client.from(table).delete().eq("account_id", accountId)
+        )
+      );
+
+      await Promise.all(
+        fallbackDeleteResults.map((result) =>
+          assertNoError(result, `delete ${table}`)
+        )
+      );
+      return;
+    }
+
+    return assertNoError(
+      await deleteBuilder.in("account_id", Object.values(seedIds.accounts)),
+      `delete ${table}`
+    );
+  }
+
   return assertNoError(
     await client.from(table).delete().eq("user_id", userId),
     `delete ${table}`
@@ -429,6 +458,8 @@ function buildSeedRows(userId) {
         type: "BANK",
         balance: 12430.55,
         currency: "EGP",
+        institution_id: "nbe",
+        provider_display_name: "NBE",
         is_default: false,
         deleted: false,
         created_at: FIXED_NOW,
@@ -441,6 +472,8 @@ function buildSeedRows(userId) {
         type: "BANK",
         balance: 3200,
         currency: "EGP",
+        institution_id: "qnb-egypt",
+        provider_display_name: "QNB",
         is_default: false,
         deleted: false,
         created_at: FIXED_NOW,
@@ -453,6 +486,8 @@ function buildSeedRows(userId) {
         type: "DIGITAL_WALLET",
         balance: 950,
         currency: "EGP",
+        institution_id: "vodafone-cash",
+        provider_display_name: "Vodafone Cash",
         is_default: false,
         deleted: false,
         created_at: FIXED_NOW,
@@ -463,9 +498,7 @@ function buildSeedRows(userId) {
       {
         id: seedIds.bankDetails.nbe,
         account_id: seedIds.accounts.bank,
-        bank_name: "NBE",
         card_last_4: "4321",
-        sms_sender_name: "NBE",
         account_number: "00004321",
         deleted: false,
         created_at: FIXED_NOW,
@@ -474,10 +507,37 @@ function buildSeedRows(userId) {
       {
         id: seedIds.bankDetails.qnb,
         account_id: seedIds.accounts.qnbBank,
-        bank_name: "QNB",
         card_last_4: "5566",
-        sms_sender_name: "QNB",
         account_number: "00005566",
+        deleted: false,
+        created_at: FIXED_NOW,
+        updated_at: FIXED_NOW,
+      },
+    ],
+    accountSmsSenders: [
+      {
+        id: seedIds.accountSmsSenders.nbe,
+        account_id: seedIds.accounts.bank,
+        sender_name: "NBE",
+        normalized_sender_name: "nbe",
+        deleted: false,
+        created_at: FIXED_NOW,
+        updated_at: FIXED_NOW,
+      },
+      {
+        id: seedIds.accountSmsSenders.qnb,
+        account_id: seedIds.accounts.qnbBank,
+        sender_name: "QNB",
+        normalized_sender_name: "qnb",
+        deleted: false,
+        created_at: FIXED_NOW,
+        updated_at: FIXED_NOW,
+      },
+      {
+        id: seedIds.accountSmsSenders.wallet,
+        account_id: seedIds.accounts.wallet,
+        sender_name: "VodafoneCash",
+        normalized_sender_name: "vodafonecash",
         deleted: false,
         created_at: FIXED_NOW,
         updated_at: FIXED_NOW,
@@ -553,6 +613,9 @@ async function seedE2eData(client, config) {
   });
   await upsertRows(client, "accounts", rows.accounts, { onConflict: "id" });
   await upsertRows(client, "bank_details", rows.bankDetails, {
+    onConflict: "id",
+  });
+  await upsertRows(client, "account_sms_senders", rows.accountSmsSenders, {
     onConflict: "id",
   });
   await upsertRows(client, "transactions", rows.transactions, {
