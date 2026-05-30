@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type JSX } from "react";
+import { useMemo, useState, type JSX } from "react";
 import { Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
@@ -22,20 +22,17 @@ export function SenderChipsField({
   const { t } = useTranslation("accounts");
   const [inputValue, setInputValue] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [hasPendingUnverifiedSender, setHasPendingUnverifiedSender] =
-    useState(false);
   const normalizedVerifiedSenders = useMemo(
     () => new Set(verifiedSenders.map(normalizeSenderName)),
     [verifiedSenders]
   );
-
-  useEffect(() => {
-    setHasPendingUnverifiedSender(
+  const hasPendingUnverifiedSender = useMemo(
+    () =>
       value.some(
         (sender) => !normalizedVerifiedSenders.has(normalizeSenderName(sender))
-      )
-    );
-  }, [value, normalizedVerifiedSenders]);
+      ),
+    [normalizedVerifiedSenders, value]
+  );
 
   const addSender = (): void => {
     const trimmed = inputValue.trim();
@@ -50,7 +47,6 @@ export function SenderChipsField({
     }
 
     setError(null);
-    setHasPendingUnverifiedSender(!normalizedVerifiedSenders.has(normalized));
     onChange([...value, trimmed]);
     setInputValue("");
   };

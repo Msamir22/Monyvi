@@ -10,7 +10,6 @@ import { AccountsSectionSkeleton } from "@/components/dashboard/skeletons/Accoun
 import type { InstitutionLogo } from "@/constants/egyptian-institution-assets";
 import { buildAccountDisplayNames } from "@/utils/account-display";
 import { formatAccountBalance } from "@/utils/financial-display";
-import { resolveAccountInstitutionPresentation } from "@/utils/account-institution-presentation";
 import { EmptyStateCard } from "../ui/EmptyStateCard";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -31,6 +30,10 @@ const ICON_CONTAINER_SIZE = 40;
 interface AccountsSectionProps {
   accounts: Account[];
   isLoading: boolean;
+  readonly institutionLogosByAccountId?: ReadonlyMap<
+    string,
+    InstitutionLogo | null
+  >;
   /** Optional ref to the cash-account card for tooltip anchoring. */
   readonly cashAccountRef?: React.RefObject<View | null>;
 }
@@ -160,6 +163,7 @@ function AccountCard({ data, width }: AccountCardProps): React.JSX.Element {
 function AccountsSectionComponent({
   accounts,
   isLoading,
+  institutionLogosByAccountId,
   cashAccountRef,
 }: AccountsSectionProps): React.JSX.Element {
   const { t } = useTranslation("accounts");
@@ -177,8 +181,6 @@ function AccountsSectionComponent({
   const cardData: AccountCardData[] = useMemo(() => {
     return accounts.slice(0, 3).map((account) => {
       const config = getAccountTypeConfig(account.type);
-      const institutionPresentation =
-        resolveAccountInstitutionPresentation(account);
       return {
         id: account.id,
         name: displayNames.get(account.id) ?? account.name,
@@ -186,10 +188,10 @@ function AccountsSectionComponent({
         type: account.type,
         gradient: config.gradient,
         iconName: config.iconName,
-        institutionLogo: institutionPresentation?.asset.logo ?? null,
+        institutionLogo: institutionLogosByAccountId?.get(account.id) ?? null,
       };
     });
-  }, [accounts, displayNames]);
+  }, [accounts, displayNames, institutionLogosByAccountId]);
 
   const handleSeeAll = useCallback((): void => {
     router.push("/accounts");

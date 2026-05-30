@@ -52,13 +52,22 @@ describe("SenderChipsField", () => {
   it("allows unknown custom senders with an unverified hint", () => {
     const onChange = jest.fn();
 
-    render(
-      <SenderChipsField
-        value={[]}
-        verifiedSenders={["CIB"]}
-        onChange={onChange}
-      />
-    );
+    function ControlledField(): JSX.Element {
+      const [senders, setSenders] = useState<readonly string[]>([]);
+
+      return (
+        <SenderChipsField
+          value={senders}
+          verifiedSenders={["CIB"]}
+          onChange={(nextSenders) => {
+            onChange(nextSenders);
+            setSenders(nextSenders);
+          }}
+        />
+      );
+    }
+
+    render(<ControlledField />);
 
     fireEvent.changeText(
       screen.getByPlaceholderText("Add sender"),
@@ -67,7 +76,7 @@ describe("SenderChipsField", () => {
     fireEvent.press(screen.getByLabelText("Add sender"));
 
     expect(onChange).toHaveBeenCalledWith(["CustomSMS"]);
-    expect(screen.getByText("Unverified sender")).toBeTruthy();
+    expect(screen.getAllByText("Unverified sender").length).toBeGreaterThan(0);
   });
 
   it("clears the unverified hint after removing the custom sender", () => {

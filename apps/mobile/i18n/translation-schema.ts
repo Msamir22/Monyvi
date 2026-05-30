@@ -326,6 +326,7 @@ interface AccountsTranslations {
   readonly account_type_bank: string;
   readonly account_type_digital_wallet: string;
   readonly account_type_cash: string;
+  readonly validation_provider_display_name_required: string;
 }
 
 /** Settings namespace */

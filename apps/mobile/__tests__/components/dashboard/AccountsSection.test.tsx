@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react-native";
 import type { Account } from "@monyvi/db";
 
 import { AccountsSection } from "../../../components/dashboard/AccountsSection";
+import { getEgyptianInstitutionAsset } from "../../../constants/egyptian-institution-assets";
 
 jest.mock("expo-router", () => ({
   router: {
@@ -38,7 +39,20 @@ function account(overrides: Partial<Account>): Account {
 
 describe("AccountsSection", () => {
   it("renders known provider logos on dashboard account cards", () => {
-    render(<AccountsSection accounts={[account({})]} isLoading={false} />);
+    const institutionLogosByAccountId = new Map([
+      [
+        "account-1",
+        getEgyptianInstitutionAsset("vodafone-cash", "wallet").logo,
+      ],
+    ]);
+
+    render(
+      <AccountsSection
+        accounts={[account({})]}
+        isLoading={false}
+        institutionLogosByAccountId={institutionLogosByAccountId}
+      />
+    );
 
     expect(
       screen.getByTestId("dashboard-account-provider-logo-account-1")
