@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import type { AccountType } from "@monyvi/db";
 import type { JSX } from "react";
-import { Text, TouchableOpacity, View } from "react-native";
+import { Text, TouchableOpacity, View, type ViewStyle } from "react-native";
 import { useTranslation } from "react-i18next";
 
 import { ACCOUNT_TYPES } from "@/constants/accounts";
@@ -19,6 +19,17 @@ const ACCOUNT_TYPE_LABEL_KEYS = {
   BANK: "type_bank",
   DIGITAL_WALLET: "type_digital_wallet",
 } as const;
+
+function getSelectedRowStyle(
+  isSelected: boolean,
+  isDark: boolean
+): ViewStyle | undefined {
+  if (!isSelected || !isDark) {
+    return undefined;
+  }
+
+  return { backgroundColor: `${palette.nileGreen[900]}33` };
+}
 
 export function AccountTypeSelector({
   value,
@@ -55,10 +66,9 @@ export function AccountTypeSelector({
                   ? "border-t border-slate-200 dark:border-slate-700"
                   : ""
               } ${
-                isSelected
-                  ? "bg-nileGreen-50 dark:bg-nileGreen-900/20"
-                  : "bg-white dark:bg-slate-800"
+                isSelected ? "bg-nileGreen-50" : "bg-white dark:bg-slate-800"
               }`}
+              style={getSelectedRowStyle(isSelected, isDark)}
             >
               <View
                 className={`me-3 h-9 w-9 items-center justify-center rounded-xl ${
