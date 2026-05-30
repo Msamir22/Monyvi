@@ -5,7 +5,7 @@ import {
 import {
   resolveAccountInstitutionPresentation,
   type AccountInstitutionSource,
-} from "../../services/account-institution-read-model-service";
+} from "../../utils/account-institution-presentation";
 
 function source(
   overrides: Partial<AccountInstitutionSource>
@@ -43,6 +43,24 @@ describe("account institution read model", () => {
         kind: "wallet",
         providerLabel: "e& money (e& money)",
         asset: EGYPTIAN_INSTITUTION_ASSETS["e-and-cash"],
+      })
+    );
+  });
+
+  it("ignores known provider ids that do not match the account type", () => {
+    const presentation = resolveAccountInstitutionPresentation(
+      source({
+        type: "DIGITAL_WALLET",
+        institutionId: "cib",
+        providerDisplayName: "My wallet",
+      })
+    );
+
+    expect(presentation).toEqual(
+      expect.objectContaining({
+        kind: "wallet",
+        providerLabel: "My wallet",
+        asset: DEFAULT_EGYPTIAN_INSTITUTION_ASSETS.wallet,
       })
     );
   });

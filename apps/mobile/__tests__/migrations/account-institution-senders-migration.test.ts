@@ -71,8 +71,9 @@ describe("account institution and sender migration", () => {
     const sql = readMigrationSql();
 
     expect(sql).toMatch(
-      /WITH duplicate_manual_accounts AS \([\s\S]*row_number\(\) OVER \([\s\S]*PARTITION BY user_id, lower\(name\), currency[\s\S]*UPDATE public\.accounts[\s\S]*deleted = true[\s\S]*duplicate_rank > 1/m
+      /RAISE EXCEPTION 'Cannot create manual account uniqueness index while duplicate active manual accounts exist'/m
     );
+    expect(sql).not.toMatch(/UPDATE public\.accounts[\s\S]*deleted = true/m);
     expect(sql).toMatch(
       /CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_unique_known_provider[\s\S]*ON public\.accounts \(user_id, lower\(name\), currency, institution_id\)[\s\S]*WHERE deleted = false AND institution_id IS NOT NULL/m
     );
@@ -86,5 +87,8 @@ describe("account institution and sender migration", () => {
     expect(JSON.stringify(migrations)).toContain("account_sms_senders");
     expect(JSON.stringify(migrations)).toContain("institution_id");
     expect(JSON.stringify(migrations)).toContain("provider_display_name");
+    expect(JSON.stringify(migrations)).toContain(
+      "account_sms_senders_one_active_normalized"
+    );
   });
 });

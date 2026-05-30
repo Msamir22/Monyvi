@@ -2,15 +2,24 @@ const { createClient } = require("@supabase/supabase-js");
 
 const { getE2eSeedConfig, resetE2eData, seedE2eData } = require("./e2e-seed");
 
-const MANUAL_QA_EMAIL = "manual-qa@monyvi.test";
-const MANUAL_QA_PASSWORD = "manualqa2026";
+const DEFAULT_MANUAL_QA_EMAIL = "manual-qa@monyvi.test";
+
+function requireManualQaPassword(env) {
+  if (!env.MANUAL_QA_PASSWORD) {
+    throw new Error(
+      "Set MANUAL_QA_PASSWORD before running manual QA seed scripts."
+    );
+  }
+
+  return env.MANUAL_QA_PASSWORD;
+}
 
 function getManualQaSeedConfig(env = process.env) {
   return getE2eSeedConfig({
     ...env,
     E2E_SUPABASE_MODE: "local",
-    MAESTRO_E2E_EMAIL: MANUAL_QA_EMAIL,
-    MAESTRO_E2E_PASSWORD: MANUAL_QA_PASSWORD,
+    MAESTRO_E2E_EMAIL: env.MANUAL_QA_EMAIL ?? DEFAULT_MANUAL_QA_EMAIL,
+    MAESTRO_E2E_PASSWORD: requireManualQaPassword(env),
   });
 }
 
@@ -47,7 +56,6 @@ if (require.main === module) {
 }
 
 module.exports = {
-  MANUAL_QA_EMAIL,
-  MANUAL_QA_PASSWORD,
+  DEFAULT_MANUAL_QA_EMAIL,
   getManualQaSeedConfig,
 };

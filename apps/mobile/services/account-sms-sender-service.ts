@@ -50,6 +50,15 @@ export async function replaceAccountSmsSendersWithinWriter(
   currentUserId: string,
   senderNames: readonly string[]
 ): Promise<void> {
+  const desiredSenderNames = uniqueTrimmedSenderNames(senderNames);
+  const desiredByNormalizedSender = new Map<string, string>();
+  for (const senderName of desiredSenderNames) {
+    desiredByNormalizedSender.set(
+      normalizeAccountSmsSender(senderName),
+      senderName
+    );
+  }
+
   const activeSenders = await queryChildrenOfOwnedParent(
     database.get<AccountSmsSender>("account_sms_senders"),
     account,
@@ -58,11 +67,45 @@ export async function replaceAccountSmsSendersWithinWriter(
     Q.where("deleted", false)
   ).fetch();
 
+  const activeByNormalizedSender = new Map<string, AccountSmsSender>();
   for (const sender of activeSenders) {
-    await sender.update((draft) => {
-      draft.deleted = true;
-    });
+    const normalized = normalizeAccountSmsSender(sender.senderName);
+    if (!activeByNormalizedSender.has(normalized)) {
+      activeByNormalizedSender.set(normalized, sender);
+    }
   }
 
-  await createAccountSmsSendersWithinWriter(account.id, senderNames);
+  for (const sender of activeSenders) {
+    const normalized = normalizeAccountSmsSender(sender.senderName);
+    const desiredSenderName = desiredByNormalizedSender.get(normalized);
+
+    if (desiredSenderName === undefined) {
+      await sender.update((draft) => {
+        draft.deleted = true;
+      });
+      continue;
+    }
+
+    if (sender.senderName !== desiredSenderName) {
+      await sender.update((draft) => {
+        draft.senderName = desiredSenderName;
+        draft.normalizedSenderName = normalized;
+      });
+    }
+  }
+
+  for (const [normalized, senderName] of desiredByNormalizedSender) {
+    if (activeByNormalizedSender.has(normalized)) {
+      continue;
+    }
+
+    await database
+      .get<AccountSmsSender>("account_sms_senders")
+      .create((sender) => {
+        sender.accountId = account.id;
+        sender.senderName = senderName;
+        sender.normalizedSenderName = normalized;
+        sender.deleted = false;
+      });
+  }
 }

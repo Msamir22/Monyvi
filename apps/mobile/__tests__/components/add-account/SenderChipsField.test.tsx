@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react-native";
+import { useState, type JSX } from "react";
 
 import { SenderChipsField } from "../../../components/add-account/SenderChipsField";
 
@@ -6,13 +7,17 @@ const translations: Record<string, string> = {
   sender_add_placeholder: "Add sender",
   sender_add_accessibility: "Add sender",
   sender_add_action: "Add",
+  sender_remove_accessibility: "Remove {{sender}}",
   sender_duplicate_error: "This sender is already added",
   sender_unverified: "Unverified sender",
 };
 
 jest.mock("react-i18next", () => ({
-  useTranslation: (): { readonly t: (key: string) => string } => ({
-    t: (key: string): string => translations[key] ?? key,
+  useTranslation: (): {
+    readonly t: (key: string, options?: Record<string, string>) => string;
+  } => ({
+    t: (key: string, options?: Record<string, string>): string =>
+      (translations[key] ?? key).replace("{{sender}}", options?.sender ?? ""),
   }),
 }));
 
@@ -63,5 +68,32 @@ describe("SenderChipsField", () => {
 
     expect(onChange).toHaveBeenCalledWith(["CustomSMS"]);
     expect(screen.getByText("Unverified sender")).toBeTruthy();
+  });
+
+  it("clears the unverified hint after removing the custom sender", () => {
+    function ControlledField(): JSX.Element {
+      const [senders, setSenders] = useState<readonly string[]>([]);
+
+      return (
+        <SenderChipsField
+          value={senders}
+          verifiedSenders={["CIB"]}
+          onChange={setSenders}
+        />
+      );
+    }
+
+    render(<ControlledField />);
+
+    fireEvent.changeText(
+      screen.getByPlaceholderText("Add sender"),
+      "CustomSMS"
+    );
+    fireEvent.press(screen.getByLabelText("Add sender"));
+    expect(screen.getAllByText("Unverified sender").length).toBeGreaterThan(0);
+
+    fireEvent.press(screen.getByLabelText("Remove CustomSMS"));
+
+    expect(screen.queryByText("Unverified sender")).toBeNull();
   });
 });

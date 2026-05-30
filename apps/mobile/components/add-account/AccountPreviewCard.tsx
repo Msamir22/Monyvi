@@ -4,7 +4,8 @@ import {
   type SelectableEgyptianInstitutionId,
 } from "@monyvi/logic";
 import type { AccountType } from "@monyvi/db";
-import type { JSX } from "react";
+import type { ComponentType, JSX } from "react";
+import type { SvgProps } from "react-native-svg";
 import { Image, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
@@ -44,6 +45,10 @@ function getInstitutionKind(
   return null;
 }
 
+function isSvgComponent(source: unknown): source is ComponentType<SvgProps> {
+  return typeof source === "function";
+}
+
 function formatProviderName(
   accountType: AccountType,
   institutionId: string | null,
@@ -79,15 +84,20 @@ function PreviewLogo({
   institutionId,
 }: PreviewLogoProps): JSX.Element {
   const kind = getInstitutionKind(accountType);
+  const institution =
+    institutionId === null ? null : getInstitutionById(institutionId);
   const selectableInstitutionId =
-    institutionId !== null && getInstitutionById(institutionId)?.selectable
+    institutionId !== null &&
+    institution?.selectable &&
+    institution.type === kind
       ? (institutionId as SelectableEgyptianInstitutionId)
       : null;
   const logo =
     kind === null
       ? null
       : getEgyptianInstitutionAsset(selectableInstitutionId, kind).logo;
-  const SvgLogo = logo?.format === "svg" ? logo.source : null;
+  const SvgLogo =
+    logo?.format === "svg" && isSvgComponent(logo.source) ? logo.source : null;
 
   return (
     <View className="h-11 w-11 items-center justify-center rounded-2xl bg-white/95">

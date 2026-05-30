@@ -1,5 +1,5 @@
 import { palette } from "@/constants/colors";
-import { resolveAccountInstitutionPresentation } from "@/services/account-institution-read-model-service";
+import { resolveAccountInstitutionPresentation } from "@/utils/account-institution-presentation";
 import { formatAccountBalance } from "@/utils/financial-display";
 import { Account, MarketRate } from "@monyvi/db";
 import { convertCurrency, formatCurrency } from "@monyvi/logic";

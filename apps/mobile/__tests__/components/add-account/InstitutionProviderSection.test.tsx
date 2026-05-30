@@ -91,6 +91,7 @@ describe("InstitutionProviderSection", () => {
       )
     ).toBeTruthy();
     fireEvent.press(screen.getByLabelText("Choose provider"));
+    fireEvent.changeText(screen.getByPlaceholderText("Search"), "CIB");
     fireEvent.press(screen.getByText("CIB (Commercial International Bank)"));
 
     expect(onSelectKnownInstitution).toHaveBeenCalledWith("cib");

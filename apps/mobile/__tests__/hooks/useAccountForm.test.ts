@@ -230,6 +230,42 @@ describe("useAccountForm", () => {
     expect(result.current.formData.senderNames).toEqual([]);
   });
 
+  it("rechecks uniqueness against manual provider identity after account type changes", async () => {
+    jest.useFakeTimers();
+    const { result } = renderHook(() =>
+      useAccountForm({ initialAccountType: "BANK" })
+    );
+
+    await flushAct();
+
+    act(() => {
+      result.current.updateField("name", "Main");
+    });
+    act(() => {
+      result.current.selectKnownInstitution("cib");
+    });
+    act(() => {
+      jest.advanceTimersByTime(300);
+    });
+    await flushAct();
+
+    act(() => {
+      result.current.updateField("accountType", "DIGITAL_WALLET");
+    });
+    act(() => {
+      jest.advanceTimersByTime(300);
+    });
+    await flushAct();
+
+    expect(mockCheckAccountNameUniqueness).toHaveBeenLastCalledWith(
+      "user-1",
+      "Main",
+      "EGP",
+      undefined,
+      null
+    );
+  });
+
   it("clears provider identity and senders when create flow switches back to cash", () => {
     const { result } = renderHook(() =>
       useAccountForm({ initialAccountType: "BANK" })

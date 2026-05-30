@@ -129,7 +129,7 @@ apps/mobile/
 |   |-- account-service.ts
 |   |-- edit-account-service.ts
 |   |-- account-sms-sender-service.ts
-|   |-- account-institution-read-model-service.ts
+|   |-- account-institution-presentation.ts
 |   `-- sms-account-matcher.ts
 |-- validation/
 |   `-- account-validation.ts

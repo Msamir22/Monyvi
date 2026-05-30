@@ -31,3 +31,4 @@ appId: com.monyvi.app
 
 # Step 7: Wait for navigation back and verify
 - waitForAnimationToEnd
+- assertVisible: "Test Wallet"

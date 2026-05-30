@@ -92,6 +92,34 @@ describe("accountFormSchema (create)", () => {
       validateAccountForm({ ...baseCreate, balance: "0.50" }).isValid
     ).toBe(true);
   });
+
+  it("rejects empty string institution ids", () => {
+    const result = validateAccountForm({
+      ...baseCreate,
+      accountType: "BANK",
+      institutionId: "",
+      providerDisplayName: "CIB",
+    });
+
+    expect(result.isValid).toBe(false);
+    expect(result.errors.institutionId).toBeDefined();
+  });
+
+  it("requires provider details when validating edits for bank accounts", () => {
+    const result = validateEditAccountForm(
+      {
+        ...baseEdit,
+        institutionId: null,
+        providerDisplayName: "",
+      },
+      "BANK"
+    );
+
+    expect(result.isValid).toBe(false);
+    expect(result.errors.providerDisplayName).toBe(
+      "translated:accounts:validation_provider_display_name_required"
+    );
+  });
 });
 
 describe("editAccountFormSchema", () => {
@@ -155,5 +183,16 @@ describe("editAccountFormSchema", () => {
     expect(result.errors.balance).toBe(
       "translated:accounts:validation_balance_edit_invalid"
     );
+  });
+
+  it("rejects empty string institution ids", () => {
+    const result = validateEditAccountForm({
+      ...baseEdit,
+      institutionId: "",
+      providerDisplayName: "CIB",
+    });
+
+    expect(result.isValid).toBe(false);
+    expect(result.errors.institutionId).toBeDefined();
   });
 });

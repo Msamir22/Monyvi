@@ -97,26 +97,7 @@ function validateEditFormForAccountType(
   readonly isValid: boolean;
   readonly errors: EditValidationErrors;
 } {
-  const validation = validateEditAccountForm(data);
-  const needsProvider =
-    accountType === "BANK" || accountType === "DIGITAL_WALLET";
-  if (
-    needsProvider &&
-    !data.institutionId &&
-    !data.providerDisplayName?.trim()
-  ) {
-    return {
-      isValid: false,
-      errors: {
-        ...validation.errors,
-        providerDisplayName: t(
-          "accounts:validation_provider_display_name_required"
-        ),
-      },
-    };
-  }
-
-  return validation;
+  return validateEditAccountForm(data, accountType);
 }
 
 // ---------------------------------------------------------------------------

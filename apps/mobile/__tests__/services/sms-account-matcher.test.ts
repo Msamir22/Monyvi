@@ -109,6 +109,28 @@ describe("sms-account-matcher - matchAccountCore", () => {
     expect(result.matchReason).toBe("sms_sender");
   });
 
+  it("Step 2b: falls back to provider and account names when no sender rows are saved", () => {
+    const accountWithoutSenderRows: AccountWithBankDetails = {
+      id: "acc_provider_only",
+      name: "CIB Savings",
+      currency: "EGP",
+      isDefault: false,
+      createdAt: baseDate,
+      type: "BANK",
+      smsSenderNames: [],
+      bankName: "CIB",
+      cardLast4: "1234",
+    };
+
+    const result = matchAccountCore(
+      { senderDisplayName: "CIB-EGYPT", cardLast4: "1234" },
+      [accountWithoutSenderRows]
+    );
+
+    expect(result.accountId).toBe("acc_provider_only");
+    expect(result.matchReason).toBe("card_last4");
+  });
+
   it("Step 3: Matches based on bank registry name and currency", () => {
     const input: MatchInput = {
       senderDisplayName: "BANQUEMISR", // Known financial sender mapped to "Banque Misr"

@@ -294,6 +294,7 @@ interface AccountsTranslations {
   readonly sender_add_placeholder: string;
   readonly sender_add_accessibility: string;
   readonly sender_add_action: string;
+  readonly sender_remove_accessibility: string;
   readonly sender_duplicate_error: string;
   readonly sender_unverified: string;
   readonly add_new_account: string;

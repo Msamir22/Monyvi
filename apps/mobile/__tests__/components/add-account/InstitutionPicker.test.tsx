@@ -33,12 +33,15 @@ describe("InstitutionPicker", () => {
 
     expect(screen.getByText("Bank")).toBeTruthy();
     expect(
+      screen.getByText("ADCB (Abu Dhabi Commercial Bank Egypt)")
+    ).toBeTruthy();
+    fireEvent.changeText(screen.getByPlaceholderText("Search"), "CIB");
+    expect(
       screen.getByText("CIB (Commercial International Bank)")
     ).toBeTruthy();
     expect(
       screen.getByTestId("CIB (Commercial International Bank) logo")
     ).toBeTruthy();
-    expect(screen.getByText("NBE (National Bank of Egypt)")).toBeTruthy();
     expect(screen.queryByText("Vodafone Cash (Vodafone Cash)")).toBeNull();
   });
 
@@ -166,6 +169,8 @@ describe("InstitutionPicker", () => {
     fireEvent.press(screen.getByLabelText("Choose provider"));
 
     expect(screen.getByPlaceholderText("Search")).toHaveProp("value", "");
-    expect(screen.getByText("NBE (National Bank of Egypt)")).toBeTruthy();
+    expect(
+      screen.getByText("ADCB (Abu Dhabi Commercial Bank Egypt)")
+    ).toBeTruthy();
   });
 });

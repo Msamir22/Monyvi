@@ -218,6 +218,7 @@ jest.mock("@monyvi/db", () => {
   return {
     database: db,
     Account: {},
+    AccountSmsSender: {},
     BankDetails: {},
     Transaction: {},
     Transfer: {},
@@ -426,6 +427,23 @@ describe("edit-account-service", () => {
       expect(bd.deleted).toBe(true);
       expect(bd.prepareUpdate).toHaveBeenCalled();
       expect(bd.prepareMarkAsDeleted).not.toHaveBeenCalled();
+    });
+
+    it("should cascade delete account_sms_senders", async () => {
+      seedAccount("acc-1");
+      const sender = mockModel("sender-1", {
+        accountId: "acc-1",
+        senderName: "CIB",
+        normalizedSenderName: "cib",
+        deleted: false,
+      });
+      mockSeed("account_sms_senders", sender);
+
+      await deleteAccountWithCascade("acc-1", "user-1");
+
+      expect(sender.deleted).toBe(true);
+      expect(sender.prepareUpdate).toHaveBeenCalled();
+      expect(sender.prepareMarkAsDeleted).not.toHaveBeenCalled();
     });
 
     it("should cascade delete transactions", async () => {
@@ -1034,6 +1052,50 @@ describe("edit-account-service", () => {
             accountId: "acc-1",
             senderName: "NewSMS",
             normalizedSenderName: "newsms",
+            deleted: false,
+          }),
+        ])
+      );
+    });
+
+    it("preserves unchanged sender rows when replacing account sender names", async () => {
+      const existingSender = mockModel("sender-1", {
+        accountId: "acc-1",
+        senderName: "CIB",
+        normalizedSenderName: "cib",
+        deleted: false,
+      });
+      seedAccount("acc-1", {
+        name: "Bank Account",
+        type: "BANK",
+        isBank: true,
+      });
+      mockSeed("account_sms_senders", existingSender);
+
+      await updateAccountWithBalanceAdjustment(
+        "acc-1",
+        "user-1",
+        {
+          name: "Bank Account",
+          balance: 0,
+          isDefault: false,
+          bankName: "CIB",
+          senderNames: ["CIB", "CIBEGYPT"],
+        },
+        null
+      );
+
+      expect(existingSender.deleted).toBe(false);
+      expect(existingSender.update).not.toHaveBeenCalledWith(
+        expect.any(Function)
+      );
+      expect(Array.from(mockGetStore("account_sms_senders").values())).toEqual(
+        expect.arrayContaining([
+          existingSender,
+          expect.objectContaining({
+            accountId: "acc-1",
+            senderName: "CIBEGYPT",
+            normalizedSenderName: "cibegypt",
             deleted: false,
           }),
         ])

@@ -288,6 +288,9 @@ export const migrations = schemaMigrations({
             { name: "updated_at", type: "number" },
           ],
         }),
+        unsafeExecuteSql(
+          'create unique index if not exists "account_sms_senders_one_active_normalized" on "account_sms_senders" ("account_id", "normalized_sender_name") where coalesce("deleted", 0) != 1;'
+        ),
       ],
     },
   ],

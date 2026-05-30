@@ -249,6 +249,10 @@ export async function createAccountForUser(
           return false;
         }
 
+        if (account.type !== validatedData.accountType) {
+          return false;
+        }
+
         if (validatedData.institutionId) {
           return account.institutionId === validatedData.institutionId;
         }

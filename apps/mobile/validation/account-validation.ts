@@ -1,4 +1,4 @@
-import type { CurrencyType } from "@monyvi/db";
+import type { AccountType, CurrencyType } from "@monyvi/db";
 import { t } from "i18next";
 import { z } from "zod";
 
@@ -50,7 +50,11 @@ export const accountFormSchema = z
       .max(50, "validation_bank_name_max")
       .optional()
       .or(z.literal("")),
-    institutionId: z.string().nullable().optional(),
+    institutionId: z
+      .string()
+      .min(1, "validation_institution_id_required")
+      .nullable()
+      .optional(),
     providerDisplayName: z
       .string()
       .max(100, "validation_provider_display_name_max")
@@ -143,7 +147,11 @@ export const editAccountFormSchema = z.object({
     .max(50, "validation_bank_name_max")
     .optional()
     .or(z.literal("")),
-  institutionId: z.string().nullable().optional(),
+  institutionId: z
+    .string()
+    .min(1, "validation_institution_id_required")
+    .nullable()
+    .optional(),
   providerDisplayName: z
     .string()
     .max(100, "validation_provider_display_name_max")
@@ -178,10 +186,41 @@ export type EditValidationErrors = Partial<
 export function validateEditAccountForm(data: unknown): {
   isValid: boolean;
   errors: EditValidationErrors;
+};
+export function validateEditAccountForm(
+  data: unknown,
+  accountType: AccountType
+): {
+  isValid: boolean;
+  errors: EditValidationErrors;
+};
+export function validateEditAccountForm(
+  data: unknown,
+  accountType?: AccountType
+): {
+  isValid: boolean;
+  errors: EditValidationErrors;
 } {
   const result = editAccountFormSchema.safeParse(data);
 
   if (result.success) {
+    const needsProvider =
+      accountType === "BANK" || accountType === "DIGITAL_WALLET";
+    if (
+      needsProvider &&
+      !result.data.institutionId &&
+      !result.data.providerDisplayName?.trim()
+    ) {
+      return {
+        isValid: false,
+        errors: {
+          providerDisplayName: t(
+            "accounts:validation_provider_display_name_required"
+          ),
+        },
+      };
+    }
+
     return { isValid: true, errors: {} };
   }
 

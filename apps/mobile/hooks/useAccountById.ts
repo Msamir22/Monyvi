@@ -13,7 +13,7 @@
  */
 
 import { Account, AccountSmsSender, BankDetails, database } from "@monyvi/db";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { observeOwnedById } from "@/services/user-data-access";
 import { useCurrentUser } from "./useCurrentUser";
 import { logger } from "../utils/logger";
@@ -27,15 +27,6 @@ interface BankDetailsData {
   readonly cardLast4?: string;
   readonly smsSenderName?: string;
   readonly smsSenderNames?: readonly string[];
-}
-
-function fetchAccountSmsSenders(account: Account): Promise<AccountSmsSender[]> {
-  const relation = account.accountSmsSenders;
-  if (!relation) {
-    return Promise.resolve([]);
-  }
-
-  return relation.fetch() as Promise<AccountSmsSender[]>;
 }
 
 export interface UseAccountByIdResult {
@@ -64,8 +55,6 @@ export function useAccountById(id: string | null): UseAccountByIdResult {
   const [account, setAccount] = useState<Account | null>(null);
   const [bankDetails, setBankDetails] = useState<BankDetailsData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const bankDetailsRequestIdRef = useRef(0);
-  const bankDetailsKeyRef = useRef<string | null>(null);
   const { userId, isResolvingUser } = useCurrentUser();
 
   useEffect(() => {
@@ -73,7 +62,6 @@ export function useAccountById(id: string | null): UseAccountByIdResult {
       setAccount(null);
       setBankDetails(null);
       setIsLoading(false);
-      bankDetailsKeyRef.current = null;
       return undefined;
     }
 
@@ -86,7 +74,6 @@ export function useAccountById(id: string | null): UseAccountByIdResult {
       setAccount(null);
       setBankDetails(null);
       setIsLoading(false);
-      bankDetailsKeyRef.current = null;
       return undefined;
     }
 
@@ -121,71 +108,71 @@ export function useAccountById(id: string | null): UseAccountByIdResult {
   }, [id, userId, isResolvingUser]);
 
   useEffect(() => {
-    let isActive = true;
-
     if (!account) {
-      bankDetailsKeyRef.current = null;
       return undefined;
     }
 
-    const detailsKey = `${account.id}:${account.type}`;
-    if (bankDetailsKeyRef.current === detailsKey) {
+    if (!account.isBank && !account.isDigitalWallet) {
+      setBankDetails(null);
+      setIsLoading(false);
       return undefined;
     }
-    bankDetailsKeyRef.current = detailsKey;
 
-    const loadBankDetails = async (): Promise<void> => {
-      const requestId = ++bankDetailsRequestIdRef.current;
-      if (!account.isBank && !account.isDigitalWallet) {
-        if (!isActive || requestId !== bankDetailsRequestIdRef.current) return;
-        setBankDetails(null);
-        setIsLoading(false);
+    let latestDetails: readonly BankDetails[] = [];
+    let latestSenders: readonly AccountSmsSender[] = [];
+    let hasDetailsEmission = !account.isBank;
+    let hasSenderEmission = false;
+
+    const emitDetails = (): void => {
+      if (!hasDetailsEmission || !hasSenderEmission) {
         return;
       }
 
-      try {
-        const [details, senderRows] = await Promise.all([
-          account.isBank
-            ? (account.bankDetails.fetch() as Promise<BankDetails[]>)
-            : Promise.resolve([]),
-          fetchAccountSmsSenders(account),
-        ]);
-        if (!isActive || requestId !== bankDetailsRequestIdRef.current) return;
+      const smsSenderNames = latestSenders
+        .filter((row) => !row.deleted)
+        .map((row) => row.senderName);
+      const [details] = latestDetails;
 
-        const smsSenderNames = senderRows
-          .filter((row) => !row.deleted)
-          .map((row) => row.senderName);
-
-        if (details.length > 0) {
-          const bd = details[0];
-          setBankDetails({
-            bankName: account.providerDisplayName,
-            cardLast4: bd.cardLast4,
-            smsSenderName: smsSenderNames.join(", "),
-            smsSenderNames,
-          });
-        } else {
-          setBankDetails({
-            bankName: account.providerDisplayName,
-            smsSenderName: smsSenderNames.join(", "),
-            smsSenderNames,
-          });
-        }
-      } catch (err: unknown) {
-        if (!isActive || requestId !== bankDetailsRequestIdRef.current) return;
-        logger.error("useAccountById_bank_details_fetch_failed", err);
-        setBankDetails(null);
-      } finally {
-        if (isActive && requestId === bankDetailsRequestIdRef.current) {
-          setIsLoading(false);
-        }
-      }
+      setBankDetails({
+        bankName: account.providerDisplayName,
+        cardLast4: details?.cardLast4,
+        smsSenderName: smsSenderNames.join(", "),
+        smsSenderNames,
+      });
+      setIsLoading(false);
     };
 
-    void loadBankDetails();
+    const senderSubscription = account.accountSmsSenders.observe().subscribe({
+      next: (senderRows) => {
+        latestSenders = senderRows as unknown as readonly AccountSmsSender[];
+        hasSenderEmission = true;
+        emitDetails();
+      },
+      error: (err: unknown) => {
+        logger.error("useAccountById_sender_rows_observe_failed", err);
+        setBankDetails(null);
+        setIsLoading(false);
+      },
+    });
+
+    const bankDetailsSubscription = account.isBank
+      ? account.bankDetails.observe().subscribe({
+          next: (detailsRows) => {
+            latestDetails = detailsRows as unknown as readonly BankDetails[];
+            hasDetailsEmission = true;
+            emitDetails();
+          },
+          error: (err: unknown) => {
+            logger.error("useAccountById_bank_details_observe_failed", err);
+            setBankDetails(null);
+            setIsLoading(false);
+          },
+        })
+      : null;
 
     return (): void => {
-      isActive = false;
+      senderSubscription.unsubscribe();
+      bankDetailsSubscription?.unsubscribe();
     };
   }, [account]);
 

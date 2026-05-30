@@ -513,6 +513,7 @@ describe("createAccountForUser", () => {
           {
             id: "existing-account",
             name: "Cash",
+            type: "CASH",
             userId: "user-1",
             currency: "EGP",
             deleted: false,
@@ -539,6 +540,68 @@ describe("createAccountForUser", () => {
       error: CREATE_ACCOUNT_ERROR_CODES.DUPLICATE_ACCOUNT,
     });
     expect(accountsCollection.create).not.toHaveBeenCalled();
+  });
+
+  it("allows the same account name and currency when the account type differs", async () => {
+    const accountsCollection = {
+      query: jest.fn().mockReturnValue({
+        fetch: jest.fn().mockResolvedValue([
+          {
+            id: "cash-1",
+            name: "Main",
+            type: "CASH",
+            userId: "user-1",
+            currency: "EGP",
+            deleted: false,
+            institutionId: undefined,
+          },
+        ]),
+        fetchCount: jest.fn().mockResolvedValue(1),
+      }),
+      create: jest.fn(
+        async (writer: (acc: Record<string, unknown>) => void) => {
+          const acc: Record<string, unknown> = {};
+          writer(acc);
+          return { id: "bank-1", ...acc };
+        }
+      ),
+    };
+    const accountSmsSendersCollection = {
+      create: jest.fn(),
+    };
+    const bankDetailsCollection = {
+      create: jest.fn(
+        async (writer: (details: Record<string, unknown>) => void) => {
+          const details: Record<string, unknown> = {};
+          writer(details);
+          return { id: "bank-details-1", ...details };
+        }
+      ),
+    };
+    mockDatabaseGet.mockImplementation((collectionName: string) => {
+      if (collectionName === "accounts") return accountsCollection;
+      if (collectionName === "account_sms_senders")
+        return accountSmsSendersCollection;
+      if (collectionName === "bank_details") return bankDetailsCollection;
+      throw new Error(`Unexpected collection: ${collectionName}`);
+    });
+
+    const result = await createAccountForUser("user-1", {
+      name: "Main",
+      accountType: "BANK",
+      currency: "EGP",
+      balance: "0",
+      institutionId: "cib",
+      providerDisplayName: "CIB",
+      senderNames: [],
+    });
+
+    expect(result).toEqual({
+      success: true,
+      accountId: "bank-1",
+      created: true,
+    });
+    expect(accountsCollection.create).toHaveBeenCalledTimes(1);
   });
 
   it("fails closed without writing when the balance format is invalid", async () => {

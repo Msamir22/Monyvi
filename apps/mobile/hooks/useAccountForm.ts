@@ -248,10 +248,23 @@ export function useAccountForm(
 
         // Real-time validation for specific field if it has been touched
         const { errors: newErrors } = validateAccountForm(newData);
-        setErrors((prevErrors) => ({
-          ...prevErrors,
-          [field]: newErrors[field],
-        }));
+        setErrors((prevErrors) => {
+          const nextErrors: ValidationErrors = {
+            ...prevErrors,
+            [field]: newErrors[field],
+          };
+
+          if (field === "accountType") {
+            delete nextErrors.institutionId;
+            delete nextErrors.providerDisplayName;
+            delete nextErrors.senderNames;
+            delete nextErrors.bankName;
+            delete nextErrors.smsSenderName;
+            delete nextErrors.cardLast4;
+          }
+
+          return nextErrors;
+        });
 
         if (field === "name") {
           checkUniqueness(
@@ -265,6 +278,8 @@ export function useAccountForm(
             value as AccountFormData["currency"],
             newData.institutionId ?? null
           );
+        } else if (field === "accountType" && newData.name.trim()) {
+          checkUniqueness(newData.name, newData.currency, null);
         }
 
         return newData;

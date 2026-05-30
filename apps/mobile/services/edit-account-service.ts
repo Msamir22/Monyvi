@@ -16,6 +16,7 @@
 
 import {
   Account,
+  AccountSmsSender,
   BankDetails,
   Debt,
   RecurringPayment,
@@ -417,11 +418,12 @@ export async function updateAccountWithinWriter(
  *
  * Deletes in this order within a single write block:
  * 1. bank_details
- * 2. transactions
- * 3. transfers (where account is from_account OR to_account)
- * 4. debts
- * 5. recurring_payments
- * 6. The account itself
+ * 2. account_sms_senders
+ * 3. transactions
+ * 4. transfers (where account is from_account OR to_account)
+ * 5. debts
+ * 6. recurring_payments
+ * 7. The account itself
  *
  * Uses the domain `deleted` column for sync-safe soft deletes.
  *
@@ -467,6 +469,7 @@ export async function deleteAccountWithCascade(
       // Fetch all non-deleted children via explicit filtered queries.
       const [
         bankDetailRecords,
+        accountSmsSenderRecords,
         transactionRecords,
         fromTransfers,
         toTransfers,
@@ -475,6 +478,13 @@ export async function deleteAccountWithCascade(
       ] = await Promise.all([
         queryChildrenOfOwnedParent(
           database.get<BankDetails>("bank_details"),
+          account,
+          currentUserId,
+          "account_id",
+          Q.where("deleted", false)
+        ).fetch(),
+        queryChildrenOfOwnedParent(
+          database.get<AccountSmsSender>("account_sms_senders"),
           account,
           currentUserId,
           "account_id",
@@ -515,6 +525,7 @@ export async function deleteAccountWithCascade(
       // Batch all domain soft-deletes into a single write for performance.
       const batchOps: SoftDeletableRecord[] = [
         ...bankDetailRecords.map((record) => prepareSoftDelete(record)),
+        ...accountSmsSenderRecords.map((record) => prepareSoftDelete(record)),
         ...transactionRecords.map((record) => prepareSoftDelete(record)),
         ...fromTransfers.map((record) => prepareSoftDelete(record)),
         ...toTransfers.map((record) => prepareSoftDelete(record)),

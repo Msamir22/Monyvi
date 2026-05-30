@@ -10,7 +10,7 @@ import { AccountsSectionSkeleton } from "@/components/dashboard/skeletons/Accoun
 import type { InstitutionLogo } from "@/constants/egyptian-institution-assets";
 import { buildAccountDisplayNames } from "@/utils/account-display";
 import { formatAccountBalance } from "@/utils/financial-display";
-import { resolveAccountInstitutionPresentation } from "@/services/account-institution-read-model-service";
+import { resolveAccountInstitutionPresentation } from "@/utils/account-institution-presentation";
 import { EmptyStateCard } from "../ui/EmptyStateCard";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");

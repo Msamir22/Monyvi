@@ -32,14 +32,15 @@ function getInstitutionKind(type: AccountType): AccountInstitutionKind | null {
 }
 
 function resolveSelectableInstitutionId(
-  institutionId: string | null | undefined
+  institutionId: string | null | undefined,
+  kind: AccountInstitutionKind
 ): SelectableEgyptianInstitutionId | null {
   if (!institutionId) {
     return null;
   }
 
   const institution = getInstitutionById(institutionId);
-  return institution?.selectable
+  return institution?.selectable && institution.type === kind
     ? (institution.id as SelectableEgyptianInstitutionId)
     : null;
 }
@@ -67,7 +68,10 @@ export function resolveAccountInstitutionPresentation(
     return null;
   }
 
-  const institutionId = resolveSelectableInstitutionId(source.institutionId);
+  const institutionId = resolveSelectableInstitutionId(
+    source.institutionId,
+    kind
+  );
   const knownProviderLabel = formatKnownProviderLabel(institutionId);
   const manualProviderLabel = source.providerDisplayName?.trim() || null;
 

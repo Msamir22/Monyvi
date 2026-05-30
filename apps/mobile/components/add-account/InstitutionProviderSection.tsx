@@ -74,8 +74,12 @@ export function InstitutionProviderSection({
   const pickerType = getPickerType(accountType);
   const [hasSelectedOther, setHasSelectedOther] = useState(false);
   const [isWhySheetVisible, setIsWhySheetVisible] = useState(false);
+  const selectedInstitution =
+    institutionId === null ? null : getInstitutionById(institutionId);
   const selectedInstitutionId =
-    institutionId && getInstitutionById(institutionId)?.selectable
+    institutionId &&
+    selectedInstitution?.selectable &&
+    selectedInstitution.type === pickerType
       ? (institutionId as SelectableEgyptianInstitutionId)
       : null;
 

@@ -46,7 +46,7 @@ local mode. Source of truth: `spec.md`.
 - Add Account currency used a short dropdown list: fixed by using the searchable
   currency picker backed by all supported fiat currencies.
 - The SMS section title was too technical and bank-specific: fixed to
-  `SMS auto-detection (Optional)` with bank/wallet-neutral description copy.
+  `SMS matching details (Optional)` with bank/wallet-neutral description copy.
 - The info explainer was too large and did not close on outside tap: fixed as a
   smaller popover with shorter copy, smaller icon trigger, and outside-tap
   dismissal.
@@ -60,12 +60,14 @@ local mode. Source of truth: `spec.md`.
 - `npm test -w @monyvi/mobile -- --runInBand apps/mobile/__tests__/app/add-account-institution-info.test.tsx apps/mobile/__tests__/app/edit-account-institution-info.test.tsx`
 - `npm test -w @monyvi/mobile -- --runInBand apps/mobile/__tests__/constants apps/mobile/__tests__/components/add-account/InstitutionPicker.test.tsx`
 - `npm test -w @monyvi/mobile -- --runInBand apps/mobile/__tests__/components/dashboard/AccountsSection.test.tsx apps/mobile/__tests__/components/accounts/AccountCard.test.tsx`
-- `npx jest --runInBand --detectOpenHandles --forceExit __tests__/components/add-account/InstitutionPicker.test.tsx __tests__/components/add-account/InstitutionProviderSection.test.tsx __tests__/hooks/useEgyptianInstitutionEligibility.test.ts __tests__/constants/egyptian-institution-assets.test.ts __tests__/services/sms-account-matcher.test.ts __tests__/migrations/account-institution-senders-migration.test.ts __tests__/services/edit-account-service.test.ts __tests__/services/account-service.test.ts __tests__/services/sync-config.test.ts __tests__/services/account-institution-read-model-service.test.ts __tests__/app/add-account-institution-info.test.tsx __tests__/app/edit-account-institution-info.test.tsx __tests__/hooks/useEditAccountForm.test.ts`
+- `npx jest --runInBand --detectOpenHandles --forceExit __tests__/components/add-account/InstitutionPicker.test.tsx __tests__/components/add-account/InstitutionProviderSection.test.tsx __tests__/hooks/useEgyptianInstitutionEligibility.test.ts __tests__/constants/egyptian-institution-assets.test.ts __tests__/services/sms-account-matcher.test.ts __tests__/services/sms-account-resolver.test.ts __tests__/migrations/account-institution-senders-migration.test.ts __tests__/services/edit-account-service.test.ts __tests__/services/account-service.test.ts __tests__/services/sync-config.test.ts __tests__/utils/account-institution-presentation.test.ts __tests__/app/add-account-institution-info.test.tsx __tests__/app/edit-account-institution-info.test.tsx __tests__/hooks/useEditAccountForm.test.ts`
 - `npm test -w @monyvi/logic -- --runInBand src/parsers/__tests__/egyptian-bank-registry.test.ts`
 - `npm run i18n:check -w @monyvi/mobile`
 - `npx tsc -p apps/mobile/tsconfig.json --noEmit --pretty false`
 - `npx jest --runInBand --detectOpenHandles --forceExit __tests__/components/add-account/WhyInstitutionDetailsSheet.test.tsx __tests__/components/add-account/InstitutionProviderSection.test.tsx __tests__/app/add-account-institution-info.test.tsx __tests__/app/edit-account-institution-info.test.tsx __tests__/hooks/useEditAccountForm.test.ts`
 - `npm run lint -w @monyvi/mobile`
+- `npm run db:migrate`
+- `npx jest --runInBand --detectOpenHandles --forceExit __tests__/services/sms-account-matcher.test.ts __tests__/services/sms-account-resolver.test.ts __tests__/services/edit-account-service.test.ts __tests__/services/account-service.test.ts __tests__/validation/account-validation.test.ts __tests__/hooks/useEgyptianInstitutionEligibility.test.ts __tests__/hooks/useAccountForm.test.ts __tests__/components/add-account/SenderChipsField.test.tsx __tests__/components/add-account/InstitutionPicker.test.tsx __tests__/components/add-account/InstitutionProviderSection.test.tsx __tests__/components/add-account/WhyInstitutionDetailsSheet.test.tsx __tests__/app/add-account-institution-info.test.tsx __tests__/app/edit-account-institution-info.test.tsx __tests__/components/accounts/AccountCard.test.tsx __tests__/components/dashboard/AccountsSection.test.tsx __tests__/migrations/account-institution-senders-migration.test.ts __tests__/utils/account-institution-presentation.test.ts __tests__/scripts/manual-qa-seed.test.ts`
 
 ## Latest Manual Re-Checks
 

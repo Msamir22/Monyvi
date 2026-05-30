@@ -10,24 +10,22 @@ DROP INDEX IF EXISTS public.idx_accounts_unique_name_currency;
 DROP INDEX IF EXISTS public.idx_accounts_unique_known_provider;
 DROP INDEX IF EXISTS public.idx_accounts_unique_manual_provider;
 
-WITH duplicate_manual_accounts AS (
-  SELECT
-    id,
-    row_number() OVER (
-      PARTITION BY user_id, lower(name), currency
-      ORDER BY created_at ASC, id ASC
-    ) AS duplicate_rank
-  FROM public.accounts
-  WHERE deleted = false
-    AND institution_id IS NULL
-)
-UPDATE public.accounts
-SET
-  deleted = true,
-  updated_at = now()
-FROM duplicate_manual_accounts
-WHERE accounts.id = duplicate_manual_accounts.id
-  AND duplicate_manual_accounts.duplicate_rank > 1;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM (
+      SELECT user_id, lower(name), currency
+      FROM public.accounts
+      WHERE deleted = false
+        AND institution_id IS NULL
+      GROUP BY user_id, lower(name), currency
+      HAVING count(*) > 1
+    ) duplicate_manual_accounts
+  ) THEN
+    RAISE EXCEPTION 'Cannot create manual account uniqueness index while duplicate active manual accounts exist';
+  END IF;
+END $$;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_unique_known_provider
   ON public.accounts (user_id, lower(name), currency, institution_id)

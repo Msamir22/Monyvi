@@ -1,4 +1,4 @@
-import { useMemo, useState, type JSX } from "react";
+import { useEffect, useMemo, useState, type JSX } from "react";
 import { Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
@@ -28,6 +28,14 @@ export function SenderChipsField({
     () => new Set(verifiedSenders.map(normalizeSenderName)),
     [verifiedSenders]
   );
+
+  useEffect(() => {
+    setHasPendingUnverifiedSender(
+      value.some(
+        (sender) => !normalizedVerifiedSenders.has(normalizeSenderName(sender))
+      )
+    );
+  }, [value, normalizedVerifiedSenders]);
 
   const addSender = (): void => {
     const trimmed = inputValue.trim();
@@ -68,7 +76,9 @@ export function SenderChipsField({
                 </Text>
               ) : null}
               <TouchableOpacity
-                accessibilityLabel={`Remove ${sender}`}
+                accessibilityLabel={t("sender_remove_accessibility", {
+                  sender,
+                })}
                 onPress={() =>
                   onChange(
                     value.filter(

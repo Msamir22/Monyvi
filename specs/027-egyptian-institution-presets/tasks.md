@@ -180,8 +180,7 @@ and verify only wallet providers appear.
       and soft-delete behavior in
       `apps/mobile/services/account-sms-sender-service.ts`
 - [x] T034 [US1] Add provider-aware account read model shaping for edit/account
-      display in
-      `apps/mobile/services/account-institution-read-model-service.ts`
+      display in `apps/mobile/utils/account-institution-presentation.ts`
 - [x] T035 [US1] Update account cards to resolve known-provider logos and
       current registry display metadata in
       `apps/mobile/components/accounts/AccountCard.tsx`
@@ -256,11 +255,11 @@ account without weakening SMS fingerprint deduplication.
       `apps/mobile/__tests__/services/sms-account-matcher.test.ts`
 - [x] T047 [P] [US3] Add failing SMS matcher tests for bank
       sender-plus-card-last-four priority over sender-only matching in
-      `apps/mobile/__tests__/services/sms-account-matcher-card-priority.test.ts`
-- [x] T048 [P] [US3] Add failing live/batch SMS regression tests proving SMS
-      fingerprint deduplication is unchanged in
-      `apps/mobile/__tests__/services/sms-live-detection-handler.test.ts` and
-      `apps/mobile/__tests__/services/sms-sync-service.test.ts`
+      `apps/mobile/__tests__/services/sms-account-matcher.test.ts`
+- [x] T048 [P] [US3] Add failing live/batch SMS regression tests proving wallet
+      senders reach live matching and SMS fingerprint deduplication is unchanged
+      in `apps/mobile/__tests__/services/sms-account-resolver.test.ts` and
+      `apps/mobile/__tests__/services/sms-live-detection-handler.test.ts`
 
 ### Implementation for User Story 3
 

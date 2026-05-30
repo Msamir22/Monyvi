@@ -6,11 +6,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useMemo, useState, type JSX } from "react";
 import {
   Image,
+  FlatList,
   Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
-  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
@@ -234,15 +234,18 @@ export function InstitutionPicker({
                     className="mb-3 rounded-xl border border-slate-300 px-4 py-3 text-text-primary dark:border-slate-700"
                   />
 
-                  <ScrollView showsVerticalScrollIndicator={false}>
-                    {filteredInstitutions.map((item) => {
+                  <FlatList
+                    data={filteredInstitutions}
+                    keyExtractor={(item) => item.id}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                    renderItem={({ item }) => {
                       const label = getInstitutionLabel(item);
                       const isSelected = item.id === selectedInstitutionId;
                       const asset = getEgyptianInstitutionAsset(item.id, type);
 
                       return (
                         <TouchableOpacity
-                          key={item.id}
                           onPress={() => {
                             onSelectInstitution(item.id);
                             setIsDropdownOpen(false);
@@ -270,36 +273,37 @@ export function InstitutionPicker({
                           ) : null}
                         </TouchableOpacity>
                       );
-                    })}
-
-                    <TouchableOpacity
-                      onPress={() => {
-                        onSelectOther();
-                        setIsDropdownOpen(false);
-                      }}
-                      className={`mt-1 flex-row items-center rounded-xl border border-dashed px-4 py-3 ${
-                        isOtherSelected
-                          ? "border-nileGreen-500"
-                          : "border-slate-300"
-                      }`}
-                      accessibilityLabel={t("institution_other")}
-                    >
-                      <InstitutionLogoMark
-                        logo={otherLogo}
-                        accessibilityLabel={`${t("institution_other")} logo`}
-                      />
-                      <Text className="flex-1 font-bold text-text-primary">
-                        {t("institution_other")}
-                      </Text>
-                      {isOtherSelected ? (
-                        <Ionicons
-                          name="checkmark-circle"
-                          size={20}
-                          color={palette.nileGreen[600]}
+                    }}
+                    ListFooterComponent={
+                      <TouchableOpacity
+                        onPress={() => {
+                          onSelectOther();
+                          setIsDropdownOpen(false);
+                        }}
+                        className={`mt-1 flex-row items-center rounded-xl border border-dashed px-4 py-3 ${
+                          isOtherSelected
+                            ? "border-nileGreen-500"
+                            : "border-slate-300"
+                        }`}
+                        accessibilityLabel={t("institution_other")}
+                      >
+                        <InstitutionLogoMark
+                          logo={otherLogo}
+                          accessibilityLabel={`${t("institution_other")} logo`}
                         />
-                      ) : null}
-                    </TouchableOpacity>
-                  </ScrollView>
+                        <Text className="flex-1 font-bold text-text-primary">
+                          {t("institution_other")}
+                        </Text>
+                        {isOtherSelected ? (
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={20}
+                            color={palette.nileGreen[600]}
+                          />
+                        ) : null}
+                      </TouchableOpacity>
+                    }
+                  />
                 </View>
               </TouchableWithoutFeedback>
             </KeyboardAvoidingView>

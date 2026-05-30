@@ -229,6 +229,26 @@ function isSenderMatch(
   return false;
 }
 
+function doesAccountMatchSender(
+  senderDisplayName: string,
+  account: AccountWithBankDetails
+): boolean {
+  if (account.smsSenderNames.length === 0) {
+    return isSenderMatch(senderDisplayName, {
+      bankName: account.bankName,
+      accountName: account.name,
+    });
+  }
+
+  return account.smsSenderNames.some((senderName) =>
+    isSenderMatch(senderDisplayName, {
+      bankSmsSenderName: senderName,
+      bankName: account.bankName,
+      accountName: account.name,
+    })
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Data Access
 // ---------------------------------------------------------------------------
@@ -347,13 +367,7 @@ function matchAccountCore(
     const matchedAccount = accounts.find(
       (acc) =>
         acc.cardLast4 === cardLast4 &&
-        acc.smsSenderNames.some((senderName) =>
-          isSenderMatch(senderDisplayName, {
-            bankSmsSenderName: senderName,
-            bankName: acc.bankName,
-            accountName: acc.name,
-          })
-        )
+        doesAccountMatchSender(senderDisplayName, acc)
     );
     if (matchedAccount) {
       return {
@@ -366,13 +380,7 @@ function matchAccountCore(
 
   // Step 2: Sender match alone against bank_details / account name
   const matchedAccount = accounts.find((acc) =>
-    acc.smsSenderNames.some((senderName) =>
-      isSenderMatch(senderDisplayName, {
-        bankSmsSenderName: senderName,
-        bankName: acc.bankName,
-        accountName: acc.name,
-      })
-    )
+    doesAccountMatchSender(senderDisplayName, acc)
   );
   if (matchedAccount) {
     return {
