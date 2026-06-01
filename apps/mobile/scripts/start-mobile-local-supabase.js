@@ -1,11 +1,11 @@
 /**
- * Starts the Expo dev client in normal app mode against local Supabase.
+ * Starts the Expo dev client in normal app mode against local Supabase with
+ * Google auth available by default.
  *
  * The script reads the local anon key from `npx supabase status -o env`, points
- * Android emulators to the local Supabase API, and keeps E2E fixture behavior
- * disabled. When `MONYVI_LOCAL_GOOGLE_AUTH=1`, it uses the loopback Supabase URL
- * plus `adb reverse tcp:54321 tcp:54321` so browser-based Google OAuth can
- * return to the local Supabase callback from the Android emulator.
+ * ADB-reachable Android devices to loopback via `adb reverse`, and keeps E2E
+ * fixture behavior disabled. For wireless physical devices, set
+ * `MONYVI_LOCAL_SUPABASE_DEVICE_URL` to a Supabase URL the device can reach.
  */
 const { join, resolve } = require("node:path");
 const { spawnSync } = require("node:child_process");
@@ -125,9 +125,9 @@ function reverseLocalSupabasePort() {
   if (result.status !== 0) {
     console.warn(
       [
-        "Could not reverse local Supabase port 54321 to the Android emulator.",
-        "Google sign-in may not complete until an emulator is running and",
-        "`adb reverse tcp:54321 tcp:54321` succeeds.",
+        "Could not reverse local Supabase port 54321 to an Android device.",
+        "Google sign-in needs either adb reverse for an emulator/USB device,",
+        "or MONYVI_LOCAL_SUPABASE_DEVICE_URL for a wireless physical device.",
         result.stderr || result.stdout,
       ]
         .filter(Boolean)
@@ -136,32 +136,53 @@ function reverseLocalSupabasePort() {
   }
 }
 
+function resolveLocalSupabaseDeviceConfig(env = process.env) {
+  if (env.MONYVI_LOCAL_SUPABASE_DEVICE_URL) {
+    return {
+      supabaseUrl: env.MONYVI_LOCAL_SUPABASE_DEVICE_URL,
+      shouldReversePort: false,
+    };
+  }
+
+  if (env.MONYVI_LOCAL_SUPABASE_LOOPBACK === "0") {
+    return {
+      supabaseUrl: LOCAL_ANDROID_SUPABASE_URL,
+      shouldReversePort: false,
+    };
+  }
+
+  return {
+    supabaseUrl: LOCAL_LOOPBACK_SUPABASE_URL,
+    shouldReversePort: true,
+  };
+}
+
+function buildLocalSupabaseExpoEnv(anonKey, baseEnv = process.env) {
+  const config = resolveLocalSupabaseDeviceConfig(baseEnv);
+
+  return {
+    ...baseEnv,
+    EXPO_PUBLIC_SUPABASE_URL:
+      baseEnv.EXPO_PUBLIC_SUPABASE_URL ?? config.supabaseUrl,
+    EXPO_PUBLIC_SUPABASE_ANON_KEY:
+      baseEnv.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? anonKey,
+    EXPO_PUBLIC_MONYVI_TEST_MODE: "off",
+    EXPO_PUBLIC_AI_SMS_PARSER_MODE: "edge",
+    EXPO_PUBLIC_SENTRY_DSN: baseEnv.EXPO_PUBLIC_SENTRY_DSN ?? "",
+    EXPO_NO_METRO_WORKSPACE_ROOT: baseEnv.EXPO_NO_METRO_WORKSPACE_ROOT ?? "1",
+    EXPO_NO_TELEMETRY: "1",
+  };
+}
+
 function main() {
   const { anonKey } = getLocalSupabaseEnv();
-  const useLoopbackSupabase =
-    process.env.MONYVI_LOCAL_GOOGLE_AUTH === "1" ||
-    process.env.MONYVI_LOCAL_SUPABASE_LOOPBACK === "1";
+  const deviceConfig = resolveLocalSupabaseDeviceConfig();
 
-  if (useLoopbackSupabase) {
+  if (deviceConfig.shouldReversePort && !process.env.EXPO_PUBLIC_SUPABASE_URL) {
     reverseLocalSupabasePort();
   }
 
-  const env = {
-    ...process.env,
-    EXPO_PUBLIC_SUPABASE_URL:
-      process.env.EXPO_PUBLIC_SUPABASE_URL ??
-      (useLoopbackSupabase
-        ? LOCAL_LOOPBACK_SUPABASE_URL
-        : LOCAL_ANDROID_SUPABASE_URL),
-    EXPO_PUBLIC_SUPABASE_ANON_KEY:
-      process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? anonKey,
-    EXPO_PUBLIC_MONYVI_TEST_MODE: "off",
-    EXPO_PUBLIC_AI_SMS_PARSER_MODE: "edge",
-    EXPO_PUBLIC_SENTRY_DSN: process.env.EXPO_PUBLIC_SENTRY_DSN ?? "",
-    EXPO_NO_METRO_WORKSPACE_ROOT:
-      process.env.EXPO_NO_METRO_WORKSPACE_ROOT ?? "1",
-    EXPO_NO_TELEMETRY: "1",
-  };
+  const env = buildLocalSupabaseExpoEnv(anonKey);
 
   const args =
     process.argv.length > 2
@@ -178,9 +199,17 @@ function main() {
   process.exit(result.status ?? 1);
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
+if (require.main === module) {
+  try {
+    main();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
 }
+
+module.exports = {
+  buildLocalSupabaseExpoEnv,
+  parseSupabaseEnv,
+  resolveLocalSupabaseDeviceConfig,
+};

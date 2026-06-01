@@ -89,10 +89,10 @@ npm run mobile:local-supabase
 ```
 
 `mobile:local-supabase` reads the local anon key from
-`npx supabase status -o env`, points Android emulators at
-`http://10.0.2.2:54321`, and keeps test-only fixture behavior off. Use
-`mobile:e2e-fixture` only when you want the deterministic E2E fixture parser and
-seeded test flow.
+`npx supabase status -o env`, uses loopback plus `adb reverse` so local Google
+sign-in is available by default on emulators and USB-connected Android devices,
+and keeps test-only fixture behavior off. Use `mobile:e2e-fixture` only when you
+want the deterministic E2E fixture parser and seeded test flow.
 
 ### Verify Local Setup
 
@@ -197,18 +197,17 @@ callback:
 http://127.0.0.1:54321/auth/v1/callback
 ```
 
-Then restart the local stack and run the app with the Google-friendly local
-script:
+Then restart the local stack and run the app in local mode:
 
 ```bash
 npm run supabase:start:local
-npm run mobile:local-supabase:google
+npm run mobile:local-supabase
 ```
 
-`mobile:local-supabase:google` points the emulator at `http://127.0.0.1:54321`
-and runs `adb reverse tcp:54321 tcp:54321` so the browser-based OAuth callback
-can reach local Supabase. Use `mobile:local-supabase` when you do not need
-Google sign-in.
+`mobile:local-supabase` points ADB-reachable Android devices at
+`http://127.0.0.1:54321` and runs `adb reverse tcp:54321 tcp:54321` so the
+browser-based OAuth callback can reach local Supabase. The older
+`mobile:local-supabase:google` script is kept as a compatibility alias.
 
 If Google sign-in fails after opening the browser, verify the reverse exists:
 
@@ -221,6 +220,25 @@ You should see:
 ```text
 tcp:54321 tcp:54321
 ```
+
+For a physical Android device that is not connected to the computer through ADB,
+expose local Supabase through an HTTPS tunnel or another device-reachable HTTPS
+URL, add this callback to Google Cloud Console, and pass that URL to the local
+script:
+
+```text
+https://your-local-supabase-url/auth/v1/callback
+```
+
+PowerShell example:
+
+```powershell
+$env:MONYVI_LOCAL_SUPABASE_DEVICE_URL = "https://your-local-supabase-url"
+npm run mobile:local-supabase
+```
+
+For non-OAuth debugging only, you can opt out of loopback and use the emulator
+host URL with `MONYVI_LOCAL_SUPABASE_LOOPBACK=0`.
 
 ### Local Supabase Runtime Data
 
@@ -263,8 +281,11 @@ npm run supabase:runtime:setup-local
   occupying port `8081`.
 - If the app opens Expo Go instead of Monyvi, install or launch the development
   build, not Expo Go.
-- If local Google sign-in cannot reach the callback, run
-  `adb reverse tcp:54321 tcp:54321` while the emulator is running.
+- If local Google sign-in cannot reach the callback on an emulator or
+  USB-connected Android device, run `adb reverse tcp:54321 tcp:54321`.
+- If local Google sign-in cannot reach the callback on a wireless physical
+  device, set `MONYVI_LOCAL_SUPABASE_DEVICE_URL` to an HTTPS URL that the phone
+  can reach and add its `/auth/v1/callback` URL to Google Cloud Console.
 - If `market_rates` is empty, run `npm run supabase:market-rates:import-local`.
 - If Edge Functions that call external services fail, check that the required
   ignored root `.env` secrets are set and restart local Supabase.

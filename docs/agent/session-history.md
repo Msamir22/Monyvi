@@ -18,7 +18,7 @@
 
 | Date       | Time  | Topic                                     | File                                                                                                                                                                |
 | ---------- | ----- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-04-16 | 16:00 | Onboarding Card Redesign + SMS Permission | [2026-04-16_1600_onboarding-sms-permission-fixes.md](file:///e:/Work/My%20Projects/Astik/docs/agent/sessions/2026-04-16_1600_onboarding-sms-permission-fixes.md)    |
+| 2026-04-16 | 16:00 | Onboarding Card Redesign + SMS Permission | [2026-04-16_1600_onboarding-sms-permission-fixes.md](file:///e:/Work/My%20Projects/Monyvi/docs/agent/sessions/2026-04-16_1600_onboarding-sms-permission-fixes.md)   |
 | 2026-02-12 | 09:44 | Concurrent Sync Fix & Category Selector   | [2026-02-12_0944_concurrent-sync-fix.md](file:///e:/Work/My%20Projects/Monyvi/docs/agent/sessions/2026-02-12_0944_concurrent-sync-fix.md)                           |
 | 2026-02-07 | 02:45 | UI Refactoring & Styling Standardization  | [2026-02-07_0245_ui-refactoring-standardization.md](file:///e:/Work/My%20Projects/Monyvi/docs/agent/sessions/2026-02-07_0245_ui-refactoring-standardization.md)     |
 | 2026-01-19 | 22:26 | Sync Fixes & SecureStore                  | [2026-01-19_2226_sync-fixes-securestore.md](file:///e:/Work/My%20Projects/Monyvi/docs/agent/sessions/2026-01-19_2226_sync-fixes-securestore.md)                     |

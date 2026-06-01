@@ -17,7 +17,7 @@
     "mobile": "npm run start -w @monyvi/mobile",
     "supabase:start:local": "node scripts/start-local-supabase.js",
     "mobile:local-supabase": "npm run start:local-supabase -w @monyvi/mobile --",
-    "mobile:local-supabase:google": "npm run start:local-supabase:google -w @monyvi/mobile --",
+    "mobile:local-supabase:google": "npm run start:local-supabase -w @monyvi/mobile --",
     "mobile:e2e-fixture": "npm run start:e2e-fixture -w @monyvi/mobile",
     "mobile:ios": "npm run ios -w @monyvi/mobile",
     "mobile:android": "npm run android -w @monyvi/mobile",
@@ -82,7 +82,7 @@
     "lint-staged": "^15.5.2",
     "nx": "22.3.3",
     "prettier": "^3.2.5",
-    "supabase": "^2.71.1",
+    "supabase": "^2.103.0",
     "typescript": "~5.9.2"
   },
   "optionalDependencies": {

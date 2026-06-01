@@ -316,8 +316,9 @@ enabled = true
 client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
 # DO NOT commit your OAuth provider secret to git. Use environment variable substitution instead:
 secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
-# Keep blank so local GoTrue uses the request host. For Android emulator Google
-# OAuth, run the app with the loopback script and adb reverse port 54321.
+# Keep blank so local GoTrue uses the request host. For local mobile Google
+# OAuth, run the app with mobile:local-supabase. Wireless physical devices need
+# MONYVI_LOCAL_SUPABASE_DEVICE_URL set to a device-reachable HTTPS URL.
 redirect_uri = ""
 url = ""
 # Required by Supabase's local Google auth flow.
