@@ -144,12 +144,27 @@ async function persistPendingAccounts(
       }
 
       // Check: already exists in DB?
-      const existingMatch = existingAccounts.find(
+      const existingNameCurrencyMatch = existingAccounts.find(
         (acc) =>
           // TODO: Move trim().toLowerCase() to a util function
           acc.name.trim().toLowerCase() === pending.name.trim().toLowerCase() &&
           acc.currency === pending.currency
       );
+
+      if (
+        existingNameCurrencyMatch &&
+        existingNameCurrencyMatch.type !== pending.type
+      ) {
+        errors.push(
+          `An account named "${pending.name}" already exists for ${pending.currency}. Rename the detected bank account or select the existing account manually.`
+        );
+        break;
+      }
+
+      const existingMatch =
+        existingNameCurrencyMatch?.type === pending.type
+          ? existingNameCurrencyMatch
+          : undefined;
 
       if (existingMatch) {
         // Safe to set immediately — references a DB-existing record
@@ -204,6 +219,10 @@ async function persistPendingAccounts(
 
       // Track in createdInBatch so subsequent loop iterations can dedup
       createdInBatch.set(dedupKey, account.id);
+    }
+
+    if (errors.length > 0) {
+      return { tempToRealIdMap, createdCount: 0, errors };
     }
 
     // Commit all prepared records atomically

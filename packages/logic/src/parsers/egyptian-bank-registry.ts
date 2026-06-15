@@ -625,6 +625,8 @@ const INSTITUTION_BY_ID = new Map<string, EgyptianFinancialInstitution>(
 const SENDER_LOOKUP_MAP: ReadonlyMap<string, EgyptianFinancialInstitution> =
   buildLookupMap();
 const MIN_SUBSTRING_PATTERN_LENGTH = 4;
+const MIN_BOUNDARY_PATTERN_LENGTH = 3;
+const SENDER_BOUNDARY_PATTERN = "[^a-z0-9]";
 
 function buildLookupMap(): Map<string, EgyptianFinancialInstitution> {
   const map = new Map<string, EgyptianFinancialInstitution>();
@@ -642,6 +644,21 @@ function normalizeSenderPattern(senderAddress: string): string {
   return senderAddress.trim().toLowerCase();
 }
 
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function hasSenderBoundaryMatch(
+  normalizedSender: string,
+  normalizedPattern: string
+): boolean {
+  const boundaryRegex = new RegExp(
+    `(^|${SENDER_BOUNDARY_PATTERN})${escapeRegex(normalizedPattern)}($|${SENDER_BOUNDARY_PATTERN})`
+  );
+
+  return boundaryRegex.test(normalizedSender);
+}
+
 export function isKnownFinancialSender(
   senderAddress: string
 ): EgyptianFinancialInstitution | undefined {
@@ -657,8 +674,10 @@ export function isKnownFinancialSender(
 
   for (const [pattern, institution] of SENDER_LOOKUP_MAP) {
     if (
-      pattern.length >= MIN_SUBSTRING_PATTERN_LENGTH &&
-      normalized.includes(pattern)
+      (pattern.length >= MIN_SUBSTRING_PATTERN_LENGTH &&
+        normalized.includes(pattern)) ||
+      (pattern.length >= MIN_BOUNDARY_PATTERN_LENGTH &&
+        hasSenderBoundaryMatch(normalized, pattern))
     ) {
       return institution;
     }

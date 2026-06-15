@@ -110,6 +110,13 @@ describe("Egyptian financial institution registry", () => {
   it("requires exact matches for short generic sender aliases", () => {
     expect(isKnownFinancialSender("ABC")?.id).toBe("bank-abc");
     expect(isKnownFinancialSender("ABCStore")).toBeUndefined();
+    expect(isKnownFinancialSender("BM-Store")).toBeUndefined();
+  });
+
+  it("matches short verified bank aliases when delimited by sender boundaries", () => {
+    expect(isKnownFinancialSender("CIB-EGYPT")?.id).toBe("cib");
+    expect(isKnownFinancialSender("NBE-Bank")?.id).toBe("nbe");
+    expect(isKnownFinancialSender("QNB-AlaHli")?.id).toBe("qnb-egypt");
   });
 
   it("does not make pending Meeza or generic Fawry products selectable", () => {
