@@ -19,7 +19,7 @@ import { palette } from "@/constants/colors";
 import type { InstitutionLogo } from "@/constants/egyptian-institution-assets";
 import { TAB_BAR_HEIGHT } from "@/constants/ui";
 
-import { useTopAccounts } from "@/hooks/useAccounts";
+import { useAccounts } from "@/hooks/useAccounts";
 import { useMarketRates } from "@/hooks/useMarketRates";
 import { useMonthlyPercentageChange, useNetWorth } from "@/hooks/useNetWorth";
 import { usePreferredCurrency } from "@/hooks/usePreferredCurrency";
@@ -58,7 +58,7 @@ function getGreetingKey(): "good_morning" | "good_afternoon" | "good_evening" {
 }
 
 /**
- * Renders the main dashboard screen including total net worth, live market rates, top accounts,
+ * Renders the main dashboard screen including total net worth, live market rates, accounts,
  * recent transactions, upcoming payments, and UI for selecting the preferred currency.
  * Supports pull-to-refresh to trigger a Supabase sync.
  */
@@ -76,7 +76,7 @@ export default function DashboardScreen(): React.JSX.Element {
   const { t } = useTranslation("common");
   const { profile } = useProfile();
   const { sync } = useSync();
-  const { accounts, isLoading: accountsLoading } = useTopAccounts(3);
+  const { accounts, isLoading: accountsLoading } = useAccounts();
   const {
     latestRates,
     previousDayRate,

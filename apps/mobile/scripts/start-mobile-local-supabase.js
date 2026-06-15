@@ -4,18 +4,114 @@
  *
  * The script reads the local anon key from `npx supabase status -o env`, points
  * ADB-reachable Android devices to loopback via `adb reverse`, and keeps E2E
- * fixture behavior disabled. For wireless physical devices, set
- * `MONYVI_LOCAL_SUPABASE_DEVICE_URL` to a Supabase URL the device can reach.
+ * fixture behavior disabled. Pass `--wireless-device` to start local Supabase,
+ * seed the manual QA user, start ngrok, and use the ngrok HTTPS URL.
  */
-const { join, resolve } = require("node:path");
-const { spawnSync } = require("node:child_process");
+const http = require("node:http");
+const { existsSync } = require("node:fs");
+const { delimiter, join, resolve } = require("node:path");
+const { spawn, spawnSync } = require("node:child_process");
 
 const LOCAL_ANDROID_SUPABASE_URL = "http://10.0.2.2:54321";
 const LOCAL_LOOPBACK_SUPABASE_URL = "http://127.0.0.1:54321";
+const LOCAL_SUPABASE_PORT = "54321";
+const NGROK_API_URL = "http://127.0.0.1:4040/api/tunnels";
+const NGROK_START_TIMEOUT_MS = 30_000;
+const NGROK_POLL_INTERVAL_MS = 500;
 const repoRoot = resolve(__dirname, "..", "..", "..");
+const mobileRoot = join(repoRoot, "apps", "mobile");
 
 function resolveNpxCommand() {
   return process.platform === "win32" ? "npx.cmd" : "npx";
+}
+
+function resolveNpmCommand() {
+  return process.platform === "win32" ? "npm.cmd" : "npm";
+}
+
+function findOnPath(command) {
+  const pathValue = process.env.PATH || "";
+  const extensions =
+    process.platform === "win32"
+      ? (process.env.PATHEXT || ".EXE;.CMD;.BAT;.COM").split(";")
+      : [""];
+
+  for (const directory of pathValue.split(delimiter)) {
+    for (const extension of extensions) {
+      const candidate = join(directory, `${command}${extension.toLowerCase()}`);
+      if (existsSync(candidate)) {
+        return candidate;
+      }
+    }
+  }
+
+  return null;
+}
+
+function resolveNgrokCommand(env = process.env, options = {}) {
+  if (env.NGROK_COMMAND) return env.NGROK_COMMAND;
+
+  const findCommandOnPath = options.findOnPath ?? findOnPath;
+  const pathExists = options.pathExists ?? existsSync;
+  const pathCommand = findCommandOnPath("ngrok");
+  if (pathCommand) return pathCommand;
+
+  const knownWindowsCommands = [
+    env.LOCALAPPDATA
+      ? join(
+          env.LOCALAPPDATA,
+          "Microsoft",
+          "WinGet",
+          "Packages",
+          "Ngrok.Ngrok_Microsoft.Winget.Source_8wekyb3d8bbwe",
+          "ngrok.exe"
+        )
+      : null,
+    env.USERPROFILE
+      ? join(env.USERPROFILE, "scoop", "shims", "ngrok.exe")
+      : null,
+    env.APPDATA ? join(env.APPDATA, "npm", "ngrok.cmd") : null,
+  ].filter(Boolean);
+
+  const knownCommand = knownWindowsCommands.find((command) =>
+    pathExists(command)
+  );
+
+  return knownCommand ?? "ngrok";
+}
+
+function shouldShowSetupOutput(env = process.env) {
+  return env.MONYVI_LOCAL_SUPABASE_VERBOSE_SETUP === "1";
+}
+
+function parseCliArgs(args) {
+  let shouldUseWirelessDeviceTunnel = false;
+  let password = null;
+  const expoArgs = [];
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+
+    if (arg === "--wireless-device" || arg === "--physical-device") {
+      shouldUseWirelessDeviceTunnel = true;
+      continue;
+    }
+
+    if (arg === "--password") {
+      password = args[index + 1] ?? null;
+      index += 1;
+      continue;
+    }
+
+    if (arg.startsWith("--password=")) {
+      password = arg.slice("--password=".length);
+      continue;
+    }
+
+    expoArgs.push(arg);
+  }
+
+  return { shouldUseWirelessDeviceTunnel, password, expoArgs };
 }
 
 function parseSupabaseEnv(output) {
@@ -136,6 +232,22 @@ function reverseLocalSupabasePort() {
   }
 }
 
+function buildManualQaSeedEnv(cliPassword, baseEnv = process.env) {
+  const password = cliPassword ?? baseEnv.MANUAL_QA_PASSWORD;
+  if (password) {
+    return {
+      ...baseEnv,
+      MANUAL_QA_PASSWORD: password,
+      MANUAL_QA_PRESERVE_PASSWORD: undefined,
+    };
+  }
+
+  return {
+    ...baseEnv,
+    MANUAL_QA_PRESERVE_PASSWORD: "1",
+  };
+}
+
 function resolveLocalSupabaseDeviceConfig(env = process.env) {
   if (env.MONYVI_LOCAL_SUPABASE_DEVICE_URL) {
     return {
@@ -174,23 +286,150 @@ function buildLocalSupabaseExpoEnv(anonKey, baseEnv = process.env) {
   };
 }
 
-function main() {
-  const { anonKey } = getLocalSupabaseEnv();
-  const deviceConfig = resolveLocalSupabaseDeviceConfig();
-
-  if (deviceConfig.shouldReversePort && !process.env.EXPO_PUBLIC_SUPABASE_URL) {
-    reverseLocalSupabasePort();
+function runRequiredCommand(label, command, args, options = {}) {
+  const env = options.env ?? process.env;
+  const isVerbose = shouldShowSetupOutput(env);
+  if (isVerbose) {
+    console.log(`\n${label}`);
   }
 
-  const env = buildLocalSupabaseExpoEnv(anonKey);
+  const result = spawnSync(command, args, {
+    cwd: options.cwd ?? repoRoot,
+    env,
+    encoding: "utf8",
+    stdio: isVerbose ? "inherit" : "pipe",
+    shell: process.platform === "win32",
+  });
 
-  const args =
-    process.argv.length > 2
-      ? ["expo", "start", ...process.argv.slice(2)]
-      : ["expo", "start", "--dev-client", "--port", "8081"];
+  if (result.status !== 0) {
+    const output = [result.stderr, result.stdout]
+      .filter(Boolean)
+      .join("\n")
+      .trim();
+    throw new Error(
+      [`${label} failed with exit code ${result.status ?? 1}.`, output]
+        .filter(Boolean)
+        .join("\n")
+    );
+  }
+}
 
-  const result = spawnSync(resolveNpxCommand(), args, {
-    cwd: join(repoRoot, "apps", "mobile"),
+function resolveNgrokTunnelUrl(apiResponse) {
+  const parsed = JSON.parse(apiResponse);
+  const tunnels = Array.isArray(parsed.tunnels) ? parsed.tunnels : [];
+  const httpsTunnels = tunnels.filter(
+    (candidate) =>
+      candidate &&
+      candidate.proto === "https" &&
+      typeof candidate.public_url === "string" &&
+      candidate.public_url.startsWith("https://")
+  );
+  const tunnel =
+    httpsTunnels.find(
+      (candidate) =>
+        typeof candidate.config?.addr === "string" &&
+        candidate.config.addr.includes(`:${LOCAL_SUPABASE_PORT}`)
+    ) ?? httpsTunnels[0];
+
+  if (!tunnel) {
+    throw new Error("Could not find an HTTPS ngrok tunnel for local Supabase.");
+  }
+
+  return tunnel.public_url;
+}
+
+function readHttpText(url) {
+  return new Promise((resolveText, reject) => {
+    const request = http.get(url, (response) => {
+      const chunks = [];
+
+      response.on("data", (chunk) => {
+        chunks.push(chunk);
+      });
+
+      response.on("end", () => {
+        if ((response.statusCode ?? 500) >= 400) {
+          reject(new Error(`ngrok API returned HTTP ${response.statusCode}.`));
+          return;
+        }
+
+        resolveText(Buffer.concat(chunks).toString("utf8"));
+      });
+    });
+
+    request.on("error", reject);
+    request.setTimeout(2_000, () => {
+      request.destroy(new Error("Timed out while reading the ngrok API."));
+    });
+  });
+}
+
+async function waitForNgrokTunnelUrl(
+  apiUrl = NGROK_API_URL,
+  timeoutMs = NGROK_START_TIMEOUT_MS
+) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError = null;
+
+  while (Date.now() < deadline) {
+    try {
+      return resolveNgrokTunnelUrl(await readHttpText(apiUrl));
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolveWait) =>
+        setTimeout(resolveWait, NGROK_POLL_INTERVAL_MS)
+      );
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Timed out waiting for ngrok to expose local Supabase.");
+}
+
+function startNgrok() {
+  const command = resolveNgrokCommand();
+  return spawn(command, ["http", LOCAL_SUPABASE_PORT], {
+    cwd: repoRoot,
+    stdio: shouldShowSetupOutput() ? "inherit" : "ignore",
+    shell: process.platform === "win32",
+  });
+}
+
+function stopChildProcess(child) {
+  if (child.killed) return;
+
+  if (process.platform === "win32" && child.pid) {
+    spawnSync("taskkill", ["/pid", String(child.pid), "/t", "/f"], {
+      stdio: "ignore",
+    });
+    return;
+  }
+
+  child.kill();
+}
+
+function hasExpoOption(expoArgs, option) {
+  return expoArgs.some((arg) => arg === option || arg.startsWith(`${option}=`));
+}
+
+function buildExpoStartArgs(expoArgs) {
+  const defaultArgs = [];
+
+  if (!hasExpoOption(expoArgs, "--dev-client")) {
+    defaultArgs.push("--dev-client");
+  }
+
+  if (!hasExpoOption(expoArgs, "--port")) {
+    defaultArgs.push("--port", "8081");
+  }
+
+  return ["expo", "start", ...defaultArgs, ...expoArgs];
+}
+
+function runExpoSync(env, expoArgs) {
+  const result = spawnSync(resolveNpxCommand(), buildExpoStartArgs(expoArgs), {
+    cwd: mobileRoot,
     env,
     stdio: "inherit",
     shell: process.platform === "win32",
@@ -199,17 +438,133 @@ function main() {
   process.exit(result.status ?? 1);
 }
 
-if (require.main === module) {
+function startExpoProcess(env, expoArgs) {
+  return spawn(resolveNpxCommand(), buildExpoStartArgs(expoArgs), {
+    cwd: mobileRoot,
+    env,
+    stdio: "inherit",
+    shell: process.platform === "win32",
+  });
+}
+
+function startDefaultLocalSupabase(expoArgs) {
+  const { anonKey } = getLocalSupabaseEnv();
+  const deviceConfig = resolveLocalSupabaseDeviceConfig();
+
+  if (deviceConfig.shouldReversePort && !process.env.EXPO_PUBLIC_SUPABASE_URL) {
+    reverseLocalSupabasePort();
+  }
+
+  runExpoSync(buildLocalSupabaseExpoEnv(anonKey), expoArgs);
+}
+
+async function startWirelessDeviceLocalSupabase(password, expoArgs) {
+  runRequiredCommand("Starting local Supabase", resolveNpmCommand(), [
+    "run",
+    "supabase:start:local",
+  ]);
+
+  const seedEnv = buildManualQaSeedEnv(password);
+  runRequiredCommand(
+    "Seeding manual QA user",
+    resolveNpmCommand(),
+    ["run", "manual:seed-user", "-w", "@monyvi/mobile"],
+    { env: seedEnv }
+  );
+
+  if (shouldShowSetupOutput()) {
+    console.log("\nStarting ngrok tunnel for local Supabase");
+  }
+  const ngrok = startNgrok();
+  let isShuttingDown = false;
+  let ngrokStartError = null;
+
+  const stopNgrok = () => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    stopChildProcess(ngrok);
+  };
+
+  process.once("SIGINT", () => {
+    stopNgrok();
+    process.exit(130);
+  });
+  process.once("SIGTERM", () => {
+    stopNgrok();
+    process.exit(143);
+  });
+
+  ngrok.once("error", (error) => {
+    ngrokStartError = error;
+  });
+
+  ngrok.once("exit", (code) => {
+    if (!isShuttingDown && code !== 0) {
+      console.error(
+        [
+          `ngrok exited before Metro started with code ${code ?? 1}.`,
+          "If ngrok is installed but not on PATH, set NGROK_COMMAND to the full ngrok.exe path.",
+        ].join("\n")
+      );
+      process.exit(code ?? 1);
+    }
+  });
+
+  let tunnelUrl;
   try {
-    main();
+    tunnelUrl = await waitForNgrokTunnelUrl();
   } catch (error) {
+    stopNgrok();
+    if (ngrokStartError instanceof Error) {
+      throw new Error(`Could not start ngrok: ${ngrokStartError.message}`);
+    }
+    throw error;
+  }
+
+  if (shouldShowSetupOutput()) {
+    console.log(`\nUsing local Supabase tunnel: ${tunnelUrl}`);
+  }
+
+  const { anonKey } = getLocalSupabaseEnv();
+  const env = buildLocalSupabaseExpoEnv(anonKey, {
+    ...process.env,
+    MONYVI_LOCAL_SUPABASE_DEVICE_URL: tunnelUrl,
+  });
+  const expo = startExpoProcess(env, expoArgs);
+  expo.once("exit", (code) => {
+    stopNgrok();
+    process.exit(code ?? 0);
+  });
+}
+
+async function main() {
+  const { shouldUseWirelessDeviceTunnel, password, expoArgs } = parseCliArgs(
+    process.argv.slice(2)
+  );
+
+  if (shouldUseWirelessDeviceTunnel) {
+    await startWirelessDeviceLocalSupabase(password, expoArgs);
+    return;
+  }
+
+  startDefaultLocalSupabase(expoArgs);
+}
+
+if (require.main === module) {
+  main().catch((error) => {
     console.error(error instanceof Error ? error.message : String(error));
     process.exit(1);
-  }
+  });
 }
 
 module.exports = {
+  buildExpoStartArgs,
+  buildManualQaSeedEnv,
   buildLocalSupabaseExpoEnv,
+  parseCliArgs,
   parseSupabaseEnv,
   resolveLocalSupabaseDeviceConfig,
+  resolveNgrokCommand,
+  resolveNgrokTunnelUrl,
+  shouldShowSetupOutput,
 };

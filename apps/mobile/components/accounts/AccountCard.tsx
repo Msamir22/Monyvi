@@ -1,12 +1,14 @@
 import { palette } from "@/constants/colors";
 import type { InstitutionLogo } from "@/constants/egyptian-institution-assets";
+import { InstitutionLogoMark } from "@/components/institutions/InstitutionLogoMark";
 import { formatAccountBalance } from "@/utils/financial-display";
 import { Account, MarketRate } from "@monyvi/db";
 import { convertCurrency, formatCurrency } from "@monyvi/logic";
 import { Ionicons } from "@expo/vector-icons";
 import { memo, useCallback, useMemo } from "react";
-import { Image, Text, TouchableOpacity, View } from "react-native";
+import { Text, TouchableOpacity, View } from "react-native";
 import { useTranslation } from "react-i18next";
+import { useTheme } from "@/context/ThemeContext";
 
 interface AccountCardProps {
   account: Account;
@@ -47,6 +49,7 @@ function AccountCardImpl({
   institutionLogo = null,
 }: AccountCardProps): React.JSX.Element {
   const { t } = useTranslation("accounts");
+  const { isDark } = useTheme();
   const handlePress = useCallback(() => {
     onPress?.(account.id);
   }, [onPress, account.id]);
@@ -64,12 +67,15 @@ function AccountCardImpl({
           return { icon: "wallet", color: palette.nileGreen[500] };
       }
     }, [account.type]);
-  const InstitutionSvgLogo =
-    institutionLogo?.format === "svg" &&
-    typeof institutionLogo.source === "function"
-      ? institutionLogo.source
-      : null;
-
+  const accentColor =
+    institutionLogo?.presentation?.cardLabelColorByMode?.[
+      isDark ? "dark" : "light"
+    ] ??
+    institutionLogo?.presentation?.cardAccentColorByMode?.[
+      isDark ? "dark" : "light"
+    ] ??
+    institutionLogo?.presentation?.cardAccentColor ??
+    config.color;
   const subtitle = useMemo(() => {
     if (account.currency !== "USD" && latestRates) {
       const usdValue = convertCurrency(
@@ -111,7 +117,7 @@ function AccountCardImpl({
       // shadow-* classes moved to inline style to avoid NativeWind v4
       // race condition with React Navigation context (known bug)
       style={{
-        borderLeftColor: config.color,
+        borderLeftColor: accentColor,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.05,
@@ -121,21 +127,19 @@ function AccountCardImpl({
     >
       <View className="flex-row items-center p-4">
         {/* Icon Container with subtle background */}
-        <View
-          className="w-12 h-12 rounded-2xl items-center justify-center me-4"
-          style={{ backgroundColor: `${config.color}15` }}
-        >
-          {InstitutionSvgLogo ? (
-            <InstitutionSvgLogo width={28} height={28} />
-          ) : institutionLogo?.format === "image" ? (
-            <Image
-              source={institutionLogo.source}
-              resizeMode="contain"
-              className="h-7 w-7"
-            />
-          ) : (
-            <Ionicons name={config.icon} size={24} color={config.color} />
-          )}
+        <View className="me-4">
+          <InstitutionLogoMark
+            logo={institutionLogo}
+            size="account-list"
+            testID={
+              institutionLogo
+                ? `account-provider-logo-${account.id}`
+                : undefined
+            }
+            fallback={
+              <Ionicons name={config.icon} size={24} color={accentColor} />
+            }
+          />
         </View>
 
         {/* Content */}

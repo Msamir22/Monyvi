@@ -37,6 +37,23 @@ describe("SenderChipsField", () => {
     expect(onChange).toHaveBeenCalledWith(["CIBEGYPT"]);
   });
 
+  it("keeps sender chips and input readable in dark mode", () => {
+    render(<SenderChipsField value={["CIB"]} onChange={jest.fn()} />);
+
+    expect(screen.getByText("CIB")).toHaveProp(
+      "className",
+      expect.stringContaining("dark:text-text-primary-dark")
+    );
+    expect(screen.getByText("x")).toHaveProp(
+      "className",
+      expect.stringContaining("dark:text-slate-300")
+    );
+    expect(screen.getByPlaceholderText("Add sender")).toHaveProp(
+      "className",
+      expect.stringContaining("dark:bg-slate-800")
+    );
+  });
+
   it("trims custom senders and rejects case-insensitive duplicates", () => {
     const onChange = jest.fn();
 

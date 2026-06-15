@@ -17,13 +17,15 @@ import { useFonts } from "expo-font";
 import { I18nextProvider } from "react-i18next";
 import { Stack, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import * as SystemUI from "expo-system-ui";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Platform, type AppStateStatus } from "react-native";
+import { AppState, Platform, View, type AppStateStatus } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import {
   SafeAreaProvider,
   initialWindowMetrics,
+  useSafeAreaInsets,
 } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "../components/ErrorBoundary";
@@ -169,6 +171,7 @@ function RootLayout(): React.ReactNode {
                 <SafeAreaProvider initialMetrics={initialWindowMetrics}>
                   <ToastProvider>
                     <RootLayoutNav />
+                    <AndroidNavigationBarSurface />
                     <PublicSplashGate />
                   </ToastProvider>
                 </SafeAreaProvider>
@@ -210,14 +213,26 @@ function PublicSplashGate(): null {
 }
 
 function RootLayoutNav(): React.ReactNode {
-  const { colorScheme, isDark } = useTheme();
+  const { isDark } = useTheme();
+  const systemBackgroundColor = isDark
+    ? darkTheme.background
+    : lightTheme.background;
+  const statusBarStyle = isDark ? "light" : "dark";
+
+  useEffect(() => {
+    SystemUI.setBackgroundColorAsync(systemBackgroundColor).catch(
+      (error: unknown) => {
+        logger.warn(
+          "rootLayout.systemUi.setBackgroundColor.failed",
+          error instanceof Error ? { message: error.message } : { error }
+        );
+      }
+    );
+  }, [systemBackgroundColor]);
 
   return (
     <>
-      <StatusBar
-        style={colorScheme}
-        backgroundColor={isDark ? lightTheme.background : darkTheme.background}
-      />
+      <StatusBar style={statusBarStyle} />
       <Stack
         screenOptions={{
           headerShown: false,
@@ -235,5 +250,21 @@ function RootLayoutNav(): React.ReactNode {
         <Stack.Screen name="(private)" />
       </Stack>
     </>
+  );
+}
+
+function AndroidNavigationBarSurface(): React.ReactNode {
+  const insets = useSafeAreaInsets();
+
+  if (Platform.OS !== "android" || insets.bottom <= 0) {
+    return null;
+  }
+
+  return (
+    <View
+      pointerEvents="none"
+      className="absolute bottom-0 start-0 end-0 z-[20] bg-background dark:bg-background-dark"
+      style={{ height: insets.bottom }}
+    />
   );
 }

@@ -206,8 +206,7 @@ npm run mobile:local-supabase
 
 `mobile:local-supabase` points ADB-reachable Android devices at
 `http://127.0.0.1:54321` and runs `adb reverse tcp:54321 tcp:54321` so the
-browser-based OAuth callback can reach local Supabase. The older
-`mobile:local-supabase:google` script is kept as a compatibility alias.
+browser-based OAuth callback can reach local Supabase.
 
 If Google sign-in fails after opening the browser, verify the reverse exists:
 
@@ -239,6 +238,51 @@ npm run mobile:local-supabase
 
 For non-OAuth debugging only, you can opt out of loopback and use the emulator
 host URL with `MONYVI_LOCAL_SUPABASE_LOOPBACK=0`.
+
+### Local Wireless Device Mode
+
+For a wireless physical Android device, let the same local script start local
+Supabase, seed the manual QA user, start ngrok, read the ngrok HTTPS URL, and
+start Metro with `MONYVI_LOCAL_SUPABASE_DEVICE_URL` set:
+
+```powershell
+npm run mobile:local-supabase:wireless-device
+```
+
+By default, the script preserves the existing manual QA password while
+refreshing the seeded local data. Sign in with:
+
+```text
+Email: manual-qa@monyvi.test
+Password: the current manual QA password
+```
+
+To create the manual QA user for the first time, or to update its password, pass
+a password once:
+
+```powershell
+npm run mobile:local-supabase:wireless-device -- --password "LocalOnlyPassword123!"
+```
+
+Passing a password as a CLI argument is convenient, but it can remain in shell
+history. To avoid that, set the environment variable instead:
+
+```powershell
+$env:MANUAL_QA_PASSWORD = "LocalOnlyPassword123!"
+npm run mobile:local-supabase:wireless-device
+```
+
+Wireless device mode expects `ngrok` to be installed and authenticated on your
+machine. If you use a custom ngrok executable, set `NGROK_COMMAND` before
+running it.
+
+Setup output from Supabase, manual QA seeding, and ngrok is hidden by default so
+Metro remains readable. To debug setup commands, enable verbose setup output:
+
+```powershell
+$env:MONYVI_LOCAL_SUPABASE_VERBOSE_SETUP = "1"
+npm run mobile:local-supabase:wireless-device
+```
 
 ### Local Supabase Runtime Data
 

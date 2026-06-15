@@ -5,7 +5,6 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useMemo, useState, type JSX } from "react";
 import {
-  Image,
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
@@ -19,15 +18,13 @@ import {
   View,
 } from "react-native";
 import { useTranslation } from "react-i18next";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import {
-  getEgyptianInstitutionAsset,
-  type InstitutionLogo,
-} from "@/constants/egyptian-institution-assets";
+import { getEgyptianInstitutionAsset } from "@/constants/egyptian-institution-assets";
+import { InstitutionLogoMark } from "@/components/institutions/InstitutionLogoMark";
 import { palette } from "@/constants/colors";
 
 type InstitutionPickerType = "bank" | "wallet";
-
 interface InstitutionPickerProps {
   readonly type: InstitutionPickerType;
   readonly selectedInstitutionId: SelectableEgyptianInstitutionId | null;
@@ -48,7 +45,53 @@ function getInstitutionLabel(institution: {
     institution.language.startsWith("ar") && institution.nameAr
       ? institution.nameAr
       : institution.fullName;
+
+  if (isRedundantInstitutionFullName(institution.shortName, fullName)) {
+    return institution.shortName;
+  }
+
   return `${institution.shortName} (${fullName})`;
+}
+
+function normalizeInstitutionName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function isRedundantInstitutionFullName(
+  shortName: string,
+  fullName: string
+): boolean {
+  const normalizedShortName = normalizeInstitutionName(shortName);
+  const normalizedFullName = normalizeInstitutionName(fullName);
+
+  if (!normalizedShortName || !normalizedFullName) {
+    return false;
+  }
+
+  if (normalizedShortName === normalizedFullName) {
+    return true;
+  }
+
+  if (!normalizedFullName.startsWith(`${normalizedShortName} `)) {
+    return false;
+  }
+
+  const remainingWords = normalizedFullName
+    .slice(normalizedShortName.length)
+    .trim()
+    .split(" ")
+    .filter(Boolean);
+  const genericInstitutionWords = new Set(["bank", "egypt", "misr", "plc"]);
+
+  return (
+    remainingWords.length > 0 &&
+    remainingWords.every((word) => genericInstitutionWords.has(word))
+  );
 }
 
 function getPickerTitleKey(type: InstitutionPickerType): string {
@@ -75,35 +118,6 @@ function getPickerCloseKey(type: InstitutionPickerType): string {
     : "institution_wallet_dropdown_close";
 }
 
-interface InstitutionLogoMarkProps {
-  readonly logo: InstitutionLogo;
-  readonly accessibilityLabel: string;
-}
-
-function InstitutionLogoMark({
-  logo,
-  accessibilityLabel,
-}: InstitutionLogoMarkProps): JSX.Element {
-  const InstitutionSvgLogo =
-    logo.format === "svg" && typeof logo.source === "function"
-      ? logo.source
-      : null;
-
-  return (
-    <View
-      className="me-3 h-11 w-11 items-center justify-center rounded-xl border border-slate-100 bg-white dark:border-slate-700 dark:bg-slate-800"
-      accessibilityLabel={accessibilityLabel}
-      testID={accessibilityLabel}
-    >
-      {InstitutionSvgLogo ? (
-        <InstitutionSvgLogo width={32} height={32} />
-      ) : logo.format === "image" ? (
-        <Image source={logo.source} resizeMode="contain" className="h-8 w-8" />
-      ) : null}
-    </View>
-  );
-}
-
 export function InstitutionPicker({
   type,
   selectedInstitutionId,
@@ -112,6 +126,7 @@ export function InstitutionPicker({
   onSelectOther,
 }: InstitutionPickerProps): JSX.Element {
   const { t, i18n } = useTranslation("accounts");
+  const insets = useSafeAreaInsets();
   const language = i18n?.language ?? "en";
   const { height: windowHeight } = useWindowDimensions();
   const [searchText, setSearchText] = useState("");
@@ -182,6 +197,7 @@ export function InstitutionPicker({
     keyboardHeight > 0
       ? Math.max(windowHeight - keyboardHeight - 96, windowHeight * 0.38)
       : windowHeight * 0.72;
+  const androidKeyboardOffset = Platform.OS === "android" ? keyboardHeight : 0;
 
   return (
     <View className="mb-3">
@@ -200,12 +216,14 @@ export function InstitutionPicker({
               <InstitutionLogoMark
                 logo={selectedLogo}
                 accessibilityLabel={`${selectedLabel ?? ""} logo`}
+                testID={`${selectedLabel ?? ""} logo`}
+                containerClassName="me-3"
               />
             ) : null}
             <Text
               className={`flex-1 text-base font-semibold ${
                 selectedLabel
-                  ? "text-text-primary"
+                  ? "text-text-primary dark:text-text-primary-dark"
                   : "text-slate-400 dark:text-slate-500"
               }`}
               numberOfLines={2}
@@ -224,27 +242,36 @@ export function InstitutionPicker({
         onRequestClose={() => setIsDropdownOpen(false)}
       >
         <TouchableWithoutFeedback onPress={() => setIsDropdownOpen(false)}>
-          <View className="flex-1 justify-end bg-black/60">
+          <View
+            testID="institution-picker-overlay"
+            className="flex-1 justify-end bg-black/60"
+            style={{ paddingBottom: androidKeyboardOffset }}
+          >
             <KeyboardAvoidingView
               behavior={Platform.OS === "ios" ? "padding" : "height"}
               className="flex-1 justify-end"
             >
               <TouchableWithoutFeedback>
                 <View
-                  className="rounded-t-3xl bg-white px-5 pb-6 pt-5 dark:bg-slate-900"
+                  testID="institution-picker-sheet"
+                  className="rounded-t-3xl bg-white px-5 pt-5 dark:bg-slate-900"
                   style={{
                     maxHeight: sheetMaxHeight,
+                    paddingBottom: Math.max(insets.bottom + 24, 24),
                   }}
                 >
-                  <View className="mb-4 flex-row items-center justify-between">
-                    <Text className="text-lg font-black text-text-primary">
+                  <View className="relative mb-4 min-h-10 flex-row items-center justify-center">
+                    <Text
+                      testID="institution-picker-title"
+                      className="px-12 text-center text-lg font-black text-text-primary dark:text-text-primary-dark"
+                    >
                       {pickerTitle}
                     </Text>
                     <TouchableOpacity
                       onPress={() => setIsDropdownOpen(false)}
                       accessibilityRole="button"
                       accessibilityLabel={t(getPickerCloseKey(type))}
-                      className="p-2"
+                      className="absolute end-0 top-0 p-2"
                     >
                       <Ionicons
                         name="close"
@@ -256,9 +283,10 @@ export function InstitutionPicker({
 
                   <TextInput
                     placeholder={t("institution_search_placeholder")}
+                    placeholderTextColor={palette.slate[400]}
                     value={searchText}
                     onChangeText={setSearchText}
-                    className="mb-3 rounded-xl border border-slate-300 px-4 py-3 text-text-primary dark:border-slate-700"
+                    className="mb-3 rounded-xl border border-slate-300 bg-slate-25 px-4 py-3 text-text-primary dark:border-slate-700 dark:bg-slate-800 dark:text-text-primary-dark"
                   />
 
                   <FlatList
@@ -266,6 +294,9 @@ export function InstitutionPicker({
                     keyExtractor={(item) => item.id}
                     keyboardShouldPersistTaps="handled"
                     showsVerticalScrollIndicator={false}
+                    contentContainerStyle={{
+                      paddingBottom: Math.max(insets.bottom, 12),
+                    }}
                     renderItem={({ item }) => {
                       const label = getInstitutionLabel({
                         ...item,
@@ -282,16 +313,19 @@ export function InstitutionPicker({
                           }}
                           className={`mb-2 flex-row items-center rounded-xl border px-4 py-3 ${
                             isSelected
-                              ? "border-nileGreen-500"
-                              : "border-slate-200"
+                              ? "border-nileGreen-500 bg-nileGreen-50 dark:bg-slate-800"
+                              : "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800"
                           }`}
                           accessibilityLabel={label}
                         >
                           <InstitutionLogoMark
                             logo={asset.logo}
                             accessibilityLabel={`${label} logo`}
+                            testID={`${label} logo`}
+                            size="row"
+                            containerClassName="me-3"
                           />
-                          <Text className="flex-1 font-bold text-text-primary">
+                          <Text className="flex-1 font-bold text-text-primary dark:text-text-primary-dark">
                             {label}
                           </Text>
                           {isSelected ? (
@@ -312,16 +346,19 @@ export function InstitutionPicker({
                         }}
                         className={`mt-1 flex-row items-center rounded-xl border border-dashed px-4 py-3 ${
                           isOtherSelected
-                            ? "border-nileGreen-500"
-                            : "border-slate-300"
+                            ? "border-nileGreen-500 bg-nileGreen-50 dark:bg-slate-800"
+                            : "border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-800"
                         }`}
                         accessibilityLabel={t("institution_other")}
                       >
                         <InstitutionLogoMark
                           logo={otherLogo}
                           accessibilityLabel={`${t("institution_other")} logo`}
+                          testID={`${t("institution_other")} logo`}
+                          size="row"
+                          containerClassName="me-3"
                         />
-                        <Text className="flex-1 font-bold text-text-primary">
+                        <Text className="flex-1 font-bold text-text-primary dark:text-text-primary-dark">
                           {t("institution_other")}
                         </Text>
                         {isOtherSelected ? (

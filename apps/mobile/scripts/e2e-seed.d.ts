@@ -5,7 +5,8 @@ export interface E2eSeedConfig {
   readonly anonKey: string;
   readonly serviceRoleKey: string;
   readonly email: string;
-  readonly password: string;
+  readonly password: string | null;
+  readonly preserveExistingPassword: boolean;
   readonly userId?: string;
 }
 

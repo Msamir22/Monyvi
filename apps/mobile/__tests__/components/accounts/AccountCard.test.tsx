@@ -2,6 +2,9 @@ import { render, screen } from "@testing-library/react-native";
 import type { Account, MarketRate } from "@monyvi/db";
 
 import { AccountCard } from "../../../components/accounts/AccountCard";
+import { getEgyptianInstitutionAsset } from "../../../constants/egyptian-institution-assets";
+
+let mockIsDark = false;
 
 jest.mock("react-i18next", () => ({
   useTranslation: (): { readonly t: (key: string) => string } => ({
@@ -12,6 +15,12 @@ jest.mock("react-i18next", () => ({
         type_cash: "Cash",
         default_account_badge: "Default account",
       })[key] ?? key,
+  }),
+}));
+
+jest.mock("@/context/ThemeContext", () => ({
+  useTheme: (): { readonly isDark: boolean } => ({
+    isDark: mockIsDark,
   }),
 }));
 
@@ -32,6 +41,10 @@ function account(overrides: Partial<Account>): Account {
 }
 
 describe("AccountCard", () => {
+  beforeEach(() => {
+    mockIsDark = false;
+  });
+
   it("renders manual bank provider display with the default bank logo path", () => {
     render(
       <AccountCard
@@ -75,5 +88,76 @@ describe("AccountCard", () => {
     );
 
     expect(screen.getByText("e& money (e& money)")).toBeTruthy();
+  });
+
+  it("does not add unnecessary light-mode logo surfaces in account list cards", () => {
+    render(
+      <AccountCard
+        account={account({
+          id: "qnb-account",
+          institutionId: "qnb-egypt",
+          providerDisplayName: "QNB",
+        })}
+        latestRates={null as MarketRate | null}
+        providerLabel="QNB"
+        institutionLogo={getEgyptianInstitutionAsset("qnb-egypt", "bank").logo}
+      />
+    );
+
+    expect(screen.getByTestId("account-provider-logo-qnb-account")).toHaveProp(
+      "className",
+      expect.stringContaining("bg-transparent")
+    );
+    expect(
+      screen.getByTestId("account-provider-logo-qnb-account")
+    ).not.toHaveProp("style");
+  });
+
+  it("uses the shared account list logo size for horizontal logos", () => {
+    render(
+      <AccountCard
+        account={account({
+          id: "nbe-account",
+          institutionId: "nbe",
+          providerDisplayName: "NBE",
+        })}
+        latestRates={null as MarketRate | null}
+        providerLabel="NBE"
+        institutionLogo={getEgyptianInstitutionAsset("nbe", "bank").logo}
+      />
+    );
+
+    expect(screen.getByTestId("account-provider-logo-nbe-account")).toHaveProp(
+      "className",
+      expect.stringContaining("h-12 w-16")
+    );
+    expect(
+      screen.getByTestId("account-provider-logo-nbe-account")
+    ).not.toHaveProp("style");
+  });
+
+  it("uses the shared account list logo size for Vodafone Cash logos", () => {
+    render(
+      <AccountCard
+        account={account({
+          id: "vodafone-account",
+          type: "DIGITAL_WALLET",
+          institutionId: "vodafone-cash",
+          providerDisplayName: "Vodafone Cash",
+        })}
+        latestRates={null as MarketRate | null}
+        providerLabel="Vodafone Cash"
+        institutionLogo={
+          getEgyptianInstitutionAsset("vodafone-cash", "wallet").logo
+        }
+      />
+    );
+
+    expect(
+      screen.getByTestId("account-provider-logo-vodafone-account")
+    ).toHaveProp("className", expect.stringContaining("h-12 w-16"));
+    expect(
+      screen.getByTestId("account-provider-logo-vodafone-account")
+    ).not.toHaveProp("style");
   });
 });

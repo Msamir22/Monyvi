@@ -209,6 +209,9 @@ function resolveLocalSupabaseKeys(env, readStatusEnv) {
 function getE2eSeedConfig(env = process.env, options = {}) {
   const mode = env.E2E_SUPABASE_MODE === "remote" ? "remote" : "local";
   const isLocal = mode === "local";
+  const hasExplicitPassword = Boolean(env.MAESTRO_E2E_PASSWORD);
+  const preserveExistingPassword =
+    env.E2E_PRESERVE_EXISTING_PASSWORD === "1" && !hasExplicitPassword;
   const readStatusEnv =
     options.readLocalSupabaseStatusEnv ?? readLocalSupabaseStatusEnv;
   const localKeys = isLocal
@@ -243,9 +246,12 @@ function getE2eSeedConfig(env = process.env, options = {}) {
         : requiredRemoteEnv(env, "MAESTRO_E2E_EMAIL")),
     password:
       env.MAESTRO_E2E_PASSWORD ??
-      (isLocal
-        ? createLocalE2ePassword(localKeys.serviceRoleKey)
-        : requiredRemoteEnv(env, "MAESTRO_E2E_PASSWORD")),
+      (preserveExistingPassword
+        ? null
+        : isLocal
+          ? createLocalE2ePassword(localKeys.serviceRoleKey)
+          : requiredRemoteEnv(env, "MAESTRO_E2E_PASSWORD")),
+    preserveExistingPassword,
   };
 }
 
@@ -259,15 +265,27 @@ async function assertNoError(result, label) {
 async function ensureE2eUser(client, config) {
   const existingUser = await findE2eUser(client, config.email);
   if (existingUser) {
+    const updates = {
+      email_confirm: true,
+      user_metadata: { full_name: E2E_USER_FULL_NAME },
+    };
+
     await assertNoError(
-      await client.auth.admin.updateUserById(existingUser.id, {
-        password: config.password,
-        email_confirm: true,
-        user_metadata: { full_name: E2E_USER_FULL_NAME },
-      }),
+      await client.auth.admin.updateUserById(
+        existingUser.id,
+        config.preserveExistingPassword
+          ? updates
+          : { ...updates, password: config.password }
+      ),
       "sync E2E user credentials"
     );
     return existingUser.id;
+  }
+
+  if (!config.password) {
+    throw new Error(
+      `Cannot create ${config.email} without a password. Pass MANUAL_QA_PASSWORD or --password once, then rerun without it to preserve the current password.`
+    );
   }
 
   const createResult = await assertNoError(

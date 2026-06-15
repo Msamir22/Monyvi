@@ -207,6 +207,25 @@ describe("e2e-seed script helpers", () => {
     });
 
     expect(operations).toContain("update-user:user-e2e");
+    expect(operations).toContain("update-user-password:user-e2e");
+  });
+
+  it("preserves an existing auth user's password when configured", async () => {
+    const operations: string[] = [];
+    const client = createMockClient(operations);
+
+    await seedE2eData(client, {
+      ...getE2eSeedConfig({
+        E2E_SUPABASE_MODE: "local",
+        E2E_LOCAL_JWT_SECRET: "local-test-jwt-secret-with-enough-length",
+        E2E_PRESERVE_EXISTING_PASSWORD: "1",
+        MAESTRO_E2E_EMAIL: "e2e@monyvi.test",
+      }),
+    });
+
+    expect(operations).toContain("update-user:user-e2e");
+    expect(operations).toContain("update-user-without-password:user-e2e");
+    expect(operations).not.toContain("update-user-password:user-e2e");
   });
 
   it("resets scoped rows without reseeding fixture data", async () => {
@@ -324,8 +343,13 @@ function createMockClient(
             error: null,
           });
         },
-        updateUserById: (userId: string) => {
+        updateUserById: (userId: string, attributes: { password?: string }) => {
           operations.push(`update-user:${userId}`);
+          operations.push(
+            attributes.password
+              ? `update-user-password:${userId}`
+              : `update-user-without-password:${userId}`
+          );
           return Promise.resolve({ error: null });
         },
         createUser: ({ email }: { readonly email: string }) => {

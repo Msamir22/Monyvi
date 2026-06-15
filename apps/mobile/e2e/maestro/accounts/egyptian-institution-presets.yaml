@@ -67,7 +67,7 @@ appId: com.monyvi.app
 - tapOn: "Search"
 - inputText: "Vodafone"
 - waitForAnimationToEnd
-- tapOn: "Vodafone Cash \\(Vodafone Cash\\)"
+- tapOn: "Vodafone Cash"
 - scrollUntilVisible:
     element: "Account Name"
     direction: UP
@@ -180,9 +180,9 @@ appId: com.monyvi.app
 - tapOn: "Search"
 - inputText: "Vodafone"
 - waitForAnimationToEnd
-- assertVisible: "Vodafone Cash \\(Vodafone Cash\\)"
+- assertVisible: "Vodafone Cash"
 - assertNotVisible: "CIB \\(Commercial International Bank\\)"
-- tapOn: "Vodafone Cash \\(Vodafone Cash\\)"
+- tapOn: "Vodafone Cash"
 - scrollUntilVisible:
     element: "Account Name"
     direction: UP

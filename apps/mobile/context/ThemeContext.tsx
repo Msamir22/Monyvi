@@ -172,7 +172,9 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
 
   return (
     <ThemeContext.Provider value={value}>
-      <View className="flex-1">{children}</View>
+      <View className="flex-1 bg-background dark:bg-background-dark">
+        {children}
+      </View>
     </ThemeContext.Provider>
   );
 };

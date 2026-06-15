@@ -128,7 +128,7 @@ describe("InstitutionProviderSection", () => {
     fireEvent.press(screen.getByText("CIB (Commercial International Bank)"));
 
     expect(onSelectKnownInstitution).toHaveBeenCalledWith("cib");
-    expect(screen.queryByText("Vodafone Cash (Vodafone Cash)")).toBeNull();
+    expect(screen.queryByText("Vodafone Cash")).toBeNull();
   });
 
   it("shows the wallet picker for eligible wallet accounts", () => {
@@ -148,7 +148,7 @@ describe("InstitutionProviderSection", () => {
 
     expect(screen.getByText("Wallet")).toBeTruthy();
     fireEvent.press(screen.getByLabelText("Choose wallet"));
-    expect(screen.getByText("Vodafone Cash (Vodafone Cash)")).toBeTruthy();
+    expect(screen.getByText("Vodafone Cash")).toBeTruthy();
     expect(
       screen.queryByText("CIB (Commercial International Bank)")
     ).toBeNull();
@@ -196,7 +196,7 @@ describe("InstitutionProviderSection", () => {
       />
     );
 
-    expect(screen.queryByText("Vodafone Cash (Vodafone Cash)")).toBeNull();
+    expect(screen.queryByText("Vodafone Cash")).toBeNull();
     expect(screen.getByDisplayValue("Family wallet")).toBeTruthy();
     expect(screen.getByText("FamilySMS")).toBeTruthy();
   });

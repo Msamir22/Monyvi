@@ -353,6 +353,18 @@ export const EGYPTIAN_FINANCIAL_INSTITUTIONS = [
     auditNote: "Active bank in Egypt audit list.",
   },
   {
+    id: "nasser-social-bank",
+    type: "bank",
+    shortName: "Nasser Social Bank",
+    fullName: "Nasser Social Bank",
+    nameAr: "بنك ناصر الاجتماعي",
+    senderPatterns: ["nassersocialbank", "nasserbank", "nsb"],
+    selectable: true,
+    auditStatus: "included",
+    auditNote:
+      "Added from reviewed Egyptian provider list; Central Bank of Egypt, InstaPay, and National Bank of Greece remain excluded.",
+  },
+  {
     id: "nbe",
     type: "bank",
     shortName: "NBE",

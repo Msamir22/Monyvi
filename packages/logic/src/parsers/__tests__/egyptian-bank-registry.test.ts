@@ -40,6 +40,7 @@ describe("Egyptian financial institution registry", () => {
         "bank-nxt",
         "kfh-egypt",
         "bank-abc",
+        "nasser-social-bank",
         "qnb-egypt",
       ])
     );
@@ -49,6 +50,10 @@ describe("Egyptian financial institution registry", () => {
         "aibank",
         "aub",
         "blom-bank",
+        "central-bank-of-egypt",
+        "egypt-post",
+        "instapay",
+        "national-bank-of-greece",
         "qnb-al-ahli",
       ])
     );
@@ -95,14 +100,23 @@ describe("Egyptian financial institution registry", () => {
     );
   });
 
-  it("does not include InstaPay or IPN in sender filtering", () => {
+  it("does not include excluded rails or non-selectable institutions in sender filtering", () => {
     const ids = EGYPTIAN_FINANCIAL_INSTITUTIONS.map(
       (institution) => institution.id
     );
 
-    expect(ids).not.toEqual(expect.arrayContaining(["instapay", "ipn"]));
+    expect(ids).not.toEqual(
+      expect.arrayContaining([
+        "central-bank-of-egypt",
+        "instapay",
+        "ipn",
+        "national-bank-of-greece",
+      ])
+    );
     expect(isKnownFinancialSender("InstaPay")).toBeUndefined();
     expect(isKnownFinancialSender("IPN")).toBeUndefined();
+    expect(isKnownFinancialSender("Central Bank of Egypt")).toBeUndefined();
+    expect(isKnownFinancialSender("National Bank of Greece")).toBeUndefined();
   });
 
   it("requires exact matches for short generic sender aliases", () => {

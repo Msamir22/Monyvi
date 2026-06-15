@@ -9,6 +9,28 @@ const packageWatchFolders = [
   path.resolve(workspaceRoot, "packages/db"),
   path.resolve(workspaceRoot, "packages/logic"),
 ];
+const metroIgnoredPaths = [
+  path.resolve(projectRoot, "android"),
+  path.resolve(projectRoot, ".expo"),
+  path.resolve(projectRoot, "coverage"),
+  path.resolve(projectRoot, ".gradle"),
+  path.resolve(projectRoot, "build"),
+  path.resolve(projectRoot, ".kotlin"),
+];
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function pathToBlockListPattern(filePath) {
+  const pattern = path
+    .resolve(filePath)
+    .split(path.sep)
+    .map(escapeRegExp)
+    .join("[/\\\\]");
+
+  return new RegExp(`${pattern}(?:[/\\\\].*)?$`);
+}
 
 const config = getSentryExpoConfig(projectRoot);
 
@@ -25,6 +47,12 @@ const monorepoWatchFolders = shouldUseWorkspaceRoot
 config.watchFolders = Array.from(
   new Set([...defaultWatchFolders, ...monorepoWatchFolders])
 );
+config.resolver.blockList = [
+  ...(Array.isArray(config.resolver.blockList)
+    ? config.resolver.blockList
+    : [config.resolver.blockList].filter(Boolean)),
+  ...metroIgnoredPaths.map(pathToBlockListPattern),
+];
 
 // 2. Resolve modules from the app first, then the workspace root.
 config.resolver.nodeModulesPaths = [

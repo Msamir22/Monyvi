@@ -2,6 +2,13 @@ import { fireEvent, render, screen } from "@testing-library/react-native";
 import { getSelectableEgyptianInstitutions } from "@monyvi/logic";
 
 import { InstitutionPicker } from "../../../components/add-account/InstitutionPicker";
+import { palette } from "../../../constants/colors";
+
+interface InstitutionLabelFixture {
+  readonly shortName: string;
+  readonly fullName: string;
+  readonly nameAr?: string;
+}
 
 const translations: Record<string, string> = {
   institution_bank_dropdown_accessibility: "Choose bank",
@@ -17,6 +24,8 @@ const translations: Record<string, string> = {
 };
 
 let mockCurrentLanguage = "en";
+let mockBottomInset = 0;
+let mockIsDark = false;
 
 jest.mock("react-i18next", () => ({
   useTranslation: (): {
@@ -28,9 +37,84 @@ jest.mock("react-i18next", () => ({
   }),
 }));
 
+jest.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: (): {
+    top: number;
+    right: number;
+    bottom: number;
+    left: number;
+  } => ({
+    top: 0,
+    right: 0,
+    bottom: mockBottomInset,
+    left: 0,
+  }),
+}));
+
+jest.mock("@/context/ThemeContext", () => ({
+  useTheme: (): { readonly isDark: boolean } => ({
+    isDark: mockIsDark,
+  }),
+}));
+
+function normalizeInstitutionName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function isRedundantInstitutionFullName(
+  shortName: string,
+  fullName: string
+): boolean {
+  const normalizedShortName = normalizeInstitutionName(shortName);
+  const normalizedFullName = normalizeInstitutionName(fullName);
+
+  if (!normalizedShortName || !normalizedFullName) {
+    return false;
+  }
+
+  if (normalizedShortName === normalizedFullName) {
+    return true;
+  }
+
+  if (!normalizedFullName.startsWith(`${normalizedShortName} `)) {
+    return false;
+  }
+
+  const genericWords = new Set(["bank", "egypt", "misr", "plc"]);
+  const remainingWords = normalizedFullName
+    .slice(normalizedShortName.length)
+    .trim()
+    .split(" ")
+    .filter(Boolean);
+
+  return (
+    remainingWords.length > 0 &&
+    remainingWords.every((word) => genericWords.has(word))
+  );
+}
+
+function getExpectedInstitutionLabel(
+  institution: InstitutionLabelFixture
+): string {
+  if (
+    isRedundantInstitutionFullName(institution.shortName, institution.fullName)
+  ) {
+    return institution.shortName;
+  }
+
+  return `${institution.shortName} (${institution.fullName})`;
+}
+
 describe("InstitutionPicker", () => {
   beforeEach(() => {
     mockCurrentLanguage = "en";
+    mockBottomInset = 0;
+    mockIsDark = false;
   });
 
   it("shows only selectable banks with short-name-first labels", () => {
@@ -56,7 +140,7 @@ describe("InstitutionPicker", () => {
     expect(
       screen.getByTestId("CIB (Commercial International Bank) logo")
     ).toBeTruthy();
-    expect(screen.queryByText("Vodafone Cash (Vodafone Cash)")).toBeNull();
+    expect(screen.queryByText("Vodafone Cash")).toBeNull();
   });
 
   it("shows only selectable wallets and supports Other", () => {
@@ -74,11 +158,9 @@ describe("InstitutionPicker", () => {
     fireEvent.press(screen.getByLabelText("Choose wallet"));
 
     expect(screen.getByText("Wallet")).toBeTruthy();
-    expect(screen.getByText("Vodafone Cash (Vodafone Cash)")).toBeTruthy();
-    expect(
-      screen.getByTestId("Vodafone Cash (Vodafone Cash) logo")
-    ).toBeTruthy();
-    expect(screen.getByText("e& money (e& money)")).toBeTruthy();
+    expect(screen.getByText("Vodafone Cash")).toBeTruthy();
+    expect(screen.getByTestId("Vodafone Cash logo")).toBeTruthy();
+    expect(screen.getByText("e& money")).toBeTruthy();
     expect(
       screen.queryByText("CIB (Commercial International Bank)")
     ).toBeNull();
@@ -100,12 +182,368 @@ describe("InstitutionPicker", () => {
     fireEvent.press(screen.getByLabelText("Choose bank"));
     fireEvent.changeText(screen.getByPlaceholderText("Search"), "standard");
 
-    expect(
-      screen.getByText("Standard Chartered (Standard Chartered Bank)")
-    ).toBeTruthy();
+    expect(screen.getByText("Standard Chartered")).toBeTruthy();
     expect(
       screen.queryByText("CIB (Commercial International Bank)")
     ).toBeNull();
+  });
+
+  it("omits redundant parenthesized names from provider labels", () => {
+    render(
+      <InstitutionPicker
+        type="bank"
+        selectedInstitutionId={null}
+        onSelectInstitution={jest.fn()}
+        onSelectOther={jest.fn()}
+      />
+    );
+
+    fireEvent.press(screen.getByLabelText("Choose bank"));
+    fireEvent.changeText(screen.getByPlaceholderText("Search"), "Al Baraka");
+
+    expect(screen.getByText("Al Baraka")).toBeTruthy();
+    expect(screen.queryByText("Al Baraka (Al Baraka Bank Egypt)")).toBeNull();
+  });
+
+  it("omits country or bank suffixes for acronym brand labels", () => {
+    render(
+      <InstitutionPicker
+        type="bank"
+        selectedInstitutionId={null}
+        onSelectInstitution={jest.fn()}
+        onSelectOther={jest.fn()}
+      />
+    );
+
+    fireEvent.press(screen.getByLabelText("Choose bank"));
+    fireEvent.changeText(screen.getByPlaceholderText("Search"), "QNB");
+
+    expect(screen.getByText("QNB")).toBeTruthy();
+    expect(screen.queryByText("QNB (QNB Egypt)")).toBeNull();
+  });
+
+  it("centers the picker title in the modal header", () => {
+    render(
+      <InstitutionPicker
+        type="bank"
+        selectedInstitutionId={null}
+        onSelectInstitution={jest.fn()}
+        onSelectOther={jest.fn()}
+      />
+    );
+
+    fireEvent.press(screen.getByLabelText("Choose bank"));
+
+    expect(screen.getByTestId("institution-picker-title")).toHaveProp(
+      "className",
+      expect.stringContaining("text-center")
+    );
+  });
+
+  it("uses transparent fixed logo viewports inside the modal", () => {
+    render(
+      <InstitutionPicker
+        type="wallet"
+        selectedInstitutionId={null}
+        onSelectInstitution={jest.fn()}
+        onSelectOther={jest.fn()}
+      />
+    );
+
+    fireEvent.press(screen.getByLabelText("Choose wallet"));
+
+    expect(screen.getByTestId("Vodafone Cash logo")).toHaveProp(
+      "className",
+      expect.stringContaining("h-12 w-16")
+    );
+    expect(screen.getByTestId("Vodafone Cash logo")).toHaveProp(
+      "className",
+      expect.stringContaining("bg-transparent")
+    );
+    expect(screen.getByTestId("Vodafone Cash logo")).toHaveProp(
+      "className",
+      expect.not.stringContaining("dark:bg-white")
+    );
+    expect(screen.getByTestId("Vodafone Cash logo")).toHaveProp(
+      "className",
+      expect.stringContaining("overflow-hidden")
+    );
+  });
+
+  it("crops square logo canvases without changing the row viewport", () => {
+    render(
+      <InstitutionPicker
+        type="bank"
+        selectedInstitutionId={null}
+        onSelectInstitution={jest.fn()}
+        onSelectOther={jest.fn()}
+      />
+    );
+
+    fireEvent.press(screen.getByLabelText("Choose bank"));
+    fireEvent.changeText(screen.getByPlaceholderText("Search"), "NBK");
+
+    const label = "NBK Egypt (National Bank of Kuwait - Egypt)";
+
+    expect(screen.getByTestId(`${label} logo`)).toHaveProp(
+      "className",
+      expect.stringContaining("h-12 w-16")
+    );
+    expect(screen.getByTestId(`${label} logo image`)).toHaveProp(
+      "resizeMode",
+      "cover"
+    );
+  });
+
+  it("renders edge-sensitive bank logos inside the fixed row viewport", () => {
+    const edgeSensitiveBanks = [
+      {
+        search: "SC Bank",
+        label: "SC Bank (Suez Canal Bank)",
+      },
+      {
+        search: "KFH Egypt",
+        label: "KFH Egypt",
+      },
+      {
+        search: "FAB Misr",
+        label: "FAB Misr (First Abu Dhabi Bank Misr)",
+      },
+      {
+        search: "Credit Agricole",
+        label: "Credit Agricole",
+      },
+      {
+        search: "Bank NXT",
+        label: "Bank NXT",
+      },
+      {
+        search: "ABK Egypt",
+        label: "ABK Egypt (Al Ahli Bank of Kuwait - Egypt)",
+      },
+      {
+        search: "ABE",
+        label: "ABE (Agricultural Bank of Egypt)",
+      },
+    ] as const;
+
+    render(
+      <InstitutionPicker
+        type="bank"
+        selectedInstitutionId={null}
+        onSelectInstitution={jest.fn()}
+        onSelectOther={jest.fn()}
+      />
+    );
+
+    fireEvent.press(screen.getByLabelText("Choose bank"));
+
+    for (const bank of edgeSensitiveBanks) {
+      fireEvent.changeText(screen.getByPlaceholderText("Search"), bank.search);
+
+      expect(screen.getByText(bank.label)).toBeTruthy();
+      expect(screen.getByTestId(`${bank.label} logo`)).toHaveProp(
+        "className",
+        expect.stringContaining("h-12 w-16")
+      );
+    }
+  });
+
+  it("uses readable logo surfaces for dark and light wordmarks", () => {
+    const surfaceFixtures = [
+      {
+        search: "ADCB",
+        label: "ADCB (Abu Dhabi Commercial Bank Egypt)",
+      },
+      {
+        search: "AIB",
+        label: "AIB (Arab International Bank)",
+      },
+      {
+        search: "Bank NXT",
+        label: "Bank NXT",
+      },
+      {
+        search: "HDB",
+        label: "HDB (Housing and Development Bank)",
+      },
+      {
+        search: "QNB",
+        label: "QNB",
+      },
+    ] as const;
+
+    render(
+      <InstitutionPicker
+        type="bank"
+        selectedInstitutionId={null}
+        onSelectInstitution={jest.fn()}
+        onSelectOther={jest.fn()}
+      />
+    );
+
+    fireEvent.press(screen.getByLabelText("Choose bank"));
+
+    for (const fixture of surfaceFixtures) {
+      fireEvent.changeText(
+        screen.getByPlaceholderText("Search"),
+        fixture.search
+      );
+
+      expect(screen.getByText(fixture.label)).toBeTruthy();
+      if ("expectedSurfaceStyle" in fixture) {
+        expect(screen.getByTestId(`${fixture.label} logo`)).toHaveProp(
+          "style",
+          expect.objectContaining(fixture.expectedSurfaceStyle)
+        );
+      } else {
+        expect(screen.getByTestId(`${fixture.label} logo`)).not.toHaveProp(
+          "style"
+        );
+      }
+    }
+  });
+
+  it("keeps required contrast logo surfaces readable in dark mode", () => {
+    mockIsDark = true;
+
+    render(
+      <InstitutionPicker
+        type="bank"
+        selectedInstitutionId={null}
+        onSelectInstitution={jest.fn()}
+        onSelectOther={jest.fn()}
+      />
+    );
+
+    fireEvent.press(screen.getByLabelText("Choose bank"));
+
+    const contrastFixtures = [
+      {
+        search: "QNB",
+        label: "QNB",
+      },
+      {
+        search: "ADCB",
+        label: "ADCB (Abu Dhabi Commercial Bank Egypt)",
+      },
+      {
+        search: "Bank NXT",
+        label: "Bank NXT",
+      },
+      {
+        search: "Egypt Post",
+        label: "Egypt Post",
+      },
+      {
+        search: "Nasser Social",
+        label: "Nasser Social Bank",
+      },
+    ] as const;
+
+    for (const fixture of contrastFixtures) {
+      fireEvent.changeText(
+        screen.getByPlaceholderText("Search"),
+        fixture.search
+      );
+
+      expect(screen.getByText(fixture.label)).toBeTruthy();
+      expect(screen.getByTestId(`${fixture.label} logo`)).toHaveProp(
+        "style",
+        expect.objectContaining({
+          backgroundColor: palette.slate[25],
+          borderColor: palette.slate[600],
+        })
+      );
+    }
+  });
+
+  it("keeps required wallet logo surfaces readable in dark mode", () => {
+    mockIsDark = true;
+
+    render(
+      <InstitutionPicker
+        type="wallet"
+        selectedInstitutionId={null}
+        onSelectInstitution={jest.fn()}
+        onSelectOther={jest.fn()}
+      />
+    );
+
+    fireEvent.press(screen.getByLabelText("Choose wallet"));
+    fireEvent.changeText(screen.getByPlaceholderText("Search"), "WE");
+
+    expect(screen.getByText("WE Pay")).toBeTruthy();
+    expect(screen.getByTestId("WE Pay logo")).toHaveProp(
+      "style",
+      expect.objectContaining({
+        backgroundColor: palette.slate[25],
+        borderColor: palette.slate[600],
+      })
+    );
+  });
+
+  it("does not add contrast surfaces to curated logos in dark mode", () => {
+    mockIsDark = true;
+
+    render(
+      <InstitutionPicker
+        type="bank"
+        selectedInstitutionId={null}
+        onSelectInstitution={jest.fn()}
+        onSelectOther={jest.fn()}
+      />
+    );
+
+    fireEvent.press(screen.getByLabelText("Choose bank"));
+    fireEvent.changeText(screen.getByPlaceholderText("Search"), "AIB");
+
+    const label = "AIB (Arab International Bank)";
+
+    expect(screen.getByText(label)).toBeTruthy();
+    expect(screen.getByTestId(`${label} logo`)).not.toHaveProp("style");
+  });
+
+  it("renders NBE inside the fixed row viewport", () => {
+    render(
+      <InstitutionPicker
+        type="bank"
+        selectedInstitutionId={null}
+        onSelectInstitution={jest.fn()}
+        onSelectOther={jest.fn()}
+      />
+    );
+
+    fireEvent.press(screen.getByLabelText("Choose bank"));
+    fireEvent.changeText(screen.getByPlaceholderText("Search"), "NBE");
+
+    const label = "NBE (National Bank of Egypt)";
+
+    expect(screen.getByText(label)).toBeTruthy();
+    expect(screen.getByTestId(`${label} logo`)).toHaveProp(
+      "className",
+      expect.stringContaining("h-12 w-16")
+    );
+    expect(screen.getByTestId(`${label} logo`)).not.toHaveProp("style");
+  });
+
+  it("adds bottom safe-area space so Other stays above Android navigation", () => {
+    mockBottomInset = 34;
+
+    render(
+      <InstitutionPicker
+        type="bank"
+        selectedInstitutionId={null}
+        onSelectInstitution={jest.fn()}
+        onSelectOther={jest.fn()}
+      />
+    );
+
+    fireEvent.press(screen.getByLabelText("Choose bank"));
+
+    expect(screen.getByTestId("institution-picker-sheet")).toHaveStyle({
+      paddingBottom: 58,
+    });
   });
 
   it("renders a logo for every selectable bank in the dropdown", () => {
@@ -125,7 +563,7 @@ describe("InstitutionPicker", () => {
         screen.getByPlaceholderText("Search"),
         bank.shortName
       );
-      const label = `${bank.shortName} (${bank.fullName})`;
+      const label = getExpectedInstitutionLabel(bank);
 
       expect(screen.getByText(label)).toBeTruthy();
       expect(screen.getByTestId(`${label} logo`)).toBeTruthy();
@@ -149,7 +587,7 @@ describe("InstitutionPicker", () => {
         screen.getByPlaceholderText("Search"),
         wallet.shortName
       );
-      const label = `${wallet.shortName} (${wallet.fullName})`;
+      const label = getExpectedInstitutionLabel(wallet);
 
       expect(screen.getByText(label)).toBeTruthy();
       expect(screen.getByTestId(`${label} logo`)).toBeTruthy();
@@ -212,7 +650,7 @@ describe("InstitutionPicker", () => {
     expect(
       screen.getByText("CIB (Commercial International Bank)")
     ).toBeTruthy();
-    expect(screen.queryByText("Vodafone Cash (Vodafone Cash)")).toBeNull();
+    expect(screen.queryByText("Vodafone Cash")).toBeNull();
 
     rerender(
       <InstitutionPicker
@@ -225,7 +663,7 @@ describe("InstitutionPicker", () => {
 
     fireEvent.press(screen.getByLabelText("Choose wallet"));
     expect(screen.getByPlaceholderText("Search")).toHaveProp("value", "");
-    expect(screen.getByText("Vodafone Cash (Vodafone Cash)")).toBeTruthy();
+    expect(screen.getByText("Vodafone Cash")).toBeTruthy();
   });
 
   it("clears stale search text when reopening the dropdown", () => {

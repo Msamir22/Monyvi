@@ -78,10 +78,10 @@ export function SmsMatchingSection({
           />
         </View>
         <View className="flex-1">
-          <Text className="text-base font-bold text-text-primary">
+          <Text className="text-base font-bold text-text-primary dark:text-text-primary-dark">
             {t("sms_matching_optional")}
           </Text>
-          <Text className="mt-0.5 text-xs font-semibold text-text-secondary">
+          <Text className="mt-0.5 text-xs font-semibold text-text-secondary dark:text-text-secondary-dark">
             {t("sms_matching_help")}
           </Text>
         </View>

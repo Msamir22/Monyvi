@@ -80,7 +80,7 @@ function TabLayoutInner(): React.ReactElement {
   }, [voiceFlow.startFlow]);
 
   return (
-    <View className="flex-1">
+    <View className="flex-1 bg-background dark:bg-background-dark">
       <Tabs
         tabBar={(props) => (
           <CustomBottomTabBar

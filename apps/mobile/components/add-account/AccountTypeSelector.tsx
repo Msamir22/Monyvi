@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import type { AccountType } from "@monyvi/db";
 import type { JSX } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ScrollView,
   Text,
@@ -8,10 +9,9 @@ import {
   View,
   type ViewStyle,
 } from "react-native";
-import { useTranslation } from "react-i18next";
 
 import { ACCOUNT_TYPES } from "@/constants/accounts";
-import { colors, palette } from "@/constants/colors";
+import { palette } from "@/constants/colors";
 import { useTheme } from "@/context/ThemeContext";
 
 interface AccountTypeSelectorProps {
@@ -71,18 +71,18 @@ export function AccountTypeSelector({
                   : accountTypeLabel
               }
               disabled={disabled}
-              className={`h-[66px] min-w-[124px] flex-row items-center rounded-2xl border px-3 py-2 ${
+              className={`h-14 max-w-fit flex-row items-center rounded-3xl border px-2.5 ${
                 isSelected
-                  ? "border-nileGreen-500 bg-nileGreen-50"
+                  ? "border-nileGreen-500 bg-nileGreen-50 "
                   : "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800"
               }`}
               style={getSelectedRowStyle(isSelected, isDark)}
             >
               <View
-                className={`me-2 h-[34px] w-[34px] items-center justify-center rounded-xl ${
+                className={`h-8 w-8 items-center justify-center rounded-xl ${
                   isSelected
-                    ? "bg-nileGreen-100 dark:bg-nileGreen-800"
-                    : "bg-slate-100 dark:bg-slate-700"
+                    ? "bg-nileGreen-100 dark:bg-nileGreen-600"
+                    : "bg-slate-100 dark:bg-slate-800"
                 }`}
               >
                 <Ionicons
@@ -90,15 +90,15 @@ export function AccountTypeSelector({
                   size={17}
                   color={
                     isSelected
-                      ? palette.nileGreen[700]
+                      ? palette.nileGreen[800]
                       : isDark
-                        ? palette.slate[300]
+                        ? palette.slate[400]
                         : palette.slate[600]
                   }
                 />
               </View>
               <Text
-                className="flex-1 text-[13px] font-semibold text-text-primary"
+                className="flex-1 px-1 text-sm font-semibold text-text-primary dark:text-text-primary-dark"
                 numberOfLines={2}
               >
                 {accountTypeLabel}
@@ -107,7 +107,7 @@ export function AccountTypeSelector({
                 <Ionicons
                   name="checkmark-circle"
                   size={20}
-                  color={colors.primary}
+                  color={palette.nileGreen[500]}
                 />
               ) : null}
             </TouchableOpacity>

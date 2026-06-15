@@ -4,22 +4,17 @@ const { getE2eSeedConfig, resetE2eData, seedE2eData } = require("./e2e-seed");
 
 const DEFAULT_MANUAL_QA_EMAIL = "manual-qa@monyvi.test";
 
-function requireManualQaPassword(env) {
-  if (!env.MANUAL_QA_PASSWORD) {
-    throw new Error(
-      "Set MANUAL_QA_PASSWORD before running manual QA seed scripts."
-    );
-  }
-
-  return env.MANUAL_QA_PASSWORD;
-}
-
 function getManualQaSeedConfig(env = process.env) {
+  const password = env.MANUAL_QA_PASSWORD;
+  const preserveExistingPassword =
+    !password || env.MANUAL_QA_PRESERVE_PASSWORD === "1";
+
   return getE2eSeedConfig({
     ...env,
     E2E_SUPABASE_MODE: "local",
+    E2E_PRESERVE_EXISTING_PASSWORD: preserveExistingPassword ? "1" : undefined,
     MAESTRO_E2E_EMAIL: env.MANUAL_QA_EMAIL ?? DEFAULT_MANUAL_QA_EMAIL,
-    MAESTRO_E2E_PASSWORD: requireManualQaPassword(env),
+    MAESTRO_E2E_PASSWORD: password,
   });
 }
 
