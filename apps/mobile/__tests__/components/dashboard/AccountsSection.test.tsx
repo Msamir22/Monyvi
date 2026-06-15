@@ -104,12 +104,12 @@ describe("AccountsSection", () => {
   });
 
   it.each([
-    ["arab-international-bank", palette.gold[800]],
-    ["attijariwafa-bank-egypt", palette.orange[600]],
-    ["banque-du-caire", palette.orange[600]],
+    ["arab-international-bank", palette.gold[800], true],
+    ["attijariwafa-bank-egypt", palette.gold[800], false],
+    ["banque-du-caire", palette.orange[600], false],
   ] as const)(
-    "does not add a white chip to %s on colored dashboard cards",
-    (institutionId, expectedAccentColor) => {
+    "renders %s with its curated dashboard card presentation",
+    (institutionId, expectedAccentColor, expectsContrastSurface) => {
       const institutionLogosByAccountId = new Map([
         ["account-1", getEgyptianInstitutionAsset(institutionId, "bank").logo],
       ]);
@@ -128,9 +128,18 @@ describe("AccountsSection", () => {
         />
       );
 
-      expect(
-        screen.getByTestId("dashboard-account-provider-logo-account-1")
-      ).not.toHaveProp("style");
+      if (expectsContrastSurface) {
+        expect(
+          screen.getByTestId("dashboard-account-provider-logo-account-1")
+        ).toHaveStyle({
+          backgroundColor: palette.slate[25],
+          borderColor: palette.slate[300],
+        });
+      } else {
+        expect(
+          screen.getByTestId("dashboard-account-provider-logo-account-1")
+        ).not.toHaveProp("style");
+      }
       expect(screen.getByTestId("dashboard-account-card-account-1")).toHaveProp(
         "colors",
         expect.arrayContaining([
@@ -237,8 +246,14 @@ describe("AccountsSection", () => {
     );
 
     expect(
-      screen.getByTestId("dashboard-account-provider-logo-account-2 image")
-    ).toHaveProp("className", expect.stringContaining("h-8 w-11"));
+      screen.getByTestId("dashboard-account-provider-logo-account-2")
+    ).toHaveProp("className", expect.stringContaining("h-9 w-12"));
+    expect(
+      screen.getByTestId("dashboard-account-provider-logo-account-2")
+    ).toHaveStyle({
+      backgroundColor: palette.slate[25],
+      borderColor: palette.slate[300],
+    });
     expect(
       screen.getByTestId("dashboard-account-provider-logo-account-3 image")
     ).toHaveProp("className", expect.stringContaining("h-9 w-9"));

@@ -132,7 +132,7 @@ export default function AddAccount(): React.ReactNode {
 
   // Local UI state
   const [isCurrencyOpen, setIsCurrencyOpen] = useState(false);
-  const [isSmsMatchingExpanded, setIsSmsMatchingExpanded] = useState(true);
+  const [isSmsMatchingExpanded, setIsSmsMatchingExpanded] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
   const smsFocusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

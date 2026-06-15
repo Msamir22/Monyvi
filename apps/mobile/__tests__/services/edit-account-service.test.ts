@@ -1102,6 +1102,39 @@ describe("edit-account-service", () => {
       );
     });
 
+    it("preserves sender rows when the update payload omits senderNames", async () => {
+      const existingSender = mockModel("sender-1", {
+        accountId: "acc-1",
+        senderName: "CIB",
+        normalizedSenderName: "cib",
+        deleted: false,
+      });
+      seedAccount("acc-1", {
+        name: "Bank Account",
+        type: "BANK",
+        isBank: true,
+      });
+      mockSeed("account_sms_senders", existingSender);
+
+      await updateAccountWithBalanceAdjustment(
+        "acc-1",
+        "user-1",
+        {
+          name: "Renamed Bank Account",
+          balance: 0,
+          isDefault: false,
+          bankName: "CIB",
+        },
+        null
+      );
+
+      expect(existingSender.deleted).toBe(false);
+      expect(existingSender.update).not.toHaveBeenCalled();
+      expect(Array.from(mockGetStore("account_sms_senders").values())).toEqual([
+        existingSender,
+      ]);
+    });
+
     it("reactivates a dirty-deleted sender row instead of creating a duplicate", async () => {
       const deletedSender = mockModel("sender-1", {
         accountId: "acc-1",

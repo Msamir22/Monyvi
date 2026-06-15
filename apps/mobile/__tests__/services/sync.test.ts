@@ -151,8 +151,10 @@ describe("syncDatabase", () => {
     );
   });
 
-  it("rejects push insert errors so WatermelonDB keeps the local change dirty", async () => {
-    mockInsert.mockResolvedValue({ error: { message: "insert failed" } });
+  it("rejects push created-row upsert errors so WatermelonDB keeps the local change dirty", async () => {
+    mockUpsert.mockResolvedValue({
+      error: { message: "created upsert failed" },
+    });
     mockSynchronize.mockImplementation(
       async (args: {
         pushChanges: (input: {
@@ -173,7 +175,9 @@ describe("syncDatabase", () => {
       }
     );
 
-    await expect(syncDatabase(mockDatabase)).rejects.toThrow("insert failed");
+    await expect(syncDatabase(mockDatabase)).rejects.toThrow(
+      "created upsert failed"
+    );
   });
 
   it("rejects push upsert errors so WatermelonDB keeps the local update dirty", async () => {
@@ -475,7 +479,7 @@ describe("syncDatabase", () => {
     mockForeignProfilesFetch.mockResolvedValue([
       { id: "account-1", user_id: "current-user", deleted: false },
     ]);
-    mockInsert.mockResolvedValue({ error: null });
+    mockUpsert.mockResolvedValue({ error: null });
     mockSynchronize.mockImplementation(
       async (args: {
         pushChanges: (input: {
@@ -533,7 +537,6 @@ describe("syncDatabase", () => {
   });
 
   it("pushes same-table deletions before replacement creates", async () => {
-    mockInsert.mockResolvedValue({ error: null });
     mockUpsert.mockResolvedValue({ error: null });
     mockUpdateIn.mockResolvedValue({ error: null });
     mockSynchronize.mockImplementation(
@@ -584,17 +587,20 @@ describe("syncDatabase", () => {
       { onConflict: "id" }
     );
     expect(mockUpdateIn).toHaveBeenCalledWith("id", ["account-hard-deleted"]);
-    expect(mockInsert).toHaveBeenCalledWith([
-      expect.objectContaining({
-        id: "account-new",
-        deleted: false,
-      }),
-    ]);
+    expect(mockUpsert).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          id: "account-new",
+          deleted: false,
+        }),
+      ],
+      { onConflict: "id" }
+    );
     expect(mockUpsert.mock.invocationCallOrder[0]).toBeLessThan(
-      mockInsert.mock.invocationCallOrder[0]
+      mockUpsert.mock.invocationCallOrder[1]
     );
     expect(mockUpdateIn.mock.invocationCallOrder[0]).toBeLessThan(
-      mockInsert.mock.invocationCallOrder[0]
+      mockUpsert.mock.invocationCallOrder[1]
     );
   });
 
@@ -679,7 +685,7 @@ describe("syncDatabase", () => {
   });
 
   it("pushes SMS-created transactions with sms_fingerprint and without the old sms_body_hash field", async () => {
-    mockInsert.mockResolvedValue({ error: null });
+    mockUpsert.mockResolvedValue({ error: null });
     mockSynchronize.mockImplementation(
       async (args: {
         pushChanges: (input: {
@@ -715,27 +721,30 @@ describe("syncDatabase", () => {
     await expect(syncDatabase(mockDatabase)).resolves.toBeUndefined();
 
     expect(mockFrom).toHaveBeenCalledWith("transactions");
-    expect(mockInsert).toHaveBeenCalledWith([
-      expect.objectContaining({
-        id: "transaction-1",
-        user_id: "current-user",
-        sms_fingerprint: "sms-fingerprint-transaction-1",
-        date: "2026-01-15",
-        created_at: "2026-01-15T10:00:00.000Z",
-        updated_at: "2026-01-15T10:00:00.000Z",
-      }),
-    ]);
+    expect(mockUpsert).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          id: "transaction-1",
+          user_id: "current-user",
+          sms_fingerprint: "sms-fingerprint-transaction-1",
+          date: "2026-01-15",
+          created_at: "2026-01-15T10:00:00.000Z",
+          updated_at: "2026-01-15T10:00:00.000Z",
+        }),
+      ],
+      { onConflict: "id" }
+    );
 
     const insertCalls: ReadonlyArray<
-      readonly [ReadonlyArray<Record<string, unknown>>]
-    > = mockInsert.mock.calls;
+      readonly [ReadonlyArray<Record<string, unknown>>, { onConflict: "id" }]
+    > = mockUpsert.mock.calls;
     const [insertedRows] = insertCalls[0];
     const [insertedRow] = insertedRows;
     expect(insertedRow).not.toHaveProperty("sms_body_hash");
   });
 
   it("pushes SMS-created transfers with sms_fingerprint and without the old sms_body_hash field", async () => {
-    mockInsert.mockResolvedValue({ error: null });
+    mockUpsert.mockResolvedValue({ error: null });
     mockSynchronize.mockImplementation(
       async (args: {
         pushChanges: (input: {
@@ -772,20 +781,23 @@ describe("syncDatabase", () => {
     await expect(syncDatabase(mockDatabase)).resolves.toBeUndefined();
 
     expect(mockFrom).toHaveBeenCalledWith("transfers");
-    expect(mockInsert).toHaveBeenCalledWith([
-      expect.objectContaining({
-        id: "transfer-1",
-        user_id: "current-user",
-        sms_fingerprint: "sms-fingerprint-transfer-1",
-        date: "2026-01-16",
-        created_at: "2026-01-16T12:00:00.000Z",
-        updated_at: "2026-01-16T12:00:00.000Z",
-      }),
-    ]);
+    expect(mockUpsert).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          id: "transfer-1",
+          user_id: "current-user",
+          sms_fingerprint: "sms-fingerprint-transfer-1",
+          date: "2026-01-16",
+          created_at: "2026-01-16T12:00:00.000Z",
+          updated_at: "2026-01-16T12:00:00.000Z",
+        }),
+      ],
+      { onConflict: "id" }
+    );
 
     const insertCalls: ReadonlyArray<
-      readonly [ReadonlyArray<Record<string, unknown>>]
-    > = mockInsert.mock.calls;
+      readonly [ReadonlyArray<Record<string, unknown>>, { onConflict: "id" }]
+    > = mockUpsert.mock.calls;
     const [insertedRows] = insertCalls[0];
     const [insertedRow] = insertedRows;
     expect(insertedRow).not.toHaveProperty("sms_body_hash");

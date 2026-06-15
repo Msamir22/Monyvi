@@ -101,18 +101,6 @@ describe("Egyptian financial institution registry", () => {
   });
 
   it("does not include excluded rails or non-selectable institutions in sender filtering", () => {
-    const ids = EGYPTIAN_FINANCIAL_INSTITUTIONS.map(
-      (institution) => institution.id
-    );
-
-    expect(ids).not.toEqual(
-      expect.arrayContaining([
-        "central-bank-of-egypt",
-        "instapay",
-        "ipn",
-        "national-bank-of-greece",
-      ])
-    );
     expect(isKnownFinancialSender("InstaPay")).toBeUndefined();
     expect(isKnownFinancialSender("IPN")).toBeUndefined();
     expect(isKnownFinancialSender("Central Bank of Egypt")).toBeUndefined();

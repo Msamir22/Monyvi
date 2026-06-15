@@ -73,7 +73,7 @@ export interface SupabaseWriteTable {
     error: unknown;
   }>;
   upsert(
-    record: Record<string, unknown>,
+    records: Record<string, unknown> | ReadonlyArray<Record<string, unknown>>,
     options: { readonly onConflict: string }
   ): PromiseLike<{ error: unknown }>;
   update(values: Record<string, unknown>): SupabaseWriteQuery;

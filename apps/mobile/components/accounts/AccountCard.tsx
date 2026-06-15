@@ -118,7 +118,7 @@ function AccountCardImpl({
       // race condition with React Navigation context (known bug)
       style={{
         borderLeftColor: accentColor,
-        shadowColor: "#000",
+        shadowColor: palette.slate[900],
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.05,
         shadowRadius: 2,

@@ -61,6 +61,10 @@ jest.mock("react-native-safe-area-context", () => ({
   }),
 }));
 
+jest.mock("@/context/ThemeContext", () => ({
+  useTheme: (): { readonly isDark: boolean } => ({ isDark: false }),
+}));
+
 jest.mock("../../../components/ui/Tooltip", () => {
   const React = jest.requireActual<typeof import("react")>("react");
   const { Text, View } =

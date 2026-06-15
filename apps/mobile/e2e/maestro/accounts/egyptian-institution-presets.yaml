@@ -109,7 +109,7 @@ appId: com.monyvi.app
 - tapOn: "Bank name"
 - inputText: "E2E Manual Bank"
 - waitForAnimationToEnd
-- tapOn: "Message detection (optional)"
+- tapOn: "Message detection (Optional)"
 - tapOn: "Add sender"
 - inputText: "E2EBANK"
 - waitForAnimationToEnd
@@ -143,7 +143,7 @@ appId: com.monyvi.app
 - tapOn: "Wallet name"
 - inputText: "E2E Manual Wallet"
 - waitForAnimationToEnd
-- tapOn: "Message detection (optional)"
+- tapOn: "Message detection (Optional)"
 - tapOn: "Add sender"
 - inputText: "E2EWALLET"
 - waitForAnimationToEnd

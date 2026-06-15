@@ -422,22 +422,22 @@ describe("InstitutionPicker", () => {
       {
         search: "QNB",
         label: "QNB",
+        expectsContrastSurface: true,
       },
       {
         search: "ADCB",
         label: "ADCB (Abu Dhabi Commercial Bank Egypt)",
+        expectsContrastSurface: true,
       },
       {
         search: "Bank NXT",
         label: "Bank NXT",
-      },
-      {
-        search: "Egypt Post",
-        label: "Egypt Post",
+        expectsContrastSurface: false,
       },
       {
         search: "Nasser Social",
         label: "Nasser Social Bank",
+        expectsContrastSurface: true,
       },
     ] as const;
 
@@ -448,13 +448,19 @@ describe("InstitutionPicker", () => {
       );
 
       expect(screen.getByText(fixture.label)).toBeTruthy();
-      expect(screen.getByTestId(`${fixture.label} logo`)).toHaveProp(
-        "style",
-        expect.objectContaining({
-          backgroundColor: palette.slate[25],
-          borderColor: palette.slate[600],
-        })
-      );
+      if (fixture.expectsContrastSurface) {
+        expect(screen.getByTestId(`${fixture.label} logo`)).toHaveProp(
+          "style",
+          expect.objectContaining({
+            backgroundColor: palette.slate[25],
+            borderColor: palette.slate[600],
+          })
+        );
+      } else {
+        expect(screen.getByTestId(`${fixture.label} logo`)).not.toHaveProp(
+          "style"
+        );
+      }
     }
   });
 

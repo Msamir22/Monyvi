@@ -165,9 +165,11 @@ export async function pushChanges(
             return transformToSupabase(table, record, userId, isChildTable);
           });
 
-        const { error } = await getSupabaseWriteTable(table).insert(records);
+        const { error } = await getSupabaseWriteTable(table).upsert(records, {
+          onConflict: "id",
+        });
         if (error) {
-          throw createSyncTableError("insert", table, error);
+          throw createSyncTableError("upsert", table, error);
         }
       }
 

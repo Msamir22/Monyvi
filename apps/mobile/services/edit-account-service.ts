@@ -377,11 +377,13 @@ export async function updateAccountWithinWriter(
       data.providerDisplayName?.trim() || data.bankName?.trim() || undefined;
   });
 
-  await replaceAccountSmsSendersWithinWriter(
-    existingAccount,
-    currentUserId,
-    data.senderNames ?? []
-  );
+  if (Object.prototype.hasOwnProperty.call(data, "senderNames")) {
+    await replaceAccountSmsSendersWithinWriter(
+      existingAccount,
+      currentUserId,
+      data.senderNames ?? []
+    );
+  }
 
   // Update bank details if this is a bank account
   if (existingAccount.isBank) {
