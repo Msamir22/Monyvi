@@ -1,10 +1,12 @@
 interface E2ePreflightModule {
   appendAndroidPlatform(url: string): string;
+  buildDevClientUrl(url: string): string;
   buildDevMenuPreferencesXml(): string;
   currentFocusShowsDevMenu(currentFocus: string): boolean;
   currentFocusShowsLauncher(currentFocus: string): boolean;
   getHttpClientNameForUrl(url: string): "http" | "https";
   isAppReady(uiXml: string): boolean;
+  isNativeRootMounted(uiXml: string): boolean;
   resolveMetroUrls(env?: Readonly<Record<string, string | undefined>>): {
     hostMetroUrl: string;
     metroUrl: string;
@@ -47,6 +49,14 @@ describe("e2e-preflight", () => {
     ).toBe("http://custom-device:8081/?platform=android");
   });
 
+  it("builds the Monyvi dev-client URL with the app scheme", () => {
+    expect(
+      preflight.buildDevClientUrl("http://10.0.2.2:8081/?platform=android")
+    ).toBe(
+      "monyvi://expo-development-client/?url=http%3A%2F%2F10.0.2.2%3A8081%2F%3Fplatform%3Dandroid"
+    );
+  });
+
   it("builds dev menu preferences that hide the Expo tools button", () => {
     expect(preflight.buildDevMenuPreferencesXml()).toContain(
       '<boolean name="showFab" value="false" />'
@@ -69,6 +79,18 @@ describe("e2e-preflight", () => {
         '<node text="This is the developer menu" /><node text="Skip" />'
       )
     ).toBe(false);
+  });
+
+  it("detects the mounted native Fabric root when UIAutomator hides React text", () => {
+    expect(
+      preflight.isNativeRootMounted(`
+        <hierarchy>
+          <node package="com.monyvi.app" class="androidx.compose.ui.platform.ComposeView">
+            <node package="com.monyvi.app" class="android.view.View" />
+          </node>
+        </hierarchy>
+      `)
+    ).toBe(true);
   });
 
   it("does not treat stale DevMenuActivity records as the focused dev menu", () => {

@@ -94,7 +94,11 @@ describe("account institution and sender migration", () => {
     expect(serializedMigrations).toContain("_status");
     expect(serializedMigrations).toContain("_changed");
     expect(serializedMigrations).toContain("'created'");
+    expect(serializedMigrations).toContain("'deleted'");
     expect(serializedMigrations).toContain("'synced'");
+    expect(serializedMigrations).toContain(
+      'coalesce(\\"accounts\\".\\"deleted\\", 0) != 1'
+    );
     expect(serializedMigrations).toContain(
       '\\"accounts\\".\\"_status\\" = \'created\''
     );

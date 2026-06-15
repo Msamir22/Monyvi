@@ -296,6 +296,16 @@ describe("sms-account-matcher - source-aware transaction matching", () => {
     smsSenderNames: [],
   };
 
+  const walletDefault: AccountWithBankDetails = {
+    id: "acc_wallet_default",
+    name: "Vodafone wallet",
+    currency: "EGP",
+    isDefault: true,
+    createdAt: new Date(baseDate.getTime() + 3000),
+    type: "DIGITAL_WALLET",
+    smsSenderNames: [],
+  };
+
   function tx(overrides: Partial<TestTransaction> = {}): TestTransaction {
     return {
       amount: 100,
@@ -323,6 +333,16 @@ describe("sms-account-matcher - source-aware transaction matching", () => {
 
     expect(result.accountId).toBe("acc_bank_default");
     expect(result.matchReason).toBe("default");
+  });
+
+  it("keeps known bank SMS fallback scoped away from a default wallet account", () => {
+    const result = matchTransaction(tx({ originLabel: "CIB-EGYPT" }), [
+      walletDefault,
+      bankRegular,
+    ]);
+
+    expect(result.accountId).toBe(null);
+    expect(result.matchReason).toBe("none");
   });
 
   it("keeps batched SMS review bank-scoped even when preloaded accounts include cash", async () => {

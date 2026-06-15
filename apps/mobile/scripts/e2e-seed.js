@@ -284,7 +284,7 @@ async function ensureE2eUser(client, config) {
 
   if (!config.password) {
     throw new Error(
-      `Cannot create ${config.email} without a password. Pass MANUAL_QA_PASSWORD or --password once, then rerun without it to preserve the current password.`
+      `Cannot create ${config.email} without a password. Set MAESTRO_E2E_PASSWORD once, then rerun with E2E_PRESERVE_EXISTING_PASSWORD=1 to preserve the current password.`
     );
   }
 

@@ -228,6 +228,25 @@ describe("e2e-seed script helpers", () => {
     expect(operations).not.toContain("update-user-password:user-e2e");
   });
 
+  it("guides missing-password recovery with the supported E2E env vars", async () => {
+    const operations: string[] = [];
+    const client = createMockClient(operations, { authPages: [[]] });
+
+    await expect(
+      seedE2eData(client, {
+        ...getE2eSeedConfig({
+          E2E_SUPABASE_MODE: "local",
+          E2E_LOCAL_JWT_SECRET: "local-test-jwt-secret-with-enough-length",
+          E2E_PRESERVE_EXISTING_PASSWORD: "1",
+          MAESTRO_E2E_EMAIL: "e2e@monyvi.test",
+        }),
+      })
+    ).rejects.toThrow(
+      "Set MAESTRO_E2E_PASSWORD once, then rerun with E2E_PRESERVE_EXISTING_PASSWORD=1"
+    );
+    expect(operations).not.toContain("create-user:e2e@monyvi.test");
+  });
+
   it("resets scoped rows without reseeding fixture data", async () => {
     const operations: string[] = [];
     const client = createMockClient(operations);

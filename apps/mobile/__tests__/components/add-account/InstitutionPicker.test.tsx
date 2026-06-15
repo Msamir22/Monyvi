@@ -349,7 +349,7 @@ describe("InstitutionPicker", () => {
     }
   });
 
-  it("uses readable logo surfaces for dark and light wordmarks", () => {
+  it("keeps light-mode dropdown logos transparent unless a row surface is required", () => {
     const surfaceFixtures = [
       {
         search: "ADCB",
@@ -391,16 +391,9 @@ describe("InstitutionPicker", () => {
       );
 
       expect(screen.getByText(fixture.label)).toBeTruthy();
-      if ("expectedSurfaceStyle" in fixture) {
-        expect(screen.getByTestId(`${fixture.label} logo`)).toHaveProp(
-          "style",
-          expect.objectContaining(fixture.expectedSurfaceStyle)
-        );
-      } else {
-        expect(screen.getByTestId(`${fixture.label} logo`)).not.toHaveProp(
-          "style"
-        );
-      }
+      expect(screen.getByTestId(`${fixture.label} logo`)).not.toHaveProp(
+        "style"
+      );
     }
   });
 

@@ -406,16 +406,22 @@ function matchAccountCore(
     };
   }
 
-  // Step 3: Name + currency match via bank registry
+  const senderInstitution = isKnownFinancialSender(senderDisplayName);
+
+  // Step 3: Name + currency match via Egyptian institution registry
   if (currency) {
-    // This should always return a bank info for Egyptian banks
+    // This should return institution info for supported Egyptian providers
     // since we already filter the sms based on this registry
-    const bankInfo = isKnownFinancialSender(senderDisplayName);
-    if (bankInfo) {
-      const normalizedBankName = bankInfo.shortName.toLowerCase().trim();
+    if (senderInstitution) {
+      const normalizedBankName = senderInstitution.shortName
+        .toLowerCase()
+        .trim();
 
       for (const acc of accounts) {
         if (acc.currency !== currency) continue;
+        if (!doesAccountMatchInstitutionType(acc, senderInstitution.type)) {
+          continue;
+        }
 
         const existingName = acc.name.toLowerCase().trim();
         if (
@@ -439,7 +445,12 @@ function matchAccountCore(
   }
 
   // Step 4: Default account fallback
-  const defaultAcc = accounts.find((a) => a.isDefault);
+  const defaultAcc = accounts.find(
+    (account) =>
+      account.isDefault &&
+      (!senderInstitution ||
+        doesAccountMatchInstitutionType(account, senderInstitution.type))
+  );
   if (defaultAcc) {
     return {
       accountId: defaultAcc.id,
@@ -450,6 +461,21 @@ function matchAccountCore(
 
   // No match at all
   return { accountId: null, accountName: null, matchReason: "none" };
+}
+
+function doesAccountMatchInstitutionType(
+  account: AccountWithBankDetails,
+  institutionType: string
+): boolean {
+  if (institutionType === "bank") {
+    return account.type === "BANK";
+  }
+
+  if (institutionType === "wallet") {
+    return account.type === "DIGITAL_WALLET";
+  }
+
+  return false;
 }
 
 // ---------------------------------------------------------------------------

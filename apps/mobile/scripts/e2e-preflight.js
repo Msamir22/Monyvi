@@ -16,9 +16,7 @@ const preflightAttemptTimeoutMs = parsePositiveInt(
   process.env.E2E_PREFLIGHT_ATTEMPT_TIMEOUT_MS,
   120000
 );
-const devClientUrl = `exp+monyvi://expo-development-client/?url=${encodeURIComponent(
-  metroUrl
-)}`;
+const devClientUrl = buildDevClientUrl(metroUrl);
 const devMenuPreferencesPath =
   "shared_prefs/expo.modules.devmenu.sharedpreferences.xml";
 const privateShellMarkers = [
@@ -71,6 +69,10 @@ function appendAndroidPlatform(url) {
   const parsedUrl = new URL(url);
   parsedUrl.searchParams.set("platform", "android");
   return parsedUrl.toString();
+}
+
+function buildDevClientUrl(url) {
+  return `monyvi://expo-development-client/?url=${encodeURIComponent(url)}`;
 }
 
 function resolveMetroUrls(env = process.env) {
@@ -456,6 +458,14 @@ function isAppReady(uiXml) {
   return isSettingsReady || isPrivateShellReady || isAuthReady;
 }
 
+function isNativeRootMounted(uiXml) {
+  return (
+    uiXml.includes('package="com.monyvi.app"') &&
+    (uiXml.includes("androidx.compose.ui.platform.ComposeView") ||
+      uiXml.includes("android.view.View"))
+  );
+}
+
 function assertNotWrongShell(currentFocus) {
   if (currentFocus.includes("host.exp.exponent")) {
     throw new Error(
@@ -525,6 +535,19 @@ function waitForProductUi(timeoutMs = 240000) {
         finalFocus.includes(appId) &&
         !currentFocusShowsDevMenu(finalFocus) &&
         isAppReady(finalUiXml)
+      ) {
+        return;
+      }
+    }
+
+    if (lastFocus.includes(appId) && isNativeRootMounted(lastUiXml)) {
+      wait(10000);
+      const finalFocus = getCurrentFocus();
+      const finalUiXml = dumpVisibleText();
+      if (
+        finalFocus.includes(appId) &&
+        !currentFocusShowsDevMenu(finalFocus) &&
+        isNativeRootMounted(finalUiXml)
       ) {
         return;
       }
@@ -650,9 +673,11 @@ module.exports = {
   currentFocusShowsDevMenu,
   currentFocusShowsLauncher,
   buildDevMenuPreferencesXml,
+  buildDevClientUrl,
   disableExpoDevMenuFabForE2e,
   getHttpClientNameForUrl,
   isAppReady,
+  isNativeRootMounted,
   isReleaseBuild,
   hostMetroUrl,
   metroUrl,

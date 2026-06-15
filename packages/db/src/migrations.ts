@@ -303,15 +303,18 @@ set
   ),
   "_status" = case
     when "_status" = 'created' then 'created'
+    when "_status" = 'deleted' then 'deleted'
     else 'updated'
   end,
   "_changed" = case
     when "_status" = 'created' then "_changed"
+    when "_status" = 'deleted' then "_changed"
     when "_changed" is null or "_changed" = '' then 'provider_display_name'
     when instr(',' || "_changed" || ',', ',provider_display_name,') > 0 then "_changed"
     else "_changed" || ',provider_display_name'
   end
 where ("provider_display_name" is null or trim("provider_display_name") = '')
+  and coalesce("accounts"."deleted", 0) != 1
   and exists (
     select 1
     from "bank_details"
@@ -350,6 +353,7 @@ select
 from "bank_details"
 join "accounts" on "accounts"."id" = "bank_details"."account_id"
 where coalesce("bank_details"."deleted", 0) != 1
+  and coalesce("accounts"."deleted", 0) != 1
   and "bank_details"."sms_sender_name" is not null
   and trim("bank_details"."sms_sender_name") != '';`
         ),
