@@ -15,11 +15,18 @@ BEGIN
   IF EXISTS (
     SELECT 1
     FROM (
-      SELECT user_id, lower(name), currency
+      SELECT user_id, lower(btrim(name)), currency
       FROM public.accounts
       WHERE deleted = false
         AND institution_id IS NULL
-      GROUP BY user_id, lower(name), currency
+      GROUP BY
+        user_id,
+        lower(btrim(name)),
+        currency,
+        COALESCE(
+          NULLIF(lower(regexp_replace(btrim(provider_display_name), '\s+', ' ', 'g')), ''),
+          '__monyvi_no_provider__'
+        )
       HAVING count(*) > 1
     ) duplicate_manual_accounts
   ) THEN
@@ -28,11 +35,19 @@ BEGIN
 END $$;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_unique_known_provider
-  ON public.accounts (user_id, lower(name), currency, institution_id)
+  ON public.accounts (user_id, lower(btrim(name)), currency, institution_id)
   WHERE deleted = false AND institution_id IS NOT NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_unique_manual_provider
-  ON public.accounts (user_id, lower(name), currency)
+  ON public.accounts (
+    user_id,
+    lower(btrim(name)),
+    currency,
+    COALESCE(
+      NULLIF(lower(regexp_replace(btrim(provider_display_name), '\s+', ' ', 'g')), ''),
+      '__monyvi_no_provider__'
+    )
+  )
   WHERE deleted = false AND institution_id IS NULL;
 
 CREATE TABLE IF NOT EXISTS public.account_sms_senders (

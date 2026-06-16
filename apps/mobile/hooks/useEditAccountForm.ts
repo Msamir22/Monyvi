@@ -100,6 +100,34 @@ function validateEditFormForAccountType(
   return validateEditAccountForm(data, accountType);
 }
 
+function normalizeSenderName(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function getCustomSenderNames(
+  institutionId: string | null,
+  senderNames: readonly string[]
+): readonly string[] {
+  if (!institutionId) {
+    return senderNames;
+  }
+
+  const institution = getInstitutionById(institutionId);
+  if (!institution?.selectable) {
+    return senderNames;
+  }
+
+  const registrySenders = new Set(
+    getSenderPatternsForInstitution(
+      institutionId as SelectableEgyptianInstitutionId
+    ).map(normalizeSenderName)
+  );
+
+  return senderNames.filter(
+    (senderName) => !registrySenders.has(normalizeSenderName(senderName))
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
@@ -119,7 +147,10 @@ export function useEditAccountForm(
   account: Account,
   bankDetails: UseAccountByIdResult["bankDetails"]
 ): UseEditAccountFormResult {
-  const initialSenderNames = bankDetails?.smsSenderNames ?? [];
+  const initialSenderNames = getCustomSenderNames(
+    account.institutionId ?? null,
+    bankDetails?.smsSenderNames ?? []
+  );
 
   // Snapshot the original data for dirty tracking.
   // useRef to avoid re-creating on each render.
@@ -198,6 +229,8 @@ export function useEditAccountForm(
 
       const trimmedName = name.trim();
       const institutionId = latestFormDataRef.current.institutionId ?? null;
+      const providerDisplayName =
+        latestFormDataRef.current.providerDisplayName ?? "";
       if (!trimmedName) {
         setHasNameUniquenessError(false);
         setIsCheckingUniqueness(false);
@@ -213,14 +246,16 @@ export function useEditAccountForm(
             trimmedName,
             account.currency,
             account.id,
-            institutionId
+            institutionId,
+            providerDisplayName
           );
 
           const latestFormData = latestFormDataRef.current;
           if (
             requestId !== activeUniquenessRequestRef.current ||
             latestFormData.name.trim() !== trimmedName ||
-            (latestFormData.institutionId ?? null) !== institutionId
+            (latestFormData.institutionId ?? null) !== institutionId ||
+            latestFormData.providerDisplayName !== providerDisplayName
           ) {
             return;
           }
@@ -287,9 +322,11 @@ export function useEditAccountForm(
 
       setIsTouched((prev) => ({ ...prev, [field]: true }));
 
-      // Trigger uniqueness check for name field
+      // Trigger uniqueness check for fields that affect the account identity.
       if (field === "name") {
         checkUniqueness(value as string);
+      } else if (field === "providerDisplayName") {
+        checkUniqueness(latestFormDataRef.current.name);
       }
     },
     [account.type, checkUniqueness]
@@ -302,15 +339,17 @@ export function useEditAccountForm(
         return;
       }
 
-      const senderNames = getSenderPatternsForInstitution(institutionId);
       setFormData((prev) => {
+        if (prev.institutionId === institutionId) {
+          return prev;
+        }
         const newData = {
           ...prev,
           institutionId,
           providerDisplayName: institution.shortName,
           bankName: institution.shortName,
-          senderNames: [...senderNames],
-          smsSenderName: senderNames.join(", "),
+          senderNames: [],
+          smsSenderName: "",
         };
         latestFormDataRef.current = newData;
         const validation = validateEditFormForAccountType(

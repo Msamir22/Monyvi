@@ -83,22 +83,23 @@ they belong outside `bank_details`.
 ## Decision: Make known-provider account uniqueness provider-aware
 
 **Decision**: For known providers, account uniqueness is scoped by user, account
-name, currency, and `institution_id`. For manual/Other providers where
-`institution_id` is null, keep the existing name-and-currency uniqueness
-behavior. Manual free-text provider names do not participate in duplicate
-checking.
+name, currency, and `institution_id`. For accounts where `institution_id` is
+null, account uniqueness includes normalized `provider_display_name` when the
+provider text exists. If no provider text exists, uniqueness falls back to user,
+account name, and currency.
 
 **Rationale**: A user may reasonably have two accounts with the same nickname
 and currency at different known providers. The provider identity disambiguates
-those accounts. Manual providers do not have a stable identity, so allowing
-duplicates there would make accidental duplicate accounts too easy.
+those accounts. For manual providers, the user-entered provider name is the best
+available identity when present; when absent, the old name-and-currency rule
+remains the safest fallback.
 
 **Alternatives considered**:
 
 - Keep uniqueness as name plus currency for every account: rejected because it
   blocks valid same-nickname accounts at different known providers.
-- Use provider display text for all uniqueness: rejected because display text is
-  editable, localized, and less stable than the registry ID.
+- Use provider display text for known-provider uniqueness: rejected because
+  display text is editable, localized, and less stable than the registry ID.
 
 ## Decision: Known-provider display resolves from the registry
 

@@ -59,15 +59,18 @@ Existing spendable account entity.
 - `institution_id` is optional and must never use an empty string fallback.
 - `institution_id` may be set for `BANK` and `DIGITAL_WALLET`.
 - `institution_id` should be null for `CASH`.
-- `provider_display_name` is required when a bank or wallet uses Other/manual
-  provider entry.
+- `provider_display_name` is optional for bank and wallet accounts. When a
+  manual/Other provider name is entered, it participates in duplicate detection
+  after trimming and case-normalization.
 - `provider_display_name` must not replace the registry as the source of truth
   when `institution_id` is present.
 - For known providers, account name uniqueness is scoped by user, currency, and
   `institution_id`.
-- For manual/Other providers where `institution_id` is null, the existing
-  account-name-plus-currency uniqueness behavior remains; the free-text provider
-  name is not part of duplicate detection.
+- For manual/Other providers where `institution_id` is null and
+  `provider_display_name` is present, account uniqueness is scoped by user,
+  currency, account name, and normalized provider display name. If provider
+  display name is absent, uniqueness falls back to user, currency, and account
+  name.
 - Account ownership remains scoped by `user_id`.
 
 ## AccountSmsSender
@@ -154,7 +157,9 @@ Form state for account create/edit provider metadata.
 
 - `institutionId`: `string | null`, selected known provider ID or null.
 - `providerName`: text shown/saved for manual provider display.
-- `senderNames`: array of chip values.
+- `senderNames`: array of custom chip values. For known providers, registry
+  sender defaults are resolved by `institutionId` and are not stored as editable
+  chips.
 - `isKnownProvider`: derived from `institutionId !== null`.
 - `isSenderUnverified`: derived per chip when sender is not in selected provider
   aliases.
@@ -165,8 +170,9 @@ Form state for account create/edit provider metadata.
 - Sender chips trim whitespace and reject empty values.
 - Unknown sender values are allowed with an unverified hint.
 - Switching from known provider to Other clears known provider identity.
-- Switching from Other to known provider applies provider identity and sender
-  presets only after explicit selection.
+- Switching from Other to known provider applies provider identity only after
+  explicit selection; registry sender presets stay internal and custom sender
+  chips start empty.
 - In the new account flow, switching between Bank and Digital Wallet clears
   provider identity, provider display text, and sender chips.
 - In the edit flow, account type is immutable, so Bank/Digital Wallet switching

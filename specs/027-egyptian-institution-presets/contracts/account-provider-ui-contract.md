@@ -18,8 +18,9 @@ Otherwise, provider details remain manual free text.
 
 - Account type Bank shows a searchable bank-only dropdown when eligible.
 - Dropdown labels use `shortName (fullName)`.
-- Selecting a known bank sets `institutionId`, provider display text, logo, and
-  sender chips from verified sender presets.
+- Selecting a known bank sets `institutionId`, provider display text, and logo.
+  Verified registry sender presets are used internally for matching and are not
+  shown as editable chips.
 - Selecting Other sets `institutionId` to null and shows a free-text provider-
   name field. The entered provider name is saved as account-level provider
   display text (`provider_display_name`).
@@ -30,8 +31,9 @@ Otherwise, provider details remain manual free text.
 
 - Account type Digital Wallet shows a searchable wallet-only dropdown when
   eligible.
-- Selecting a known wallet sets `institutionId`, provider display text, logo,
-  and sender chips from verified sender presets.
+- Selecting a known wallet sets `institutionId`, provider display text, and
+  logo. Verified registry sender presets are used internally for matching and
+  are not shown as editable chips.
 - Selecting Other sets `institutionId` to null and shows a free-text
   wallet/provider-name field. The entered provider name is saved as
   account-level provider display text (`provider_display_name`).
@@ -41,6 +43,8 @@ Otherwise, provider details remain manual free text.
 
 - Sender chips are part of a shared provider-and-senders section used by both
   Bank and Digital Wallet account types.
+- For known providers, visible sender chips are custom/additional aliases only.
+  Registry sender defaults are implied by `institutionId`.
 - Bank-specific card/account-number fields stay outside this shared sender area.
 - Each sender is a removable chip/token.
 - An adjacent input adds new sender chips.
@@ -63,8 +67,8 @@ Otherwise, provider details remain manual free text.
   alert.
 - The popover closes when the user taps outside it.
 - Copy is localized in English and Arabic.
-- The popover reassures users that Monyvi never asks for PINs, passwords, or
-  full card numbers.
+- The popover reassures users that the details are used only to match SMS alerts
+  and that no PINs or passwords are needed.
 
 ## Account Cards
 

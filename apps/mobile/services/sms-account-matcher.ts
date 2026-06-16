@@ -33,6 +33,8 @@ import {
 } from "@monyvi/db";
 import {
   type ReviewableTransaction,
+  getInstitutionById,
+  getSenderPatternsForInstitution,
   isKnownFinancialSender,
 } from "@monyvi/logic";
 import { Q } from "@nozbe/watermelondb";
@@ -66,6 +68,7 @@ interface AccountWithBankDetails {
   readonly isDefault: boolean;
   readonly createdAt: Date;
   readonly type: AccountType;
+  readonly institutionId?: string;
   readonly smsSenderNames: readonly string[];
   readonly bankName?: string;
   readonly cardLast4?: string;
@@ -251,14 +254,20 @@ function doesAccountMatchSender(
   senderDisplayName: string,
   account: AccountWithBankDetails
 ): boolean {
-  if (account.smsSenderNames.length === 0) {
+  const registrySenderNames =
+    account.institutionId && getInstitutionById(account.institutionId)
+      ? getSenderPatternsForInstitution(account.institutionId)
+      : [];
+  const senderNames = [...registrySenderNames, ...account.smsSenderNames];
+
+  if (senderNames.length === 0) {
     return isSenderMatch(senderDisplayName, {
       bankName: account.bankName,
       accountName: account.name,
     });
   }
 
-  return account.smsSenderNames.some((senderName) =>
+  return senderNames.some((senderName) =>
     isSenderMatch(senderDisplayName, {
       bankSmsSenderName: senderName,
     })
@@ -340,6 +349,7 @@ async function fetchAccountsWithDetails(
       isDefault: account.isDefault,
       createdAt: account.createdAt,
       type: account.type,
+      institutionId: account.institutionId,
       smsSenderNames: senderNamesByAccountId.get(account.id) ?? [],
       bankName: account.providerDisplayName ?? undefined,
       cardLast4: bankDetails?.cardLast4 ?? undefined,
@@ -413,16 +423,23 @@ function matchAccountCore(
     // This should return institution info for supported Egyptian providers
     // since we already filter the sms based on this registry
     if (senderInstitution) {
-      const normalizedBankName = senderInstitution.shortName
-        .toLowerCase()
-        .trim();
-
       for (const acc of accounts) {
         if (acc.currency !== currency) continue;
         if (!doesAccountMatchInstitutionType(acc, senderInstitution.type)) {
           continue;
         }
 
+        if (acc.institutionId === senderInstitution.id) {
+          return {
+            accountId: acc.id,
+            accountName: acc.name,
+            matchReason: "bank_registry",
+          };
+        }
+
+        const normalizedBankName = senderInstitution.shortName
+          .toLowerCase()
+          .trim();
         const existingName = acc.name.toLowerCase().trim();
         if (
           existingName === normalizedBankName ||

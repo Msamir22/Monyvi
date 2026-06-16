@@ -114,7 +114,7 @@ describe("accountFormSchema (create)", () => {
     expect(result.errors.institutionId).toBeDefined();
   });
 
-  it("requires provider details when validating edits for bank accounts", () => {
+  it("allows bank edits without institution or provider details", () => {
     const result = validateEditAccountForm(
       {
         ...baseEdit,
@@ -124,10 +124,8 @@ describe("accountFormSchema (create)", () => {
       "BANK"
     );
 
-    expect(result.isValid).toBe(false);
-    expect(result.errors.providerDisplayName).toBe(
-      "translated:accounts:validation_provider_display_name_required"
-    );
+    expect(result.isValid).toBe(true);
+    expect(result.errors.providerDisplayName).toBeUndefined();
   });
 });
 

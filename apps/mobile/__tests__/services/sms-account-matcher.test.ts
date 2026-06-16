@@ -131,6 +131,55 @@ describe("sms-account-matcher - matchAccountCore", () => {
     expect(result.matchReason).toBe("card_last4");
   });
 
+  it("matches registry sender patterns from the saved institution id without editable sender chips", () => {
+    const knownProviderAccount: AccountWithBankDetails = {
+      id: "acc_cib",
+      name: "Main",
+      currency: "EGP",
+      isDefault: false,
+      createdAt: baseDate,
+      type: "BANK",
+      institutionId: "cib",
+      smsSenderNames: [],
+      bankName: "CIB",
+      cardLast4: "1234",
+    };
+
+    const result = matchAccountCore(
+      { senderDisplayName: "CIBEGYPT", cardLast4: "1234", currency: "EGP" },
+      [knownProviderAccount]
+    );
+
+    expect(result).toMatchObject({
+      accountId: "acc_cib",
+      matchReason: "card_last4",
+    });
+  });
+
+  it("uses custom sender rows in addition to registry senders for known providers", () => {
+    const knownProviderAccount: AccountWithBankDetails = {
+      id: "acc_cib",
+      name: "Main",
+      currency: "EGP",
+      isDefault: false,
+      createdAt: baseDate,
+      type: "BANK",
+      institutionId: "cib",
+      smsSenderNames: ["CIBCUSTOM"],
+      bankName: "CIB",
+    };
+
+    const result = matchAccountCore(
+      { senderDisplayName: "CIBCUSTOM", currency: "EGP" },
+      [knownProviderAccount]
+    );
+
+    expect(result).toMatchObject({
+      accountId: "acc_cib",
+      matchReason: "sms_sender",
+    });
+  });
+
   it("Step 3: Matches based on bank registry name and currency", () => {
     const input: MatchInput = {
       senderDisplayName: "BANQUEMISR", // Known financial sender mapped to "Banque Misr"
@@ -139,6 +188,29 @@ describe("sms-account-matcher - matchAccountCore", () => {
     const result = matchAccountCore(input, accounts);
     expect(result.accountId).toBe("acc_bank3");
     expect(result.matchReason).toBe("bank_registry");
+  });
+
+  it("Step 3: prefers stable institution id when registry sender resolves the provider", () => {
+    const renamedKnownProviderAccount: AccountWithBankDetails = {
+      id: "acc_banque_misr",
+      name: "Main",
+      currency: "EGP",
+      isDefault: false,
+      createdAt: baseDate,
+      type: "BANK",
+      institutionId: "banque-misr",
+      smsSenderNames: [],
+    };
+
+    const result = matchAccountCore(
+      { senderDisplayName: "BANQUEMISR", currency: "EGP" },
+      [renamedKnownProviderAccount]
+    );
+
+    expect(result).toMatchObject({
+      accountId: "acc_banque_misr",
+      matchReason: "sms_sender",
+    });
   });
 
   it("Step 4: Falls back to default account if NO other match and not a known bank", () => {

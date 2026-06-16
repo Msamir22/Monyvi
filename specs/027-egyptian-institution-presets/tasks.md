@@ -118,11 +118,13 @@ complete.
 ## Phase 3: User Story 1 - Egyptian User Selects a Known Bank or Wallet (Priority: P1) MVP
 
 **Goal**: Egypt-context users can select known banks or wallets, see
-`shortName (fullName)`, get local logos, and receive prefilled sender chips.
+`shortName (fullName)`, get local logos, and have registry sender matching
+configured internally while visible sender chips stay reserved for custom
+additions.
 
 **Independent Test**: Start account creation as an Egypt-context user, choose
-Bank, select a known bank, verify label/logo/senders. Repeat with Digital Wallet
-and verify only wallet providers appear.
+Bank, select a known bank, verify label/logo and internal sender matching.
+Repeat with Digital Wallet and verify only wallet providers appear.
 
 ### Tests for User Story 1
 
@@ -208,8 +210,8 @@ render.
       and Other-to-known/known-to-Other transitions in
       `apps/mobile/__tests__/hooks/useAccountForm.test.ts`
 - [x] T038 [P] [US2] Add failing service tests for manual provider save
-      behavior, null `institution_id`, required `provider_display_name`, and
-      manual uniqueness in
+      behavior, null `institution_id`, optional `provider_display_name`, and
+      provider-aware manual uniqueness in
       `apps/mobile/__tests__/services/account-service.test.ts`
 - [x] T039 [P] [US2] Add failing account card tests for manual bank and wallet
       fallback icons in
@@ -222,8 +224,8 @@ render.
 - [x] T041 [US2] Implement non-Egypt manual provider mode in
       `apps/mobile/hooks/useEgyptianInstitutionEligibility.ts` and
       `apps/mobile/hooks/useAccountForm.ts`
-- [x] T042 [US2] Enforce manual provider validation and `null` known-provider
-      identity in `apps/mobile/validation/account-validation.ts`
+- [x] T042 [US2] Enforce optional manual provider validation and `null`
+      known-provider identity in `apps/mobile/validation/account-validation.ts`
 - [x] T043 [US2] Implement manual provider create and edit persistence in
       `apps/mobile/services/account-service.ts` and
       `apps/mobile/services/edit-account-service.ts`
@@ -419,8 +421,8 @@ Task: "Add failing live/batch deduplication regression tests in apps/mobile/__te
 ### MVP First (User Story 1 Only)
 
 1. Complete Phase 1 and Phase 2.
-2. Complete Phase 3 for known bank/wallet selection, sender presets, provider
-   identity persistence, and account-card logos.
+2. Complete Phase 3 for known bank/wallet selection, internal registry sender
+   matching, provider identity persistence, and account-card logos.
 3. Validate US1 independently with tests and manual create/edit checks.
 
 ### Incremental Delivery

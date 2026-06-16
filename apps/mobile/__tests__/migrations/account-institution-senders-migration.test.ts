@@ -63,7 +63,7 @@ describe("account institution and sender migration", () => {
     expect(bankDetailsColumns).not.toContain("sms_sender_name");
   });
 
-  it("enforces provider-aware uniqueness for known providers and legacy uniqueness for manual providers", () => {
+  it("enforces provider-aware uniqueness for known and manual providers", () => {
     const sql = readMigrationSql();
 
     expect(sql).toMatch(
@@ -71,10 +71,10 @@ describe("account institution and sender migration", () => {
     );
     expect(sql).not.toMatch(/UPDATE public\.accounts[\s\S]*deleted = true/m);
     expect(sql).toMatch(
-      /CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_unique_known_provider[\s\S]*ON public\.accounts \(user_id, lower\(name\), currency, institution_id\)[\s\S]*WHERE deleted = false AND institution_id IS NOT NULL/m
+      /CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_unique_known_provider[\s\S]*ON public\.accounts \(user_id, lower\(btrim\(name\)\), currency, institution_id\)[\s\S]*WHERE deleted = false AND institution_id IS NOT NULL/m
     );
     expect(sql).toMatch(
-      /CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_unique_manual_provider[\s\S]*ON public\.accounts \(user_id, lower\(name\), currency\)[\s\S]*WHERE deleted = false AND institution_id IS NULL/m
+      /CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_unique_manual_provider[\s\S]*ON public\.accounts \([\s\S]*user_id,[\s\S]*lower\(btrim\(name\)\),[\s\S]*currency,[\s\S]*COALESCE\([\s\S]*NULLIF\(lower\(regexp_replace\(btrim\(provider_display_name\), '\\s\+', ' ', 'g'\)\), ''\),[\s\S]*'__monyvi_no_provider__'[\s\S]*\)[\s\S]*\)[\s\S]*WHERE deleted = false AND institution_id IS NULL/m
     );
   });
 

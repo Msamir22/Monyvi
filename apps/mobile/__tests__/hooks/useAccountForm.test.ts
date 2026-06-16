@@ -11,7 +11,14 @@ let mockCurrentUserId: string | null = "user-1";
 let mockIsResolvingUser = false;
 const mockCheckAccountNameUniqueness = jest.fn<
   Promise<UniquenessResult>,
-  [string, string, TestCurrency, string | undefined, string | null]
+  [
+    string,
+    string,
+    TestCurrency,
+    string | undefined,
+    string | null,
+    string | null,
+  ]
 >();
 let mockPreferredCurrency: TestCurrency = "EGP";
 
@@ -39,14 +46,16 @@ jest.mock("../../services/edit-account-service", () => ({
     name: string,
     currency: TestCurrency,
     excludeAccountId?: string,
-    institutionId?: string | null
+    institutionId?: string | null,
+    providerDisplayName?: string | null
   ): Promise<UniquenessResult> =>
     mockCheckAccountNameUniqueness(
       userId,
       name,
       currency,
       excludeAccountId,
-      institutionId ?? null
+      institutionId ?? null,
+      providerDisplayName ?? null
     ),
 }));
 
@@ -115,7 +124,8 @@ describe("useAccountForm", () => {
       "Wallet",
       "EGP",
       undefined,
-      null
+      null,
+      ""
     );
 
     act(() => {
@@ -139,7 +149,8 @@ describe("useAccountForm", () => {
       "Savings",
       "EGP",
       undefined,
-      null
+      null,
+      ""
     );
 
     await act(async () => {
@@ -171,7 +182,8 @@ describe("useAccountForm", () => {
       "Wallet",
       "EGP",
       undefined,
-      null
+      null,
+      ""
     );
 
     mockPreferredCurrency = "USD";
@@ -191,11 +203,12 @@ describe("useAccountForm", () => {
       "Wallet",
       "USD",
       undefined,
-      null
+      null,
+      ""
     );
   });
 
-  it("selects a known provider with sender presets using null-safe identity", () => {
+  it("selects a known provider without exposing registry sender presets as editable chips", () => {
     const { result } = renderHook(() =>
       useAccountForm({ initialAccountType: "BANK" })
     );
@@ -206,9 +219,8 @@ describe("useAccountForm", () => {
 
     expect(result.current.formData.institutionId).toBe("cib");
     expect(result.current.formData.providerDisplayName).toBe("CIB");
-    expect(result.current.formData.senderNames).toEqual(
-      expect.arrayContaining(["cib", "cibank", "cibegypt"])
-    );
+    expect(result.current.formData.senderNames).toEqual([]);
+    expect(result.current.formData.smsSenderName).toBe("");
   });
 
   it("clears provider identity and senders when create flow switches between bank and wallet", () => {
@@ -262,7 +274,8 @@ describe("useAccountForm", () => {
       "Main",
       "EGP",
       undefined,
-      null
+      null,
+      ""
     );
   });
 
@@ -350,7 +363,37 @@ describe("useAccountForm", () => {
       "Main",
       "EGP",
       undefined,
-      "cib"
+      "cib",
+      "CIB"
+    );
+  });
+
+  it("rechecks name uniqueness against manual provider display identity", async () => {
+    jest.useFakeTimers();
+    const { result } = renderHook(() =>
+      useAccountForm({ initialAccountType: "BANK" })
+    );
+
+    await flushAct();
+
+    act(() => {
+      result.current.updateField("name", "Main");
+    });
+    act(() => {
+      result.current.updateField("providerDisplayName", "  QA   Bank  ");
+    });
+    act(() => {
+      jest.advanceTimersByTime(300);
+    });
+    await flushAct();
+
+    expect(mockCheckAccountNameUniqueness).toHaveBeenLastCalledWith(
+      "user-1",
+      "Main",
+      "EGP",
+      undefined,
+      null,
+      "  QA   Bank  "
     );
   });
 });

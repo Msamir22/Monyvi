@@ -2,7 +2,6 @@ import { t } from "i18next";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getInstitutionById,
-  getSenderPatternsForInstitution,
   type SelectableEgyptianInstitutionId,
 } from "@monyvi/logic";
 import { checkAccountNameUniqueness } from "../services/edit-account-service";
@@ -108,7 +107,8 @@ export function useAccountForm(
     (
       name: string,
       currency: AccountFormData["currency"],
-      institutionId: string | null
+      institutionId: string | null,
+      providerDisplayName: string
     ): void => {
       if (uniquenessTimerRef.current) {
         clearTimeout(uniquenessTimerRef.current);
@@ -141,7 +141,8 @@ export function useAccountForm(
               trimmedName,
               currency,
               undefined,
-              institutionId
+              institutionId,
+              providerDisplayName
             );
 
             const latestFormData = latestFormDataRef.current;
@@ -149,7 +150,8 @@ export function useAccountForm(
               requestId !== activeUniquenessRequestRef.current ||
               latestFormData.name.trim() !== trimmedName ||
               latestFormData.currency !== currency ||
-              (latestFormData.institutionId ?? null) !== institutionId
+              (latestFormData.institutionId ?? null) !== institutionId ||
+              latestFormData.providerDisplayName !== providerDisplayName
             ) {
               return;
             }
@@ -185,7 +187,8 @@ export function useAccountForm(
               requestId === activeUniquenessRequestRef.current &&
               latestFormData.name.trim() === trimmedName &&
               latestFormData.currency === currency &&
-              (latestFormData.institutionId ?? null) === institutionId
+              (latestFormData.institutionId ?? null) === institutionId &&
+              latestFormData.providerDisplayName === providerDisplayName
             ) {
               setHasNameUniquenessError(false);
             }
@@ -195,7 +198,8 @@ export function useAccountForm(
               requestId === activeUniquenessRequestRef.current &&
               latestFormData.name.trim() === trimmedName &&
               latestFormData.currency === currency &&
-              (latestFormData.institutionId ?? null) === institutionId
+              (latestFormData.institutionId ?? null) === institutionId &&
+              latestFormData.providerDisplayName === providerDisplayName
             ) {
               setIsCheckingUniqueness(false);
             }
@@ -218,7 +222,12 @@ export function useAccountForm(
       setFormData(next);
 
       if (next.name.trim()) {
-        checkUniqueness(next.name, next.currency, next.institutionId ?? null);
+        checkUniqueness(
+          next.name,
+          next.currency,
+          next.institutionId ?? null,
+          next.providerDisplayName ?? ""
+        );
       }
     }
   }, [preferredCurrency, isTouched.currency, checkUniqueness]);
@@ -233,18 +242,19 @@ export function useAccountForm(
     ): void => {
       setFormData((prev) => {
         const nextData = { ...prev, [field]: value };
-        const newData =
-          field === "accountType"
-            ? {
-                ...nextData,
-                institutionId: null,
-                providerDisplayName: "",
-                senderNames: [],
-                bankName: "",
-                smsSenderName: "",
-                cardLast4: "",
-              }
-            : nextData;
+        const shouldResetProviderFields =
+          field === "accountType" && prev.accountType !== value;
+        const newData = shouldResetProviderFields
+          ? {
+              ...nextData,
+              institutionId: null,
+              providerDisplayName: "",
+              senderNames: [],
+              bankName: "",
+              smsSenderName: "",
+              cardLast4: "",
+            }
+          : nextData;
         latestFormDataRef.current = newData;
 
         // Real-time validation for specific field if it has been touched
@@ -271,16 +281,29 @@ export function useAccountForm(
           checkUniqueness(
             value as string,
             newData.currency,
-            newData.institutionId ?? null
+            newData.institutionId ?? null,
+            newData.providerDisplayName ?? ""
           );
         } else if (field === "currency") {
           checkUniqueness(
             newData.name,
             value as AccountFormData["currency"],
-            newData.institutionId ?? null
+            newData.institutionId ?? null,
+            newData.providerDisplayName ?? ""
           );
-        } else if (field === "accountType" && newData.name.trim()) {
-          checkUniqueness(newData.name, newData.currency, null);
+        } else if (field === "providerDisplayName") {
+          checkUniqueness(
+            newData.name,
+            newData.currency,
+            newData.institutionId ?? null,
+            value as string
+          );
+        } else if (
+          field === "accountType" &&
+          shouldResetProviderFields &&
+          newData.name.trim()
+        ) {
+          checkUniqueness(newData.name, newData.currency, null, "");
         }
 
         return newData;
@@ -298,19 +321,26 @@ export function useAccountForm(
         return;
       }
 
-      const senderNames = getSenderPatternsForInstitution(institutionId);
       setFormData((prev) => {
+        if (prev.institutionId === institutionId) {
+          return prev;
+        }
         const newData = {
           ...prev,
           institutionId,
           providerDisplayName: institution.shortName,
           bankName: institution.shortName,
-          senderNames: [...senderNames],
-          smsSenderName: senderNames.join(", "),
+          senderNames: [],
+          smsSenderName: "",
         };
         latestFormDataRef.current = newData;
         if (newData.name.trim()) {
-          checkUniqueness(newData.name, newData.currency, institutionId);
+          checkUniqueness(
+            newData.name,
+            newData.currency,
+            institutionId,
+            newData.providerDisplayName ?? ""
+          );
         }
         return newData;
       });
@@ -330,7 +360,7 @@ export function useAccountForm(
       };
       latestFormDataRef.current = newData;
       if (newData.name.trim()) {
-        checkUniqueness(newData.name, newData.currency, null);
+        checkUniqueness(newData.name, newData.currency, null, "");
       }
       return newData;
     });

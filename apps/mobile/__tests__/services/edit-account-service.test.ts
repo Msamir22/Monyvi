@@ -360,6 +360,48 @@ describe("edit-account-service", () => {
       expect(result.isUnique).toBe(true);
     });
 
+    it("should treat manual provider display names as part of the duplicate identity", async () => {
+      seedAccount("acc-1", {
+        name: "Main",
+        currency: "EGP",
+        userId: "user-1",
+        institutionId: undefined,
+        providerDisplayName: "QA Bank",
+      });
+
+      const result = await checkAccountNameUniqueness(
+        "user-1",
+        " main ",
+        "EGP",
+        undefined,
+        null,
+        " qa   bank "
+      );
+
+      expect(result.isUnique).toBe(false);
+    });
+
+    it("should allow the same name and currency when one manual provider name differs", async () => {
+      seedAccount("acc-1", {
+        name: "Main",
+        currency: "EGP",
+        userId: "user-1",
+        institutionId: undefined,
+        providerDisplayName: "QA Bank",
+      });
+
+      const result = await checkAccountNameUniqueness(
+        "user-1",
+        "Main",
+        "EGP",
+        undefined,
+        null,
+        "Family Bank"
+      );
+
+      expect(result.isUnique).toBe(true);
+    });
+
     it("should exclude the current account from the check", async () => {
       // Seed two accounts: acc-1 has the same name, acc-2 has a different name.
       // The mock returns all accounts (doesn't filter Q.where), but the JS

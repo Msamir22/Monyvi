@@ -153,8 +153,9 @@ Key decisions:
 - Use stable literal registry IDs plus account-level provider display text for
   known and manual bank/wallet selections.
 - Make known-provider account uniqueness provider-aware:
-  `name + currency + institution_id`; keep manual/Other accounts on the existing
-  `name + currency` uniqueness behavior.
+  `name + currency + institution_id`; for accounts without `institution_id`, use
+  `name + currency + normalized provider_display_name` when provider text
+  exists, otherwise fall back to `name + currency`.
 - Add `account_sms_senders` as normalized child rows rather than storing
   multiple senders on `accounts` or in a comma-separated field.
 - Keep `bank_details` for bank-only metadata such as card last four and account

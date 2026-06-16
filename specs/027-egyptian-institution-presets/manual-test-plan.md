@@ -42,17 +42,20 @@ Coverage: US1, US3, FR-017, FR-020, FR-022, FR-023, FR-024a, FR-033, SC-001
 
 1. Continue from MT-001.
 2. Select `CIB (Commercial International Bank)`.
-3. Verify sender chips are prefilled.
+3. Verify the message detection section says Monyvi already recognizes the
+   selected bank and that the sender chip field is for extra senders only.
 4. Enter account name `Manual 027 CIB`.
 5. Save.
 6. Verify the account appears in Accounts.
 7. Verify the card uses the known CIB provider visual identity.
 8. Open the account for editing.
-9. Verify provider details and sender chips are still visible/editable.
+9. Verify provider details are still visible and the sender chip field remains
+   available for custom extra senders.
 10. Verify the old single bank sender text field is not shown.
 
-Expected: Known bank saves with provider identity, sender chips, and logo; edit
-preserves the shared provider/sender section.
+Expected: Known bank saves with provider identity and logo; registry sender
+matching is configured internally, and edit preserves the shared provider/sender
+section for custom extra senders.
 
 ### MT-003 Wallet List And Known Wallet Save
 
@@ -63,14 +66,17 @@ Coverage: US1, FR-014, FR-017, FR-020, FR-024, FR-029, FR-033, SC-002
 3. Verify wallet providers appear and bank providers are not shown.
 4. Verify `Vodafone Cash (Vodafone Cash)` appears.
 5. Select Vodafone Cash.
-6. Verify wallet sender chips are prefilled.
+6. Verify message detection says Monyvi already recognizes the selected wallet
+   and that the sender chip field is for extra senders only.
 7. Enter account name `Manual 027 Vodafone`.
 8. Save.
 9. Verify the account appears with wallet visual identity.
-10. Open edit and verify provider details and sender chips are visible.
+10. Open edit and verify provider details and the custom sender field are
+    visible.
 
-Expected: Wallet presets are separate from banks, save provider/senders, and
-support sender metadata without bank card fields.
+Expected: Wallet presets are separate from banks, save provider identity, use
+registry sender matching internally, and support custom sender metadata without
+bank card fields.
 
 ### MT-004 Account-Type Switch Clears Provider State
 
@@ -78,13 +84,13 @@ Coverage: US1, FR-024b, Edge Cases
 
 1. Open Add Account.
 2. Select Bank Account.
-3. Select CIB and observe sender chips.
+3. Select CIB and observe provider identity plus the custom sender field.
 4. Switch to Digital Wallet.
-5. Verify CIB/provider text and CIB sender chips are gone.
+5. Verify CIB/provider text and custom sender chips are gone.
 6. Verify wallet providers are visible.
 7. Select Vodafone Cash.
 8. Switch back to Bank Account.
-9. Verify Vodafone/provider text and Vodafone sender chips are gone.
+9. Verify Vodafone/provider text and custom sender chips are gone.
 
 Expected: Switching between Bank and Digital Wallet in create flow clears
 provider identity, provider display text, and sender chips.
@@ -148,8 +154,8 @@ Coverage: US4, FR-034, FR-035, FR-036
 1. Open Add Account and select Bank Account or Digital Wallet.
 2. Tap the info control beside provider details.
 3. Verify a compact Monyvi explainer opens without leaving the screen.
-4. Verify copy explains SMS automation for bank or wallet details and says
-   Monyvi never asks for full card numbers, PINs, or passwords.
+4. Verify copy explains the details are used only to match SMS alerts and that
+   no PINs or passwords are needed.
 5. Dismiss the explainer by tapping outside it and by using the action button.
 6. Verify the previous form state remains.
 7. Repeat from an edit screen.

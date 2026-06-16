@@ -68,6 +68,7 @@ const BALANCE_ADJUSTMENT_EXPENSE_CATEGORY_ID =
 
 /** Tolerance for floating-point balance comparison. */
 const BALANCE_EPSILON = 0.001;
+const NO_PROVIDER_IDENTITY = "none";
 
 /**
  * Typed error codes returned via {@link ServiceResult}.error.
@@ -147,20 +148,48 @@ function hasBankDetailsData(data: UpdateAccountData): boolean {
   return Boolean(data.cardLast4?.trim());
 }
 
+function normalizeProviderDisplayName(value?: string | null): string {
+  return value?.trim().replace(/\s+/g, " ").toLowerCase() ?? "";
+}
+
+function buildProviderIdentity(
+  institutionId?: string | null,
+  providerDisplayName?: string | null
+): string {
+  const normalizedInstitutionId = institutionId?.trim();
+  if (normalizedInstitutionId) {
+    return `institution:${normalizedInstitutionId.toLowerCase()}`;
+  }
+
+  const normalizedProviderDisplayName =
+    normalizeProviderDisplayName(providerDisplayName);
+  if (normalizedProviderDisplayName) {
+    return `manual:${normalizedProviderDisplayName}`;
+  }
+
+  return NO_PROVIDER_IDENTITY;
+}
+
 // ---------------------------------------------------------------------------
 // T005: Account Name Uniqueness Check
 // ---------------------------------------------------------------------------
 
 /**
- * Check whether an account name + currency combination is unique for a user.
+ * Check whether an account identity is unique for a user.
  *
  * Excludes the current account being edited (if provided) from the check.
  * Only checks against non-deleted accounts.
+ * Identity is name + currency + provider:
+ * - known providers use institution_id
+ * - manual providers use normalized provider_display_name when present
+ * - accounts without provider details use name + currency only
  *
  * @param userId - The authenticated user's ID
  * @param name - The account name to check
  * @param currency - The account's currency
  * @param excludeAccountId - The current account ID to exclude from the check
+ * @param institutionId - Optional selected known provider ID
+ * @param providerDisplayName - Optional manual provider display name
  * @returns UniquenessCheckResult with isUnique and optional error
  */
 export async function checkAccountNameUniqueness(
@@ -168,7 +197,8 @@ export async function checkAccountNameUniqueness(
   name: string,
   currency: CurrencyType,
   excludeAccountId?: string,
-  institutionId?: string | null
+  institutionId?: string | null,
+  providerDisplayName?: string | null
 ): Promise<UniquenessCheckResult> {
   try {
     const trimmedName = name.trim().toLowerCase();
@@ -195,14 +225,22 @@ export async function checkAccountNameUniqueness(
 
     // Case-insensitive name comparison — WatermelonDB doesn't support
     // case-insensitive queries, so we filter in JS.
-    const normalizedInstitutionId = institutionId ?? null;
+    const providerIdentity = buildProviderIdentity(
+      institutionId ?? null,
+      providerDisplayName
+    );
     const isDuplicate = existingAccounts.some((account) => {
       const hasSameName = account.name.trim().toLowerCase() === trimmedName;
       if (!hasSameName) {
         return false;
       }
 
-      return (account.institutionId ?? null) === normalizedInstitutionId;
+      return (
+        buildProviderIdentity(
+          account.institutionId ?? null,
+          account.providerDisplayName
+        ) === providerIdentity
+      );
     });
 
     return { isUnique: !isDuplicate };

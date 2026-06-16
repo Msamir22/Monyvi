@@ -48,22 +48,23 @@ npm run e2e:flow:local -w @monyvi/mobile -- e2e/maestro/accounts/egyptian-instit
 
 ## Manual Validation
 
-- Egypt-context Bank account: select known bank, confirm logo, sender chips,
-  saved account, and account card logo.
-- Egypt-context Wallet account: select known wallet, confirm logo, sender chips,
-  saved account, and account card logo.
+- Egypt-context Bank account: select known bank, confirm logo, internal sender
+  matching message, saved account, and account card logo.
+- Egypt-context Wallet account: select known wallet, confirm logo, internal
+  sender matching message, saved account, and account card logo.
 - Other Bank: enter manual provider and sender, confirm default bank icon.
 - Other Wallet: enter manual provider and sender, confirm default wallet icon.
-- Known provider edit: confirm selected provider ID, provider display name, and
-  sender chips persist after leaving and reopening edit.
+- Known provider edit: confirm selected provider ID and provider display name
+  persist after leaving and reopening edit, while registry sender defaults stay
+  internal and only custom sender chips are editable.
 - Non-Egypt context: confirm Egyptian preset dropdowns are hidden and manual
   fields still work.
 - Account uniqueness: confirm same name/currency can be reused across different
-  known providers, and still rejects duplicate manual/Other accounts with the
-  same name/currency.
-- Create-flow account type switch: select a bank provider with sender chips,
-  switch to Digital Wallet, and confirm provider identity/display/senders are
-  cleared before selecting a wallet.
+  known providers and across different manual provider names, while duplicate
+  manual provider identities are rejected after trim/case normalization.
+- Create-flow account type switch: select a bank provider, add a custom sender
+  chip, switch to Digital Wallet, and confirm provider identity/display/custom
+  senders are cleared before selecting a wallet.
 - Registry audit coverage: confirm Standard Chartered, Bank NXT, KFH Egypt, Bank
   ABC/BLOM legacy handling, e& Cash, verified bank-issued Meeza wallets, and
   conditional myFawry Yellowcard behavior.
@@ -73,7 +74,7 @@ npm run e2e:flow:local -w @monyvi/mobile -- e2e/maestro/accounts/egyptian-instit
 | Scenario                                                               | Unit/integration coverage                                                                                                                                | E2E/manual coverage                          |
 | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
 | Registry selectable banks/wallets, aliases, and InstaPay/IPN exclusion | `packages/logic/src/parsers/__tests__/egyptian-bank-registry.test.ts`                                                                                    | Manual registry audit review                 |
-| Known bank/wallet picker and sender chip prefill                       | `InstitutionPicker.test.tsx`, `SenderChipsField.test.tsx`, `InstitutionProviderSection.test.tsx`, `useAccountForm.test.ts`, `useEditAccountForm.test.ts` | Maestro pending                              |
+| Known bank/wallet picker and internal sender defaults                  | `InstitutionPicker.test.tsx`, `SenderChipsField.test.tsx`, `InstitutionProviderSection.test.tsx`, `useAccountForm.test.ts`, `useEditAccountForm.test.ts` | Maestro pending                              |
 | Other/manual bank and wallet providers                                 | `InstitutionProviderSection.test.tsx`, `account-service.test.ts`, `AccountCard.test.tsx`                                                                 | Maestro/manual pending                       |
 | Provider-aware uniqueness                                              | `account-service.test.ts`, `edit-account-service.test.ts`, `useAccountForm.test.ts`                                                                      | Manual timing/check pending                  |
 | SMS sender matching for banks and wallets                              | `sms-account-matcher.test.ts`                                                                                                                            | Existing live/batch fingerprint tests        |

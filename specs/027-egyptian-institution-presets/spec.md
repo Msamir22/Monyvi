@@ -17,8 +17,7 @@ for this issue."
 
 - Q: When a user selects a known bank or wallet, should the account save the
   stable registry provider identity or only text values? -> A: Save the stable
-  known provider identity too, alongside display text and editable sender
-  values.
+  known provider identity too, alongside display text and custom sender values.
 - Q: How should users enter multiple SMS sender names? -> A: Use chips/tokens:
   each sender appears as a removable item, with an input to add another.
 - Q: Should Fawry/myFawry appear in the wallet dropdown for this issue? -> A:
@@ -32,18 +31,22 @@ for this issue."
   one exists.
 - Q: Should known-provider uniqueness still use only account name and currency?
   -> A: No. Known-provider account uniqueness should use account name, currency,
-  and `institution_id`. Manual/Other providers keep the existing name/currency
-  uniqueness behavior, and free-text provider names are not part of duplicate
-  detection.
+  and `institution_id`. Manual/Other providers use account name, currency, and
+  normalized `provider_display_name` when provider text exists; if no provider
+  text exists, uniqueness falls back to account name plus currency.
 - Q: Should legacy `bank_details.bank_name` and `bank_details.sms_sender_name`
   remain active fields? -> A: No. The app is pre-production, so provider display
   moves to `accounts.provider_display_name`, sender values move to
   `account_sms_senders`, and the old bank-only fields do not need compatibility
   retention.
 - Q: For manual/Other providers where `institution_id` is null, should duplicate
-  checking include the free-text provider name? -> A: No. Manual/Other accounts
-  remain unique by account name plus currency; known providers use account name,
-  currency, and `institution_id`.
+  checking include the free-text provider name? -> A: Yes when provider text
+  exists. Compare it after trimming and case-normalizing; if no provider text
+  exists, use only account name plus currency.
+- Q: Should known provider sender aliases be saved as editable chips? -> A: No.
+  The registry senders for the selected `institution_id` are always used
+  internally for matching. The visible sender field is only for
+  custom/additional sender aliases.
 - Q: Should bank-issued Meeza wallets from the audit appear in the wallet
   dropdown? -> A: Include verified bank-issued Meeza wallets in this feature's
   wallet dropdown only when current availability can be confirmed during
@@ -69,8 +72,8 @@ An Egyptian user creates or edits an account. When they choose a bank account,
 they can search and select from Egyptian banks. When they choose a digital
 wallet account, they can search and select from Egyptian wallet providers. The
 selected provider shows a recognizable logo, uses the short name with the full
-name beside it, and pre-fills all known SMS sender names that Monyvi can use
-later to match transaction messages.
+name beside it, and automatically uses all known registry SMS sender names
+internally to match transaction messages.
 
 **Why this priority**: This is the core value of the feature. Users should not
 need to know SMS sender names or type bank names manually before they can get
@@ -78,8 +81,9 @@ the SMS automation benefits.
 
 **Independent Test**: Start account creation as an Egypt-context user, choose
 Bank, select a known bank, verify the display label, logo, and SMS sender values
-are populated. Repeat with Digital Wallet and verify wallet providers appear
-instead of banks.
+are configured internally while the visible sender field remains available only
+for custom additions. Repeat with Digital Wallet and verify wallet providers
+appear instead of banks.
 
 **Acceptance Scenarios**:
 
@@ -89,14 +93,15 @@ instead of banks.
    providers.
 2. **Given** the user is viewing the bank list, **When** they select CIB,
    **Then** the selected label reads `CIB (Commercial International Bank)`, the
-   CIB logo is shown, and CIB sender names are pre-filled as editable sender
-   values.
+   CIB logo is shown, and CIB registry sender names are configured for matching
+   without appearing as editable chips.
 3. **Given** a user whose financial context is Egypt, **When** they choose
    account type Digital Wallet, **Then** they see a searchable list of Egyptian
    wallet providers sourced from the same canonical catalog and no banks.
 4. **Given** the user selects Vodafone Cash as a wallet provider, **When** the
    wallet details are shown, **Then** the Vodafone Cash logo is shown and its
-   known sender names are pre-filled as editable sender values.
+   known sender names are configured for matching without appearing as editable
+   chips.
 5. **Given** the user switches account type from Bank to Digital Wallet in the
    new account flow, **When** provider selection is shown again, **Then**
    `institution_id`, provider display text, and sender chips are cleared, bank-
@@ -142,10 +147,13 @@ default bank icon, and editable sender value. Repeat for Digital Wallet.
 ### User Story 3 - SMS matching handles all sender names for banks and wallets (Priority: P1)
 
 A user can save more than one SMS sender name for the same bank or wallet
-account. Later, when an SMS arrives from any saved sender for that account,
-Monyvi can match it to the right account without requiring the user to duplicate
-accounts or enter multiple senders into one field. In the form, each sender
-appears as its own removable item with an input to add another sender.
+account. For known providers, Monyvi always uses the selected provider's
+registry sender names internally, and user-entered chips are custom additions.
+Later, when an SMS arrives from any registry sender or saved custom sender for
+that account, Monyvi can match it to the right account without requiring the
+user to duplicate accounts or enter multiple senders into one field. In the
+form, each custom sender appears as its own removable item with an input to add
+another sender.
 
 **Why this priority**: Egyptian financial institutions often send from multiple
 sender names. Matching only one sender risks missed transaction detection, which
@@ -157,8 +165,9 @@ verify each message resolves to the intended account.
 
 **Acceptance Scenarios**:
 
-1. **Given** a bank account has two saved sender names, **When** an SMS arrives
-   from either sender, **Then** the account can be matched by sender.
+1. **Given** a known bank account has a selected `institution_id`, **When** an
+   SMS arrives from any registry sender for that institution, **Then** the
+   account can be matched by sender even if no custom sender chips are saved.
 2. **Given** a digital wallet account has a saved sender name, **When** an SMS
    arrives from that sender, **Then** the wallet account can be matched by
    sender even though it has no bank card details.
@@ -168,9 +177,10 @@ verify each message resolves to the intended account.
 4. **Given** an account has duplicate or empty sender values during editing,
    **When** the user tries to save, **Then** Monyvi prevents empty duplicates
    from becoming saved sender values and explains the problem simply.
-5. **Given** a bank or wallet account has saved sender chips, **When** the user
-   opens the account edit flow, **Then** those sender values remain visible and
-   editable as chips, and the old single bank sender field is not shown.
+5. **Given** a known bank or wallet account has custom sender chips, **When**
+   the user opens the account edit flow, **Then** only custom sender values
+   remain visible and editable as chips, registry defaults stay internal, and
+   the old single bank sender field is not shown.
 
 ---
 
@@ -179,7 +189,8 @@ verify each message resolves to the intended account.
 A user who is unsure why Monyvi asks for bank or wallet details can tap an info
 control and see a compact explanatory popover. The copy explains that SMS
 details help Monyvi turn transaction messages into records, and reassures the
-user that full card numbers, PINs, and passwords are never requested.
+user that the details are only used to match SMS alerts and no PINs or passwords
+are needed.
 
 **Why this priority**: The explainer improves trust and completion, but the
 feature can still deliver its primary value with presets and sender matching.
@@ -213,9 +224,9 @@ language, and dismiss it.
 - A user changes from a known provider to Other: previously selected preset
   sender values are not silently kept if they no longer match the visible
   provider choice.
-- A user changes from Other to a known provider: the known provider identity and
-  sender presets replace the manual provider identity only after the user
-  selects it.
+- A user changes from Other to a known provider: the known provider identity
+  replaces the manual provider identity only after the user selects it; registry
+  sender defaults stay internal and custom sender chips start empty.
 - A user prefers EGP but is physically outside Egypt: Egyptian presets are still
   shown because EGP preference is enough to indicate Egyptian financial context.
 - A user is in Egypt but prefers another currency: Egyptian presets are still
@@ -286,27 +297,34 @@ language, and dismiss it.
   full name in parentheses.
 - **FR-016**: Each provider dropdown MUST include an Other option that reveals a
   free-text provider-name field.
-- **FR-017**: Selecting a known provider MUST pre-fill all verified sender names
-  for that provider as separate editable sender values.
-- **FR-018**: Monyvi MUST allow custom sender values and clearly mark unknown
-  values as unverified without blocking account creation or editing.
+- **FR-017**: Selecting a known provider MUST configure all verified registry
+  sender names for that provider internally and MUST NOT show those default
+  senders as editable chips.
+- **FR-018**: Monyvi MUST allow custom sender values in addition to registry
+  defaults and clearly mark unknown custom values as unverified without blocking
+  account creation or editing.
 - **FR-019**: Sender preset validation MUST accept every verified sender alias
   for the selected institution.
 - **FR-020**: Selecting a known provider MUST save the provider's stable
-  registry identity alongside the account's display text and editable sender
+  registry identity alongside the account's display text and custom sender
   values.
 - **FR-020a**: The provider display value MUST be saved as account-level
   `provider_display_name`; `accounts.name` remains the user-controlled account
   nickname.
-- **FR-020b**: Known-provider account uniqueness MUST include account name,
-  currency, and `institution_id`; manual/Other accounts without `institution_id`
-  keep the existing account name plus currency uniqueness behavior.
+- **FR-020b**: Known-provider account uniqueness MUST include normalized account
+  name, currency, and `institution_id`. Accounts without `institution_id` MUST
+  include normalized `provider_display_name` in the uniqueness identity when it
+  exists; if it does not exist, uniqueness uses normalized account name plus
+  currency.
 - **FR-020c**: For accounts with `institution_id`, account display MUST resolve
   the current provider name and logo from the registry and visual asset map.
   `provider_display_name` is a saved snapshot or fallback, not the primary
   display authority for known providers.
 - **FR-021**: Accounts created through Other or manual free text MUST have no
   known-provider identity until the user explicitly selects a known provider.
+- **FR-021a**: `institution_id` and `provider_display_name` are optional for
+  Bank and Digital Wallet accounts. Missing values MUST be represented as null
+  or empty optional fields, never as an empty-string ID.
 - **FR-022**: Monyvi MUST store and use multiple sender values per bank or
   wallet account as separate saved sender values.
 - **FR-023**: Multiple sender entry MUST use separate sender chips or tokens,
@@ -324,7 +342,8 @@ language, and dismiss it.
 - **FR-024b**: In the new account flow, switching between Bank and Digital
   Wallet MUST clear `institution_id`, `provider_display_name`, and sender chips
   before showing the provider list for the new account type.
-- **FR-025**: SMS account matching MUST consider every saved sender value for a
+- **FR-025**: SMS account matching MUST consider every registry sender for a
+  known account's `institution_id` plus every saved custom sender value for a
   bank or wallet account.
 - **FR-026**: Bank SMS matching MUST preserve sender-plus-card-last-four
   confidence behavior where card details are available.
@@ -351,19 +370,20 @@ language, and dismiss it.
 - **FR-034**: Account setup and edit screens MUST include an info control next
   to the bank/wallet details prompt.
 - **FR-035**: The info control MUST open a compact explanatory popover
-  describing why bank/wallet details help SMS transaction automation and what
-  sensitive information Monyvi never asks for. The surface MUST stay compact,
-  avoid covering unrelated form content where practical, and close when the user
-  taps outside it.
+  describing that bank/wallet details are used only to match SMS alerts and that
+  no PINs or passwords are needed. The surface MUST stay compact, avoid covering
+  unrelated form content where practical, and close when the user taps outside
+  it.
 - **FR-036**: The explainer MUST use Monyvi-owned UI and MUST NOT use a native
   alert as the explanatory surface.
 - **FR-037**: All user-visible copy for this feature MUST be available in
   English and Arabic.
 - **FR-038**: The feature MUST include validation coverage for registry sender
   aliases, bank/wallet provider filtering, Egypt-context eligibility, provider
-  selection, Other/free-text fallback, sender preset population, custom sender
-  edits, visual fallback behavior, multiple sender matching, wallet matching,
-  legacy aliases, unknown sender fallback, and sender-plus-card matching.
+  selection, Other/free-text fallback, internal registry sender matching, custom
+  sender edits, visual fallback behavior, multiple sender matching, wallet
+  matching, legacy aliases, unknown sender fallback, and sender-plus-card
+  matching.
 - **FR-039**: The feature MUST include complete create/edit account journey
   coverage for bank and wallet accounts, with any manual-only scenarios called
   out explicitly.
@@ -396,11 +416,11 @@ language, and dismiss it.
 ### Measurable Outcomes
 
 - **SC-001**: In internal testing, an Egypt-context user can create a known bank
-  account with pre-filled sender values in under 90 seconds from opening the
-  create-account screen.
+  account with registry sender matching configured in under 90 seconds from
+  opening the create-account screen.
 - **SC-002**: In internal testing, an Egypt-context user can create a known
-  wallet account with pre-filled sender values in under 90 seconds from opening
-  the create-account screen.
+  wallet account with registry sender matching configured in under 90 seconds
+  from opening the create-account screen.
 - **SC-003**: 100% of verified active Egyptian banks identified for this release
   are represented exactly once in the selectable bank list or explicitly
   documented as excluded with a reason.

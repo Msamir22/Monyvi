@@ -53,6 +53,7 @@ export function SmsMatchingSection({
       ? getSenderPatternsForInstitution(institutionId)
       : [];
   }, [institutionId]);
+  const hasKnownProvider = verifiedSenderNames.length > 0;
 
   if (accountType !== "BANK" && accountType !== "DIGITAL_WALLET") {
     return null;
@@ -94,10 +95,21 @@ export function SmsMatchingSection({
 
       {expanded ? (
         <View className="border-t border-slate-100 px-4 pb-4 pt-3 dark:border-slate-700">
-          <Text className="input-label">{t("sms_sender_names")}</Text>
+          <Text className="input-label">
+            {hasKnownProvider
+              ? t("sms_sender_custom_names")
+              : t("sms_sender_names")}
+          </Text>
+          <Text className="mb-3 ms-2 text-xs font-bold text-slate-500 dark:text-slate-500">
+            {hasKnownProvider
+              ? t("sms_sender_known_provider_help")
+              : t("sms_sender_manual_provider_help")}
+          </Text>
           <SenderChipsField
             value={senderNames}
-            verifiedSenders={verifiedSenderNames}
+            verifiedSenders={
+              hasKnownProvider ? verifiedSenderNames : senderNames
+            }
             onChange={onSenderNamesChange}
             onInputFocus={onFieldFocus}
           />

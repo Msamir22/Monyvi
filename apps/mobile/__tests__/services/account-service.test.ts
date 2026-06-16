@@ -604,46 +604,6 @@ describe("createAccountForUser", () => {
     expect(accountsCollection.create).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects duplicate manual names across account types", async () => {
-    const accountsCollection = {
-      query: jest.fn().mockReturnValue({
-        fetch: jest.fn().mockResolvedValue([
-          {
-            id: "cash-1",
-            name: "Main",
-            type: "CASH",
-            userId: "user-1",
-            currency: "EGP",
-            deleted: false,
-            institutionId: undefined,
-          },
-        ]),
-        fetchCount: jest.fn().mockResolvedValue(1),
-      }),
-      create: jest.fn(),
-    };
-    mockDatabaseGet.mockImplementation((collectionName: string) => {
-      if (collectionName === "accounts") return accountsCollection;
-      throw new Error(`Unexpected collection: ${collectionName}`);
-    });
-
-    const result = await createAccountForUser("user-1", {
-      name: "Main",
-      accountType: "BANK",
-      currency: "EGP",
-      balance: "0",
-      institutionId: null,
-      providerDisplayName: "Manual Bank",
-      senderNames: [],
-    });
-
-    expect(result).toEqual({
-      success: false,
-      error: CREATE_ACCOUNT_ERROR_CODES.DUPLICATE_ACCOUNT,
-    });
-    expect(accountsCollection.create).not.toHaveBeenCalled();
-  });
-
   it("fails closed without writing when the balance format is invalid", async () => {
     const accountsCollection = {
       query: jest.fn(),
@@ -667,24 +627,6 @@ describe("createAccountForUser", () => {
     });
     expect(mockDatabaseWrite).not.toHaveBeenCalled();
     expect(accountsCollection.create).not.toHaveBeenCalled();
-  });
-
-  it("requires a manual provider name when no known bank or wallet is selected", async () => {
-    const result = await createAccountForUser("user-1", {
-      name: "Manual Bank",
-      accountType: "BANK",
-      currency: "EGP",
-      balance: "0",
-      institutionId: null,
-      providerDisplayName: "",
-      senderNames: [],
-    });
-
-    expect(result).toEqual({
-      success: false,
-      error: CREATE_ACCOUNT_ERROR_CODES.VALIDATION_FAILED,
-    });
-    expect(mockDatabaseWrite).not.toHaveBeenCalled();
   });
 
   it("saves manual wallet provider display with a null institution id and sender rows", async () => {

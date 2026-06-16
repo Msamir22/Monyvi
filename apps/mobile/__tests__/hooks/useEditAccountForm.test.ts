@@ -17,7 +17,14 @@ interface Deferred<T> {
 
 const mockCheckAccountNameUniqueness = jest.fn<
   Promise<UniquenessResult>,
-  [string, string, TestCurrency, string | undefined, string | null]
+  [
+    string,
+    string,
+    TestCurrency,
+    string | undefined,
+    string | null,
+    string | null,
+  ]
 >();
 
 jest.mock("i18next", () => ({
@@ -30,14 +37,16 @@ jest.mock("../../services/edit-account-service", () => ({
     name: string,
     currency: TestCurrency,
     excludeAccountId?: string,
-    institutionId?: string | null
+    institutionId?: string | null,
+    providerDisplayName?: string | null
   ): Promise<UniquenessResult> =>
     mockCheckAccountNameUniqueness(
       userId,
       name,
       currency,
       excludeAccountId,
-      institutionId ?? null
+      institutionId ?? null,
+      providerDisplayName ?? null
     ),
 }));
 
@@ -140,7 +149,8 @@ describe("useEditAccountForm", () => {
       "Cash Plus",
       "EGP",
       "acc-1",
-      null
+      null,
+      ""
     );
   });
 
@@ -168,7 +178,8 @@ describe("useEditAccountForm", () => {
       "Main",
       "EGP",
       "acc-1",
-      null
+      null,
+      ""
     );
 
     act(() => {
@@ -193,7 +204,8 @@ describe("useEditAccountForm", () => {
       "Main",
       "EGP",
       "acc-1",
-      "cib"
+      "cib",
+      "CIB"
     );
 
     await act(async () => {
@@ -213,7 +225,7 @@ describe("useEditAccountForm", () => {
     expect("accountType" in result.current.formData).toBe(false);
   });
 
-  it("loads known provider identity and sender names with null-safe IDs", () => {
+  it("loads known provider identity and keeps only custom sender names editable", () => {
     const bankAccount = createAccount({
       type: "BANK",
       institutionId: "cib",
@@ -230,10 +242,11 @@ describe("useEditAccountForm", () => {
 
     expect(result.current.formData.institutionId).toBe("cib");
     expect(result.current.formData.providerDisplayName).toBe("CIB");
-    expect(result.current.formData.senderNames).toEqual(["CIB", "CIBEGYPT"]);
+    expect(result.current.formData.senderNames).toEqual([]);
+    expect(result.current.formData.smsSenderName).toBe("");
   });
 
-  it("can replace the known provider and mirror sender chips to the legacy text field", async () => {
+  it("can replace the known provider without seeding editable registry senders", async () => {
     const bankAccount = createAccount({ type: "BANK" });
     const { result } = renderHook(() => useEditAccountForm(bankAccount, null));
 
@@ -243,15 +256,14 @@ describe("useEditAccountForm", () => {
 
     expect(result.current.formData.institutionId).toBe("cib");
     expect(result.current.formData.providerDisplayName).toBe("CIB");
-    expect(result.current.formData.senderNames).toEqual(
-      expect.arrayContaining(["cib", "cibank", "cibegypt"])
-    );
+    expect(result.current.formData.senderNames).toEqual([]);
+    expect(result.current.formData.smsSenderName).toBe("");
 
     act(() => {
-      result.current.updateSenderNames(["CIB", "CIBEGYPT"]);
+      result.current.updateSenderNames(["CIBCUSTOM"]);
     });
 
-    expect(result.current.formData.smsSenderName).toBe("CIB, CIBEGYPT");
+    expect(result.current.formData.smsSenderName).toBe("CIBCUSTOM");
 
     await flushAct();
   });
