@@ -91,8 +91,6 @@ const FINANCIAL_KEYWORDS_PATTERN = new RegExp(
   "i"
 );
 
-const EXCLUDED_PAYMENT_TRANSFER_PATTERN = /^\s*(?:ipn|instapay)\s+transfer\b/i;
-
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -108,10 +106,6 @@ const EXCLUDED_PAYMENT_TRANSFER_PATTERN = /^\s*(?:ipn|instapay)\s+transfer\b/i;
  * @returns `true` if the SMS is likely financial
  */
 export function isLikelyFinancialSms(body: string): boolean {
-  if (EXCLUDED_PAYMENT_TRANSFER_PATTERN.test(body)) {
-    return false;
-  }
-
   // Fast path: check for amount + currency pattern
   if (AMOUNT_WITH_CURRENCY.test(body)) {
     return true;
