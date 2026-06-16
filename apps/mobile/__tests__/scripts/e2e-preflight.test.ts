@@ -82,15 +82,16 @@ describe("e2e-preflight", () => {
   });
 
   it("detects the mounted native Fabric root when UIAutomator hides React text", () => {
-    expect(
-      preflight.isNativeRootMounted(`
+    const nativeRootOnlyXml = `
         <hierarchy>
           <node package="com.monyvi.app" class="androidx.compose.ui.platform.ComposeView">
             <node package="com.monyvi.app" class="android.view.View" />
           </node>
         </hierarchy>
-      `)
-    ).toBe(true);
+      `;
+
+    expect(preflight.isNativeRootMounted(nativeRootOnlyXml)).toBe(true);
+    expect(preflight.isAppReady(nativeRootOnlyXml)).toBe(false);
   });
 
   it("does not treat stale DevMenuActivity records as the focused dev menu", () => {

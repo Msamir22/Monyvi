@@ -478,6 +478,7 @@ function waitForProductUi(timeoutMs = 240000) {
   const startedAt = Date.now();
   let lastUiXml = "";
   let lastFocus = "";
+  let hasSeenNativeRoot = false;
   let anrWaitAttempts = 0;
   let launcherRestoreAttempts = 0;
   let devLauncherRestoreAttempts = 0;
@@ -541,16 +542,7 @@ function waitForProductUi(timeoutMs = 240000) {
     }
 
     if (lastFocus.includes(appId) && isNativeRootMounted(lastUiXml)) {
-      wait(10000);
-      const finalFocus = getCurrentFocus();
-      const finalUiXml = dumpVisibleText();
-      if (
-        finalFocus.includes(appId) &&
-        !currentFocusShowsDevMenu(finalFocus) &&
-        isNativeRootMounted(finalUiXml)
-      ) {
-        return;
-      }
+      hasSeenNativeRoot = true;
     }
 
     wait(2000);
@@ -564,7 +556,9 @@ function waitForProductUi(timeoutMs = 240000) {
     ? `The app stayed in the Expo Dev Launcher. Metro URL: ${metroUrl}`
     : isAccountLoading
       ? "The app stayed on Loading your account. Check auth/profile startup state and Metro logs."
-      : "The app did not reach a recognized Monyvi screen.";
+      : hasSeenNativeRoot
+        ? "The native app root mounted, but no recognized Monyvi screen became visible. Check Metro and React logs for bundle or render errors."
+        : "The app did not reach a recognized Monyvi screen.";
 
   throw new Error(`E2E preflight failed. ${hint}\n${lastFocus}`);
 }

@@ -10,6 +10,11 @@ interface UniquenessResult {
   readonly error: string | null;
 }
 
+interface Deferred<T> {
+  readonly promise: Promise<T>;
+  readonly resolve: (value: T) => void;
+}
+
 const mockCheckAccountNameUniqueness = jest.fn<
   Promise<UniquenessResult>,
   [string, string, TestCurrency, string | undefined, string | null]
@@ -65,6 +70,14 @@ function createAccount(overrides: AccountOverrides = {}): Account {
   };
 
   return accountData as Account;
+}
+
+function createDeferred<T>(): Deferred<T> {
+  let resolve: (value: T) => void = () => undefined;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
 }
 
 async function flushAct(): Promise<void> {
@@ -129,6 +142,67 @@ describe("useEditAccountForm", () => {
       "acc-1",
       null
     );
+  });
+
+  it("ignores stale uniqueness results after the provider identity changes", async () => {
+    const firstCheck = createDeferred<UniquenessResult>();
+    const secondCheck = createDeferred<UniquenessResult>();
+    mockCheckAccountNameUniqueness
+      .mockReturnValueOnce(firstCheck.promise)
+      .mockReturnValueOnce(secondCheck.promise);
+
+    const bankAccount = createAccount({ type: "BANK" });
+    const { result } = renderHook(() => useEditAccountForm(bankAccount, null));
+
+    act(() => {
+      result.current.updateField("name", "Main");
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(300);
+      await Promise.resolve();
+    });
+
+    expect(mockCheckAccountNameUniqueness).toHaveBeenCalledWith(
+      "user-1",
+      "Main",
+      "EGP",
+      "acc-1",
+      null
+    );
+
+    act(() => {
+      result.current.selectKnownInstitution("cib");
+    });
+
+    await act(async () => {
+      firstCheck.resolve({ isUnique: false, error: null });
+      await Promise.resolve();
+    });
+
+    expect(result.current.errors.name).toBeUndefined();
+    expect(result.current.isCheckingUniqueness).toBe(true);
+
+    await act(async () => {
+      jest.advanceTimersByTime(300);
+      await Promise.resolve();
+    });
+
+    expect(mockCheckAccountNameUniqueness).toHaveBeenLastCalledWith(
+      "user-1",
+      "Main",
+      "EGP",
+      "acc-1",
+      "cib"
+    );
+
+    await act(async () => {
+      secondCheck.resolve({ isUnique: true, error: null });
+      await Promise.resolve();
+    });
+
+    expect(result.current.errors.name).toBeUndefined();
+    expect(result.current.isCheckingUniqueness).toBe(false);
   });
 
   it("keeps account type immutable in the edit form data", () => {

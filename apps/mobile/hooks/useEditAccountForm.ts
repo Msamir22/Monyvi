@@ -172,10 +172,12 @@ export function useEditAccountForm(
 
   // Debounce timer ref for uniqueness check
   const uniquenessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeUniquenessRequestRef = useRef(0);
 
   // Cleanup debounce timer on unmount
   useEffect(() => {
     return () => {
+      activeUniquenessRequestRef.current += 1;
       if (uniquenessTimerRef.current) {
         clearTimeout(uniquenessTimerRef.current);
       }
@@ -191,8 +193,11 @@ export function useEditAccountForm(
       if (uniquenessTimerRef.current) {
         clearTimeout(uniquenessTimerRef.current);
       }
+      const requestId = activeUniquenessRequestRef.current + 1;
+      activeUniquenessRequestRef.current = requestId;
 
       const trimmedName = name.trim();
+      const institutionId = latestFormDataRef.current.institutionId ?? null;
       if (!trimmedName) {
         setHasNameUniquenessError(false);
         setIsCheckingUniqueness(false);
@@ -208,13 +213,22 @@ export function useEditAccountForm(
             trimmedName,
             account.currency,
             account.id,
-            latestFormDataRef.current.institutionId ?? null
+            institutionId
           );
+
+          const latestFormData = latestFormDataRef.current;
+          if (
+            requestId !== activeUniquenessRequestRef.current ||
+            latestFormData.name.trim() !== trimmedName ||
+            (latestFormData.institutionId ?? null) !== institutionId
+          ) {
+            return;
+          }
 
           if (result.isUnique && !result.error) {
             setHasNameUniquenessError(false);
             const validation = validateEditFormForAccountType(
-              latestFormDataRef.current,
+              latestFormData,
               account.type
             );
             setErrors((prev) => {
@@ -236,7 +250,9 @@ export function useEditAccountForm(
             setHasNameUniquenessError(false);
           }
 
-          setIsCheckingUniqueness(false);
+          if (requestId === activeUniquenessRequestRef.current) {
+            setIsCheckingUniqueness(false);
+          }
         })();
       }, UNIQUENESS_DEBOUNCE_MS);
     },
