@@ -338,24 +338,36 @@ where ("provider_display_name" is null or trim("provider_display_name") = '')
 )
 select
   lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(6))),
-  "bank_details"."account_id",
-  trim("bank_details"."sms_sender_name"),
-  lower(trim("bank_details"."sms_sender_name")),
-  coalesce("bank_details"."created_at", strftime('%s', 'now') * 1000),
-  coalesce("bank_details"."updated_at", strftime('%s', 'now') * 1000),
+  "deduped_senders"."account_id",
+  "deduped_senders"."sender_name",
+  "deduped_senders"."normalized_sender_name",
+  "deduped_senders"."created_at",
+  "deduped_senders"."updated_at",
   0,
-  case
-    when "accounts"."_status" = 'created' then 'created'
-    when coalesce("bank_details"."_status", 'synced') != 'synced' then 'created'
-    else 'synced'
-  end,
+  "deduped_senders"."sync_status",
   ''
-from "bank_details"
-join "accounts" on "accounts"."id" = "bank_details"."account_id"
-where coalesce("bank_details"."deleted", 0) != 1
-  and coalesce("accounts"."deleted", 0) != 1
-  and "bank_details"."sms_sender_name" is not null
-  and trim("bank_details"."sms_sender_name") != '';`
+from (
+  select
+    "bank_details"."account_id",
+    min(trim("bank_details"."sms_sender_name")) as "sender_name",
+    lower(trim("bank_details"."sms_sender_name")) as "normalized_sender_name",
+    min(coalesce("bank_details"."created_at", strftime('%s', 'now') * 1000)) as "created_at",
+    max(coalesce("bank_details"."updated_at", strftime('%s', 'now') * 1000)) as "updated_at",
+    case
+      when max(case when "accounts"."_status" = 'created' then 1 else 0 end) = 1 then 'created'
+      when max(case when coalesce("bank_details"."_status", 'synced') != 'synced' then 1 else 0 end) = 1 then 'created'
+      else 'synced'
+    end as "sync_status"
+  from "bank_details"
+  join "accounts" on "accounts"."id" = "bank_details"."account_id"
+  where coalesce("bank_details"."deleted", 0) != 1
+    and coalesce("accounts"."deleted", 0) != 1
+    and "bank_details"."sms_sender_name" is not null
+    and trim("bank_details"."sms_sender_name") != ''
+  group by
+    "bank_details"."account_id",
+    lower(trim("bank_details"."sms_sender_name"))
+) as "deduped_senders";`
         ),
         unsafeExecuteSql(
           'create unique index if not exists "account_sms_senders_one_active_normalized" on "account_sms_senders" ("account_id", "normalized_sender_name") where coalesce("deleted", 0) != 1;'

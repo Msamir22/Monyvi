@@ -106,6 +106,12 @@ describe("account institution and sender migration", () => {
       "coalesce(\\\"bank_details\\\".\\\"_status\\\", 'synced') != 'synced'"
     );
     expect(serializedMigrations).toContain(
+      'group by\\n    \\"bank_details\\".\\"account_id\\",\\n    lower(trim(\\"bank_details\\".\\"sms_sender_name\\"))'
+    );
+    expect(serializedMigrations).toContain(
+      "max(case when coalesce(\\\"bank_details\\\".\\\"_status\\\", 'synced') != 'synced' then 1 else 0 end) = 1"
+    );
+    expect(serializedMigrations).toContain(
       "lower(hex(randomblob(4)) || '-' || hex(randomblob(2))"
     );
   });
