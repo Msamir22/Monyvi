@@ -170,6 +170,10 @@ function buildProviderIdentity(
   return NO_PROVIDER_IDENTITY;
 }
 
+function hasOwnDataField<T extends object>(data: T, field: keyof T): boolean {
+  return Object.prototype.hasOwnProperty.call(data, field);
+}
+
 // ---------------------------------------------------------------------------
 // T005: Account Name Uniqueness Check
 // ---------------------------------------------------------------------------
@@ -410,12 +414,20 @@ export async function updateAccountWithinWriter(
     acc.name = data.name.trim();
     acc.balance = roundForCurrency(data.balance, existingAccount.currency);
     acc.isDefault = data.isDefault;
-    acc.institutionId = data.institutionId ?? undefined;
-    acc.providerDisplayName =
-      data.providerDisplayName?.trim() || data.bankName?.trim() || undefined;
+    if (hasOwnDataField(data, "institutionId")) {
+      acc.institutionId = data.institutionId?.trim() || undefined;
+    }
+
+    if (
+      hasOwnDataField(data, "providerDisplayName") ||
+      hasOwnDataField(data, "bankName")
+    ) {
+      acc.providerDisplayName =
+        data.providerDisplayName?.trim() || data.bankName?.trim() || undefined;
+    }
   });
 
-  if (Object.prototype.hasOwnProperty.call(data, "senderNames")) {
+  if (hasOwnDataField(data, "senderNames")) {
     await replaceAccountSmsSendersWithinWriter(
       existingAccount,
       currentUserId,

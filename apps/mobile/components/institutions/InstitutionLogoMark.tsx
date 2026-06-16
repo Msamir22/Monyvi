@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   Image,
   type ImageSourcePropType,
@@ -10,6 +10,7 @@ import {
 import { palette } from "@/constants/colors";
 import type { InstitutionLogo } from "@/constants/egyptian-institution-assets";
 import { useTheme } from "@/context/ThemeContext";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 export type InstitutionLogoMarkSize =
   | "compact"
@@ -74,6 +75,13 @@ export function InstitutionLogoMark({
       ? (logo?.presentation?.rowImageResizeMode ?? "contain")
       : "contain";
   const imageSizeClassName = getImageSizeClassName(logo, size, appLogoViewport);
+  const [isImageLoading, setIsImageLoading] = useState(
+    imageSource !== undefined
+  );
+
+  useEffect(() => {
+    setIsImageLoading(imageSource !== undefined);
+  }, [imageSource]);
 
   return (
     <View
@@ -89,17 +97,58 @@ export function InstitutionLogoMark({
           testID={testID ? `${testID} svg` : undefined}
         />
       ) : imageSource ? (
-        <Image
-          source={imageSource}
-          resizeMode={imageResizeMode}
-          className={imageSizeClassName}
-          testID={testID ? `${testID} image` : undefined}
-        />
+        <>
+          {isImageLoading ? (
+            <View className="absolute inset-0 items-center justify-center">
+              <Skeleton
+                width="100%"
+                height={getSkeletonHeight(size)}
+                borderRadius={getSkeletonBorderRadius(size)}
+              />
+            </View>
+          ) : null}
+          <Image
+            source={imageSource}
+            resizeMode={imageResizeMode}
+            className={imageSizeClassName}
+            testID={testID ? `${testID} image` : undefined}
+            onLoadStart={() => setIsImageLoading(true)}
+            onLoadEnd={() => setIsImageLoading(false)}
+            onError={() => setIsImageLoading(false)}
+          />
+        </>
       ) : (
         fallback
       )}
     </View>
   );
+}
+
+function getSkeletonHeight(size: InstitutionLogoMarkSize): number {
+  switch (size) {
+    case "row":
+    case "account-list":
+      return 48;
+    case "dashboard":
+      return 36;
+    case "preview":
+    case "compact":
+    default:
+      return 44;
+  }
+}
+
+function getSkeletonBorderRadius(size: InstitutionLogoMarkSize): number {
+  switch (size) {
+    case "account-list":
+    case "preview":
+      return 16;
+    case "row":
+    case "dashboard":
+    case "compact":
+    default:
+      return 12;
+  }
 }
 
 function getImageSource(

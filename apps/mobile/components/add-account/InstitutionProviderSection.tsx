@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type JSX } from "react";
 import { Ionicons } from "@expo/vector-icons";
-import { Text, TouchableOpacity, View } from "react-native";
+import { Modal, Pressable, Text, TouchableOpacity, View } from "react-native";
 import {
   getInstitutionById,
   getSenderPatternsForInstitution,
@@ -117,6 +117,11 @@ export function InstitutionProviderSection({
     (selectedInstitutionId === null && providerDisplayName.trim().length > 0);
   const shouldShowSenderChips =
     showSenderChips && (isManualMode || selectedInstitutionId !== null);
+  const providerReference = t(
+    accountType === "BANK"
+      ? "provider_reference_bank"
+      : "provider_reference_wallet"
+  );
   const handleSectionResponderCapture = (): boolean => {
     if (isWhyTooltipVisible) {
       setIsWhyTooltipVisible(false);
@@ -163,6 +168,19 @@ export function InstitutionProviderSection({
               arrowAlignment="left"
               autoDismissMs={0}
             />
+            <Modal
+              visible={isWhyTooltipVisible}
+              transparent
+              animationType="none"
+              onRequestClose={() => setIsWhyTooltipVisible(false)}
+            >
+              <Pressable
+                className="flex-1 bg-transparent"
+                accessibilityRole="button"
+                accessibilityLabel={t("provider_details_info_dismiss")}
+                onPress={() => setIsWhyTooltipVisible(false)}
+              />
+            </Modal>
           </View>
         </View>
       </View>
@@ -214,7 +232,7 @@ export function InstitutionProviderSection({
             onChange={onSenderNamesChange}
           />
           <Text className="mt-2 ms-2 text-[11px] font-bold text-slate-500 dark:text-slate-600">
-            {t("sms_sender_help")}
+            {t("sms_sender_help", { providerReference })}
           </Text>
         </View>
       ) : null}

@@ -54,6 +54,11 @@ export function SmsMatchingSection({
       : [];
   }, [institutionId]);
   const hasKnownProvider = verifiedSenderNames.length > 0;
+  const providerReference = t(
+    accountType === "BANK"
+      ? "provider_reference_bank"
+      : "provider_reference_wallet"
+  );
 
   if (accountType !== "BANK" && accountType !== "DIGITAL_WALLET") {
     return null;
@@ -102,8 +107,8 @@ export function SmsMatchingSection({
           </Text>
           <Text className="mb-3 ms-2 text-xs font-bold text-slate-500 dark:text-slate-500">
             {hasKnownProvider
-              ? t("sms_sender_known_provider_help")
-              : t("sms_sender_manual_provider_help")}
+              ? t("sms_sender_known_provider_help", { providerReference })
+              : t("sms_sender_manual_provider_help", { providerReference })}
           </Text>
           <SenderChipsField
             value={senderNames}

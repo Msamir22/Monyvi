@@ -242,6 +242,27 @@ describe("useAccountForm", () => {
     expect(result.current.formData.senderNames).toEqual([]);
   });
 
+  it("keeps provider identity and senders when re-tapping the selected account type", () => {
+    const { result } = renderHook(() =>
+      useAccountForm({ initialAccountType: "BANK" })
+    );
+
+    act(() => {
+      result.current.selectKnownInstitution("cib");
+    });
+    act(() => {
+      result.current.updateSenderNames(["CIBCUSTOM"]);
+    });
+    act(() => {
+      result.current.updateField("accountType", "BANK");
+    });
+
+    expect(result.current.formData.accountType).toBe("BANK");
+    expect(result.current.formData.institutionId).toBe("cib");
+    expect(result.current.formData.providerDisplayName).toBe("CIB");
+    expect(result.current.formData.senderNames).toEqual(["CIBCUSTOM"]);
+  });
+
   it("rechecks uniqueness against manual provider identity after account type changes", async () => {
     jest.useFakeTimers();
     const { result } = renderHook(() =>

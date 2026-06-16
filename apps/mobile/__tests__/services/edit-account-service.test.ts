@@ -1100,6 +1100,31 @@ describe("edit-account-service", () => {
       );
     });
 
+    it("preserves provider metadata when a partial account update omits provider fields", async () => {
+      const account = seedAccount("acc-1", {
+        name: "Bank Account",
+        type: "BANK",
+        isBank: true,
+        institutionId: "cib",
+        providerDisplayName: "CIB",
+      });
+
+      await updateAccountWithBalanceAdjustment(
+        "acc-1",
+        "user-1",
+        {
+          name: "Updated Bank Account",
+          balance: 25,
+          isDefault: false,
+        },
+        null
+      );
+
+      expect(account.name).toBe("Updated Bank Account");
+      expect(account.institutionId).toBe("cib");
+      expect(account.providerDisplayName).toBe("CIB");
+    });
+
     it("preserves unchanged sender rows when replacing account sender names", async () => {
       const existingSender = mockModel("sender-1", {
         accountId: "acc-1",

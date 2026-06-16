@@ -273,12 +273,18 @@ interface AccountsTranslations {
   readonly account_number: string;
   readonly bank_name: string;
   readonly sms_sender_names: string;
+  readonly sms_sender_custom_names: string;
+  readonly provider_reference_bank: string;
+  readonly provider_reference_wallet: string;
   readonly sms_sender_help: string;
+  readonly sms_sender_known_provider_help: string;
+  readonly sms_sender_manual_provider_help: string;
   readonly sms_matching_optional: string;
   readonly sms_matching_help: string;
   readonly provider_details_section: string;
   readonly provider_details_help: string;
   readonly provider_details_info: string;
+  readonly provider_details_info_dismiss: string;
   readonly institution_bank_label: string;
   readonly institution_wallet_label: string;
   readonly institution_bank_help: string;

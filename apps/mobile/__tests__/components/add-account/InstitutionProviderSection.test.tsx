@@ -9,6 +9,7 @@ const translations: Record<string, string> = {
   provider_details_help:
     "Choose the bank or wallet so SMS transactions can be matched to the right account.",
   provider_details_info: "Why this helps",
+  provider_details_info_dismiss: "Close provider details help",
   institution_bank_label: "Bank",
   institution_wallet_label: "Wallet",
   institution_bank_help:
@@ -28,8 +29,10 @@ const translations: Record<string, string> = {
   institution_search_placeholder: "Search",
   institution_other: "Other",
   sms_sender_names: "SMS Sender Names",
+  provider_reference_bank: "this bank",
+  provider_reference_wallet: "this wallet",
   sms_sender_help:
-    "The name shown as the SMS sender for this bank or wallet. This helps Monyvi match messages to this account.",
+    "The name shown as the SMS sender for {{providerReference}}. This helps Monyvi match messages to this account.",
   sender_add_placeholder: "Add sender",
   sender_add_accessibility: "Add sender",
   sender_add_action: "Add",
@@ -42,8 +45,15 @@ const translations: Record<string, string> = {
 };
 
 jest.mock("react-i18next", () => ({
-  useTranslation: (): { readonly t: (key: string) => string } => ({
-    t: (key: string): string => translations[key] ?? key,
+  useTranslation: (): {
+    readonly t: (key: string, options?: Record<string, string>) => string;
+  } => ({
+    t: (key: string, options?: Record<string, string>): string => {
+      const value = translations[key] ?? key;
+      return value.replace(/\{\{(\w+)\}\}/g, (_, token: string) => {
+        return options?.[token] ?? "";
+      });
+    },
   }),
 }));
 
@@ -314,6 +324,31 @@ describe("InstitutionProviderSection", () => {
       screen.getByTestId("institution-provider-section"),
       "startShouldSetResponderCapture"
     );
+
+    expect(
+      screen.queryByText(
+        "Bank or wallet details help match SMS to this account."
+      )
+    ).toBeNull();
+  });
+
+  it("closes the bank details tooltip from the outside dismiss layer", () => {
+    render(
+      <InstitutionProviderSection
+        accountType="BANK"
+        isKnownProviderEligible={true}
+        institutionId={null}
+        providerDisplayName=""
+        senderNames={[]}
+        onSelectKnownInstitution={jest.fn()}
+        onSelectOtherInstitution={jest.fn()}
+        onProviderDisplayNameChange={jest.fn()}
+        onSenderNamesChange={jest.fn()}
+      />
+    );
+
+    fireEvent.press(screen.getByLabelText("Why this helps"));
+    fireEvent.press(screen.getByLabelText("Close provider details help"));
 
     expect(
       screen.queryByText(
