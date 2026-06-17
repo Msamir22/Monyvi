@@ -58,7 +58,18 @@ describe("resolve-ci-e2e-scope", () => {
       scopeResolver.resolveCiE2eScope(["apps/mobile/scripts/e2e-preflight.js"])
     ).toEqual({
       shouldRun: true,
-      suites: ["transactions", "sms-sync", "live-sms"],
+      suites: ["accounts", "transactions", "sms-sync", "live-sms"],
+    });
+  });
+
+  it("selects account E2E for account form changes", () => {
+    expect(
+      scopeResolver.resolveCiE2eScope([
+        "apps/mobile/components/add-account/InstitutionPicker.tsx",
+      ])
+    ).toEqual({
+      shouldRun: true,
+      suites: ["accounts"],
     });
   });
 

@@ -9,10 +9,11 @@ const defaultChildTimeoutMs = 20 * 60 * 1000;
 const defaultLiveSmsTimeoutMs = 45 * 60 * 1000;
 
 const shouldBootstrapAuth = process.env.E2E_SKIP_AUTH_BOOTSTRAP !== "1";
-const allCiSuites = ["transactions", "sms-sync", "live-sms"];
+const allCiSuites = ["accounts", "transactions", "sms-sync", "live-sms"];
 let hasRunAuthBootstrap = false;
 
 const authBootstrapFlow = "helpers/ci-auth-bootstrap.yaml";
+const accountMaestroFlows = ["accounts/egyptian-institution-presets.yaml"];
 const transactionMaestroFlows = [
   "transactions/create-transaction.yaml",
   "transactions/edit-transaction.yaml",
@@ -322,6 +323,10 @@ async function main() {
   applyLocalE2eDefaults();
   assertRequiredEnv();
   await maybeSeedE2eData();
+
+  if (selectedSuites.has("accounts")) {
+    await runMaestroFlows(accountMaestroFlows);
+  }
 
   if (selectedSuites.has("transactions")) {
     await runMaestroFlows(transactionMaestroFlows);

@@ -14,7 +14,7 @@ appId: com.monyvi.app
     visible: "Accounts"
     timeout: 30000
 
-# Known bank: selecting a preset should prefill sender chips and save in <= 90s.
+# Known bank: selecting a preset should save with registry sender matching handled internally.
 - tapOn:
     id: "header-right-action"
 - extendedWaitUntil:
@@ -22,7 +22,7 @@ appId: com.monyvi.app
     timeout: 30000
 - tapOn: "Bank Account"
 - assertVisible: "Bank"
-- assertVisible: "Why this helps"
+- assertVisible: "Message detection (Optional)"
 - tapOn: "Choose a bank"
 - tapOn: "Search"
 - inputText: "CIB"
@@ -41,13 +41,13 @@ appId: com.monyvi.app
     visible: "E2E CIB Preset"
     timeout: 90000
 
-# Edit known bank: provider info control remains available.
+# Edit known bank: provider and message-detection sections remain available.
 - tapOn: "E2E CIB Preset"
 - extendedWaitUntil:
     visible: "Edit Account"
     timeout: 30000
 - assertVisible: "Bank"
-- assertVisible: "Why this helps"
+- assertVisible: "Message detection (Optional)"
 - tapOn:
     id: "header-back"
 - extendedWaitUntil:
@@ -62,7 +62,7 @@ appId: com.monyvi.app
     timeout: 30000
 - tapOn: "Digital Wallet"
 - assertVisible: "Wallet"
-- assertVisible: "Why this helps"
+- assertVisible: "Message detection (Optional)"
 - tapOn: "Choose a wallet"
 - tapOn: "Search"
 - inputText: "Vodafone"
@@ -81,13 +81,13 @@ appId: com.monyvi.app
     visible: "E2E Vodafone Preset"
     timeout: 90000
 
-# Edit known wallet: provider info control remains available on wallet accounts too.
+# Edit known wallet: provider and message-detection sections remain available too.
 - tapOn: "E2E Vodafone Preset"
 - extendedWaitUntil:
     visible: "Edit Account"
     timeout: 30000
 - assertVisible: "Wallet"
-- assertVisible: "Why this helps"
+- assertVisible: "Message detection (Optional)"
 - tapOn:
     id: "header-back"
 - extendedWaitUntil:

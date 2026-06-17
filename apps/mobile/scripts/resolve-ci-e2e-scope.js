@@ -1,7 +1,7 @@
 const { appendFileSync } = require("node:fs");
 const { spawnSync } = require("node:child_process");
 
-const orderedSuites = ["transactions", "sms-sync", "live-sms"];
+const orderedSuites = ["accounts", "transactions", "sms-sync", "live-sms"];
 
 function normalizePath(filePath) {
   return filePath.replace(/\\/g, "/");
@@ -62,7 +62,12 @@ function getSuitesForFile(filePath) {
   if (
     /transaction|category|account|transfer|recurring-payment/i.test(normalized)
   ) {
-    suites.push("transactions");
+    if (/account/i.test(normalized)) {
+      suites.push("accounts");
+    }
+    if (/transaction|category|transfer|recurring-payment/i.test(normalized)) {
+      suites.push("transactions");
+    }
   }
 
   if (suites.length === 0 && normalized.startsWith("apps/mobile/")) {

@@ -6,7 +6,7 @@ interface RunCiE2eModule {
   ): string;
   getRequestedCiSuites(
     env?: Readonly<Record<string, string | undefined>>
-  ): ReadonlySet<"transactions" | "sms-sync" | "live-sms">;
+  ): ReadonlySet<"accounts" | "transactions" | "sms-sync" | "live-sms">;
   getChildTimeoutMs(env?: Readonly<Record<string, string | undefined>>): number;
   getLiveSmsTimeoutMs(
     env?: Readonly<Record<string, string | undefined>>
@@ -25,6 +25,7 @@ const runCiE2e = jest.requireActual(
 describe("run-ci-e2e helpers", () => {
   it("defaults to all E2E suites when no selective suite is requested", () => {
     expect([...runCiE2e.getRequestedCiSuites({})]).toEqual([
+      "accounts",
       "transactions",
       "sms-sync",
       "live-sms",
@@ -34,9 +35,9 @@ describe("run-ci-e2e helpers", () => {
   it("parses selected E2E suites and treats skip as no-op", () => {
     expect([
       ...runCiE2e.getRequestedCiSuites({
-        E2E_CI_SUITES: "sms-sync,live-sms",
+        E2E_CI_SUITES: "accounts,sms-sync,live-sms",
       }),
-    ]).toEqual(["sms-sync", "live-sms"]);
+    ]).toEqual(["accounts", "sms-sync", "live-sms"]);
 
     expect(runCiE2e.getRequestedCiSuites({ E2E_CI_SUITES: "skip" }).size).toBe(
       0
