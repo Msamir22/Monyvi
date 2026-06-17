@@ -205,6 +205,55 @@ describe("syncDatabase", () => {
     await expect(syncDatabase(mockDatabase)).rejects.toThrow("upsert failed");
   });
 
+  it("batches active updated rows into one Supabase upsert", async () => {
+    mockUpsert.mockResolvedValue({ error: null });
+    mockSynchronize.mockImplementation(
+      async (args: {
+        pushChanges: (input: {
+          changes: Record<string, unknown>;
+          lastPulledAt: number | null;
+        }) => Promise<unknown>;
+      }) => {
+        await args.pushChanges({
+          changes: {
+            accounts: {
+              created: [],
+              updated: [
+                {
+                  id: "account-1",
+                  user_id: "current-user",
+                  name: "Main",
+                  currency: "EGP",
+                  deleted: false,
+                },
+                {
+                  id: "account-2",
+                  user_id: "current-user",
+                  name: "Savings",
+                  currency: "EGP",
+                  deleted: false,
+                },
+              ],
+              deleted: [],
+            },
+          },
+          lastPulledAt: null,
+        });
+      }
+    );
+
+    await expect(syncDatabase(mockDatabase)).resolves.toBeUndefined();
+
+    expect(mockUpsert).toHaveBeenCalledTimes(1);
+    expect(mockUpsert).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({ id: "account-1", user_id: "current-user" }),
+        expect.objectContaining({ id: "account-2", user_id: "current-user" }),
+      ],
+      { onConflict: "id" }
+    );
+  });
+
   it("pushes profile onboarding flags as JSON instead of null", async () => {
     mockUpsert.mockResolvedValue({ error: null });
     mockSynchronize.mockImplementation(
@@ -238,14 +287,16 @@ describe("syncDatabase", () => {
     await expect(syncDatabase(mockDatabase)).resolves.toBeUndefined();
 
     expect(mockUpsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: "profile-1",
-        user_id: "current-user",
-        onboarding_flags: {},
-        notification_settings: {
-          sms_transaction_confirmation: true,
-        },
-      }),
+      [
+        expect.objectContaining({
+          id: "profile-1",
+          user_id: "current-user",
+          onboarding_flags: {},
+          notification_settings: {
+            sms_transaction_confirmation: true,
+          },
+        }),
+      ],
       { onConflict: "id" }
     );
   });
@@ -580,10 +631,12 @@ describe("syncDatabase", () => {
     await expect(syncDatabase(mockDatabase)).resolves.toBeUndefined();
 
     expect(mockUpsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: "account-old",
-        deleted: true,
-      }),
+      [
+        expect.objectContaining({
+          id: "account-old",
+          deleted: true,
+        }),
+      ],
       { onConflict: "id" }
     );
     expect(mockUpdateIn).toHaveBeenCalledWith("id", ["account-hard-deleted"]);
@@ -645,11 +698,13 @@ describe("syncDatabase", () => {
     expect(mockWatermelonWhere).toHaveBeenCalledWith("user_id", "current-user");
     expect(mockWatermelonWhere).not.toHaveBeenCalledWith("deleted", false);
     expect(mockUpsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: "sender-1",
-        account_id: "account-1",
-        deleted: true,
-      }),
+      [
+        expect.objectContaining({
+          id: "sender-1",
+          account_id: "account-1",
+          deleted: true,
+        }),
+      ],
       { onConflict: "id" }
     );
   });

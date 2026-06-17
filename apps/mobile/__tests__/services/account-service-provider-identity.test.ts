@@ -137,6 +137,26 @@ describe("createAccountForUser provider identity uniqueness", () => {
     );
   });
 
+  it("rejects a known wallet institution id when creating a bank account", async () => {
+    const { accountsCollection } = setupCreateAccountCollections([]);
+
+    const result = await createAccountForUser("user-1", {
+      name: "Main",
+      accountType: "BANK",
+      currency: "EGP",
+      balance: "0",
+      institutionId: "vodafone-cash",
+      providerDisplayName: "Vodafone Cash",
+      senderNames: [],
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: CREATE_ACCOUNT_ERROR_CODES.VALIDATION_FAILED,
+    });
+    expect(accountsCollection.create).not.toHaveBeenCalled();
+  });
+
   it("rejects duplicate no-provider names by name and currency", async () => {
     const { accountsCollection } = setupCreateAccountCollections([
       {

@@ -152,6 +152,7 @@ export function InstitutionProviderSection({
               onPress={() => setIsWhyTooltipVisible(true)}
               accessibilityRole="button"
               accessibilityLabel={t("provider_details_info")}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               className="h-4 w-4 items-center justify-center"
             >
               <Ionicons

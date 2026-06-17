@@ -151,6 +151,7 @@
   "validation_initial_balance_non_negative": "Initial balance cannot be negative",
   "validation_bank_name_max": "Bank name must be less than 50 characters",
   "validation_institution_id_required": "Choose a bank or wallet, or enter its name",
+  "validation_institution_invalid_for_type": "Choose a valid bank or wallet for this account type",
   "validation_provider_display_name_max": "Bank or wallet name must be less than 100 characters",
   "validation_card_last_4": "Must be exactly 4 digits",
   "validation_sms_sender_name_max": "SMS sender name must be less than 100 characters",

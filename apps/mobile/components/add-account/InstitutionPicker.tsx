@@ -3,7 +3,7 @@ import {
   type SelectableEgyptianInstitutionId,
 } from "@monyvi/logic";
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useMemo, useState, type JSX } from "react";
+import { useCallback, useEffect, useMemo, useState, type JSX } from "react";
 import {
   FlatList,
   Keyboard,
@@ -16,6 +16,7 @@ import {
   TouchableWithoutFeedback,
   useWindowDimensions,
   View,
+  type ListRenderItem,
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -25,6 +26,14 @@ import { InstitutionLogoMark } from "@/components/institutions/InstitutionLogoMa
 import { palette } from "@/constants/colors";
 
 type InstitutionPickerType = "bank" | "wallet";
+type SelectableEgyptianInstitution = ReturnType<
+  typeof getSelectableEgyptianInstitutions
+>[number];
+const INSTITUTION_ROW_HEIGHT = 80;
+const INSTITUTION_ROW_MARGIN_BOTTOM = 8;
+const INSTITUTION_ROW_LAYOUT_HEIGHT =
+  INSTITUTION_ROW_HEIGHT + INSTITUTION_ROW_MARGIN_BOTTOM;
+
 interface InstitutionPickerProps {
   readonly type: InstitutionPickerType;
   readonly selectedInstitutionId: SelectableEgyptianInstitutionId | null;
@@ -33,6 +42,13 @@ interface InstitutionPickerProps {
     institutionId: SelectableEgyptianInstitutionId
   ) => void;
   readonly onSelectOther: () => void;
+}
+
+export function getInstitutionPickerLogoTestId(
+  type: InstitutionPickerType,
+  institutionId: string | null
+): string {
+  return `institution-picker-logo-${type}-${institutionId ?? "other"}`;
 }
 
 function getInstitutionLabel(institution: {
@@ -198,6 +214,100 @@ export function InstitutionPicker({
       ? Math.max(windowHeight - keyboardHeight - 96, windowHeight * 0.38)
       : windowHeight * 0.72;
   const androidKeyboardOffset = Platform.OS === "android" ? keyboardHeight : 0;
+  const institutionKeyExtractor = useCallback(
+    (item: SelectableEgyptianInstitution): string => item.id,
+    []
+  );
+  const getInstitutionItemLayout = useCallback(
+    (_: unknown, index: number) => ({
+      length: INSTITUTION_ROW_LAYOUT_HEIGHT,
+      offset: INSTITUTION_ROW_LAYOUT_HEIGHT * index,
+      index,
+    }),
+    []
+  );
+  const renderInstitutionItem = useCallback<ListRenderItem<SelectableEgyptianInstitution>>(
+    ({ item }) => {
+      const label = getInstitutionLabel({
+        ...item,
+        language,
+      });
+      const isSelected = item.id === selectedInstitutionId;
+      const asset = getEgyptianInstitutionAsset(item.id, type);
+
+      return (
+        <TouchableOpacity
+          onPress={() => {
+            onSelectInstitution(item.id);
+            setIsDropdownOpen(false);
+          }}
+          className={`mb-2 h-20 flex-row items-center rounded-xl border px-4 py-3 ${
+            isSelected
+              ? "border-nileGreen-500 bg-nileGreen-50 dark:bg-slate-800"
+              : "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800"
+          }`}
+          accessibilityLabel={label}
+        >
+          <InstitutionLogoMark
+            logo={asset.logo}
+            accessibilityLabel={`${label} logo`}
+            testID={getInstitutionPickerLogoTestId(type, item.id)}
+            size="row"
+            containerClassName="me-3"
+          />
+          <Text
+            className="flex-1 font-bold text-text-primary dark:text-text-primary-dark"
+            numberOfLines={2}
+          >
+            {label}
+          </Text>
+          {isSelected ? (
+            <Ionicons
+              name="checkmark-circle"
+              size={20}
+              color={palette.nileGreen[600]}
+            />
+          ) : null}
+        </TouchableOpacity>
+      );
+    },
+    [language, onSelectInstitution, selectedInstitutionId, type]
+  );
+  const renderOtherInstitution = useCallback(
+    (): JSX.Element => (
+      <TouchableOpacity
+        onPress={() => {
+          onSelectOther();
+          setIsDropdownOpen(false);
+        }}
+        className={`mt-1 h-20 flex-row items-center rounded-xl border border-dashed px-4 py-3 ${
+          isOtherSelected
+            ? "border-nileGreen-500 bg-nileGreen-50 dark:bg-slate-800"
+            : "border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-800"
+        }`}
+        accessibilityLabel={t("institution_other")}
+      >
+        <InstitutionLogoMark
+          logo={otherLogo}
+          accessibilityLabel={`${t("institution_other")} logo`}
+          testID={getInstitutionPickerLogoTestId(type, null)}
+          size="row"
+          containerClassName="me-3"
+        />
+        <Text className="flex-1 font-bold text-text-primary dark:text-text-primary-dark">
+          {t("institution_other")}
+        </Text>
+        {isOtherSelected ? (
+          <Ionicons
+            name="checkmark-circle"
+            size={20}
+            color={palette.nileGreen[600]}
+          />
+        ) : null}
+      </TouchableOpacity>
+    ),
+    [isOtherSelected, onSelectOther, otherLogo, t, type]
+  );
 
   return (
     <View className="mb-3">
@@ -216,7 +326,10 @@ export function InstitutionPicker({
               <InstitutionLogoMark
                 logo={selectedLogo}
                 accessibilityLabel={`${selectedLabel ?? ""} logo`}
-                testID={`${selectedLabel ?? ""} logo`}
+                testID={getInstitutionPickerLogoTestId(
+                  type,
+                  selectedInstitutionId
+                )}
                 containerClassName="me-3"
               />
             ) : null}
@@ -291,85 +404,15 @@ export function InstitutionPicker({
 
                   <FlatList
                     data={filteredInstitutions}
-                    keyExtractor={(item) => item.id}
+                    keyExtractor={institutionKeyExtractor}
                     keyboardShouldPersistTaps="handled"
                     showsVerticalScrollIndicator={false}
+                    getItemLayout={getInstitutionItemLayout}
                     contentContainerStyle={{
                       paddingBottom: Math.max(insets.bottom, 12),
                     }}
-                    renderItem={({ item }) => {
-                      const label = getInstitutionLabel({
-                        ...item,
-                        language,
-                      });
-                      const isSelected = item.id === selectedInstitutionId;
-                      const asset = getEgyptianInstitutionAsset(item.id, type);
-
-                      return (
-                        <TouchableOpacity
-                          onPress={() => {
-                            onSelectInstitution(item.id);
-                            setIsDropdownOpen(false);
-                          }}
-                          className={`mb-2 flex-row items-center rounded-xl border px-4 py-3 ${
-                            isSelected
-                              ? "border-nileGreen-500 bg-nileGreen-50 dark:bg-slate-800"
-                              : "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800"
-                          }`}
-                          accessibilityLabel={label}
-                        >
-                          <InstitutionLogoMark
-                            logo={asset.logo}
-                            accessibilityLabel={`${label} logo`}
-                            testID={`${label} logo`}
-                            size="row"
-                            containerClassName="me-3"
-                          />
-                          <Text className="flex-1 font-bold text-text-primary dark:text-text-primary-dark">
-                            {label}
-                          </Text>
-                          {isSelected ? (
-                            <Ionicons
-                              name="checkmark-circle"
-                              size={20}
-                              color={palette.nileGreen[600]}
-                            />
-                          ) : null}
-                        </TouchableOpacity>
-                      );
-                    }}
-                    ListFooterComponent={
-                      <TouchableOpacity
-                        onPress={() => {
-                          onSelectOther();
-                          setIsDropdownOpen(false);
-                        }}
-                        className={`mt-1 flex-row items-center rounded-xl border border-dashed px-4 py-3 ${
-                          isOtherSelected
-                            ? "border-nileGreen-500 bg-nileGreen-50 dark:bg-slate-800"
-                            : "border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-800"
-                        }`}
-                        accessibilityLabel={t("institution_other")}
-                      >
-                        <InstitutionLogoMark
-                          logo={otherLogo}
-                          accessibilityLabel={`${t("institution_other")} logo`}
-                          testID={`${t("institution_other")} logo`}
-                          size="row"
-                          containerClassName="me-3"
-                        />
-                        <Text className="flex-1 font-bold text-text-primary dark:text-text-primary-dark">
-                          {t("institution_other")}
-                        </Text>
-                        {isOtherSelected ? (
-                          <Ionicons
-                            name="checkmark-circle"
-                            size={20}
-                            color={palette.nileGreen[600]}
-                          />
-                        ) : null}
-                      </TouchableOpacity>
-                    }
+                    renderItem={renderInstitutionItem}
+                    ListFooterComponent={renderOtherInstitution}
                   />
                 </View>
               </TouchableWithoutFeedback>

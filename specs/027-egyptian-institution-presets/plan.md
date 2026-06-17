@@ -116,7 +116,7 @@ apps/mobile/
 |   |-- InstitutionProviderSection.tsx
 |   |-- InstitutionPicker.tsx
 |   |-- SenderChipsField.tsx
-|   `-- WhyInstitutionDetailsSheet.tsx
+|   `-- SmsMatchingSection.tsx
 |-- components/accounts/
 |   `-- AccountCard.tsx
 |-- constants/

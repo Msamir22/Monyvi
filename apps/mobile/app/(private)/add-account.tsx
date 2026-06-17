@@ -9,6 +9,7 @@ import {
   StatusBar,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -30,8 +31,7 @@ import {
 } from "@/hooks";
 import type { CurrencyType } from "@monyvi/db";
 
-const LOWER_FORM_SCROLL_TARGET_Y = 100000;
-const BALANCE_FIELD_SCROLL_TARGET_Y = 360;
+const FOCUSED_FIELD_KEYBOARD_GAP = 24;
 
 interface CurrencySelectFieldProps {
   readonly value: CurrencyType;
@@ -94,6 +94,7 @@ function CurrencySelectField({
 export default function AddAccount(): React.ReactNode {
   const insets = useSafeAreaInsets();
   const { isDark } = useTheme();
+  const { height: windowHeight } = useWindowDimensions();
   const { t } = useTranslation("accounts");
   const { t: tCommon } = useTranslation("common");
 
@@ -135,67 +136,68 @@ export default function AddAccount(): React.ReactNode {
   const [isSmsMatchingExpanded, setIsSmsMatchingExpanded] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
-  const smsFocusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const shouldScrollSmsFieldRef = useRef(false);
+  const currentScrollYRef = useRef(0);
+  const keyboardHeightRef = useRef(0);
+  const activeKeyboardTargetRef = useRef<React.RefObject<View | null> | null>(
+    null
+  );
+  const balanceFieldRef = useRef<View>(null);
+  const smsMatchingSectionRef = useRef<View>(null);
+
+  const scrollTargetAboveKeyboard = useCallback(
+    (targetRef: React.RefObject<View | null>): void => {
+      activeKeyboardTargetRef.current = targetRef;
+
+      requestAnimationFrame(() => {
+        targetRef.current?.measureInWindow((_x, y, _width, height) => {
+          const visibleBottom =
+            windowHeight -
+            keyboardHeightRef.current -
+            insets.bottom -
+            FOCUSED_FIELD_KEYBOARD_GAP;
+          const overflow = y + height - visibleBottom;
+
+          if (overflow > 0) {
+            scrollViewRef.current?.scrollTo({
+              y: currentScrollYRef.current + overflow,
+              animated: true,
+            });
+          }
+        });
+      });
+    },
+    [insets.bottom, windowHeight]
+  );
 
   useEffect(() => {
     const keyboardDidShow = Keyboard.addListener("keyboardDidShow", (event) => {
-      setKeyboardHeight(event.endCoordinates.height);
+      const nextKeyboardHeight = event.endCoordinates.height;
+      keyboardHeightRef.current = nextKeyboardHeight;
+      setKeyboardHeight(nextKeyboardHeight);
 
-      if (shouldScrollSmsFieldRef.current) {
-        if (smsFocusTimerRef.current) {
-          clearTimeout(smsFocusTimerRef.current);
-        }
-
-        smsFocusTimerRef.current = setTimeout(() => {
-          scrollViewRef.current?.scrollTo({
-            y: LOWER_FORM_SCROLL_TARGET_Y,
-            animated: true,
-          });
-        }, 80);
+      if (activeKeyboardTargetRef.current) {
+        scrollTargetAboveKeyboard(activeKeyboardTargetRef.current);
       }
     });
     const keyboardDidHide = Keyboard.addListener("keyboardDidHide", () => {
+      keyboardHeightRef.current = 0;
       setKeyboardHeight(0);
-      shouldScrollSmsFieldRef.current = false;
+      activeKeyboardTargetRef.current = null;
     });
 
     return () => {
       keyboardDidShow.remove();
       keyboardDidHide.remove();
-      if (smsFocusTimerRef.current) {
-        clearTimeout(smsFocusTimerRef.current);
-      }
     };
-  }, []);
+  }, [scrollTargetAboveKeyboard]);
 
   const handleSmsFieldFocus = useCallback((): void => {
-    shouldScrollSmsFieldRef.current = true;
-
-    if (smsFocusTimerRef.current) {
-      clearTimeout(smsFocusTimerRef.current);
-    }
-
-    smsFocusTimerRef.current = setTimeout(() => {
-      scrollViewRef.current?.scrollTo({
-        y: LOWER_FORM_SCROLL_TARGET_Y,
-        animated: true,
-      });
-    }, 250);
-  }, []);
+    scrollTargetAboveKeyboard(smsMatchingSectionRef);
+  }, [scrollTargetAboveKeyboard]);
 
   const handleBalanceFieldFocus = useCallback((): void => {
-    if (smsFocusTimerRef.current) {
-      clearTimeout(smsFocusTimerRef.current);
-    }
-
-    smsFocusTimerRef.current = setTimeout(() => {
-      scrollViewRef.current?.scrollTo({
-        y: BALANCE_FIELD_SCROLL_TARGET_Y,
-        animated: true,
-      });
-    }, 250);
-  }, []);
+    scrollTargetAboveKeyboard(balanceFieldRef);
+  }, [scrollTargetAboveKeyboard]);
 
   /**
    * Handles the save action by validating the form and calling the creation hook.
@@ -241,6 +243,10 @@ export default function AddAccount(): React.ReactNode {
       <ScrollView
         ref={scrollViewRef}
         className="flex-1"
+        onScroll={(event) => {
+          currentScrollYRef.current = event.nativeEvent.contentOffset.y;
+        }}
+        scrollEventThrottle={16}
         contentContainerStyle={{
           paddingBottom: insets.bottom + 160,
         }}
@@ -306,35 +312,39 @@ export default function AddAccount(): React.ReactNode {
             onChange={(currency) => updateField("currency", currency)}
           />
 
-          <TextField
-            label={t("initial_balance")}
-            placeholder="0"
-            value={formData.balance}
-            onChangeText={(text) => {
-              updateField("balance", text);
-            }}
-            error={errors.balance}
-            keyboardType="numeric"
-            onFocus={handleBalanceFieldFocus}
-          />
+          <View ref={balanceFieldRef}>
+            <TextField
+              label={t("initial_balance")}
+              placeholder="0"
+              value={formData.balance}
+              onChangeText={(text) => {
+                updateField("balance", text);
+              }}
+              error={errors.balance}
+              keyboardType="numeric"
+              onFocus={handleBalanceFieldFocus}
+            />
+          </View>
 
-          <SmsMatchingSection
-            accountType={formData.accountType}
-            institutionId={formData.institutionId ?? null}
-            senderNames={formData.senderNames ?? []}
-            cardLast4={formData.cardLast4 || ""}
-            cardLast4Error={errors.cardLast4}
-            expanded={isSmsMatchingExpanded}
-            onToggleExpanded={() =>
-              setIsSmsMatchingExpanded(!isSmsMatchingExpanded)
-            }
-            onSenderNamesChange={updateSenderNames}
-            onFieldFocus={handleSmsFieldFocus}
-            onCardLast4Change={(val) => {
-              const cleaned = val.replace(/\D/g, "").slice(0, 4);
-              updateField("cardLast4", cleaned);
-            }}
-          />
+          <View ref={smsMatchingSectionRef}>
+            <SmsMatchingSection
+              accountType={formData.accountType}
+              institutionId={formData.institutionId ?? null}
+              senderNames={formData.senderNames ?? []}
+              cardLast4={formData.cardLast4 || ""}
+              cardLast4Error={errors.cardLast4}
+              expanded={isSmsMatchingExpanded}
+              onToggleExpanded={() =>
+                setIsSmsMatchingExpanded(!isSmsMatchingExpanded)
+              }
+              onSenderNamesChange={updateSenderNames}
+              onFieldFocus={handleSmsFieldFocus}
+              onCardLast4Change={(val) => {
+                const cleaned = val.replace(/\D/g, "").slice(0, 4);
+                updateField("cardLast4", cleaned);
+              }}
+            />
+          </View>
         </View>
         {keyboardHeight > 0 ? (
           <View

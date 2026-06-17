@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useMemo, useState, type JSX } from "react";
 import { Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useTranslation } from "react-i18next";
@@ -77,6 +78,7 @@ export function SenderChipsField({
                 accessibilityLabel={t("sender_remove_accessibility", {
                   sender,
                 })}
+                accessibilityRole="button"
                 onPress={() =>
                   onChange(
                     value.filter(
@@ -86,11 +88,14 @@ export function SenderChipsField({
                     )
                   )
                 }
-                className="ms-2"
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                className="ms-2 h-5 w-5 items-center justify-center rounded-full"
               >
-                <Text className="text-sm font-black text-slate-500 dark:text-slate-300">
-                  x
-                </Text>
+                <Ionicons
+                  name="close"
+                  size={14}
+                  color={palette.slate[500]}
+                />
               </TouchableOpacity>
             </View>
           );

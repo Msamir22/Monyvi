@@ -31,6 +31,7 @@ import { Q, type Model } from "@nozbe/watermelondb";
 import { t } from "i18next";
 import { logger } from "@/utils/logger";
 import { redactIdentifierForLog } from "@/utils/logger-redaction";
+import { isInstitutionAllowedForAccountType } from "@/validation/account-validation";
 import {
   USER_DATA_ACCESS_ERROR_CODES,
   findOwnedById,
@@ -83,6 +84,7 @@ const NO_PROVIDER_IDENTITY = "none";
 export const EDIT_ACCOUNT_ERROR_CODES = {
   OWNERSHIP_FAILED: "OWNERSHIP_FAILED",
   NOT_FOUND: "NOT_FOUND",
+  INVALID_INSTITUTION_FOR_ACCOUNT_TYPE: "INVALID_INSTITUTION_FOR_ACCOUNT_TYPE",
 } as const;
 export type EditAccountErrorCode =
   (typeof EDIT_ACCOUNT_ERROR_CODES)[keyof typeof EDIT_ACCOUNT_ERROR_CODES];
@@ -388,6 +390,16 @@ export async function updateAccountWithinWriter(
 
   // Snapshot BEFORE mutating — this is the source of truth for any paired
   // balance-adjustment transaction (defends against stale form state).
+  if (
+    hasOwnDataField(data, "institutionId") &&
+    !isInstitutionAllowedForAccountType(
+      data.institutionId ?? null,
+      existingAccount.type
+    )
+  ) {
+    throw new Error(EDIT_ACCOUNT_ERROR_CODES.INVALID_INSTITUTION_FOR_ACCOUNT_TYPE);
+  }
+
   const previousBalance = existingAccount.balance;
 
   // If setting as default, unset any current default for this user

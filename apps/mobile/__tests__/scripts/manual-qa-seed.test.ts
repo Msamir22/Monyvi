@@ -23,4 +23,19 @@ describe("manual-qa-seed script helpers", () => {
     expect(config.password).toBe("LocalOnlyPassword123!");
     expect(config.preserveExistingPassword).toBe(false);
   });
+
+  it("does not inherit remote Supabase env vars for local manual QA seeding", () => {
+    const config = getManualQaSeedConfig({
+      EXPO_PUBLIC_SUPABASE_URL: "https://remote-project.supabase.co",
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: "remote-anon-key",
+      SUPABASE_SERVICE_ROLE_KEY: "remote-service-role-key",
+      E2E_LOCAL_JWT_SECRET: "local-test-jwt-secret-with-enough-length",
+    });
+
+    expect(config.mode).toBe("local");
+    expect(config.supabaseUrl).toBe("http://127.0.0.1:54321");
+    expect(config.appSupabaseUrl).toBe("http://10.0.2.2:54321");
+    expect(config.anonKey).not.toBe("remote-anon-key");
+    expect(config.serviceRoleKey).not.toBe("remote-service-role-key");
+  });
 });

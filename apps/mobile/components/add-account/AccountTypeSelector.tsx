@@ -71,7 +71,7 @@ export function AccountTypeSelector({
                   : accountTypeLabel
               }
               disabled={disabled}
-              className={`h-14 max-w-fit flex-row items-center rounded-3xl border px-2.5 ${
+              className={`h-14 flex-none flex-row items-center rounded-3xl border px-2.5 ${
                 isSelected
                   ? "border-nileGreen-500 bg-nileGreen-50 "
                   : "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800"

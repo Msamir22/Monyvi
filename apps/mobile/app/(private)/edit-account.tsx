@@ -34,6 +34,7 @@ import { useEditAccountForm } from "@/hooks/useEditAccountForm";
 import { useUpdateAccount } from "@/hooks/useUpdateAccount";
 import type { UpdateAccountData } from "@/services/edit-account-service";
 import { safeNotificationHaptic } from "@/utils/haptics";
+import { logger } from "@/utils/logger";
 import { Ionicons } from "@expo/vector-icons";
 import type { Account } from "@monyvi/db";
 import * as Haptics from "expo-haptics";
@@ -54,6 +55,7 @@ import {
   StatusBar,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -63,8 +65,7 @@ import { EditAccountSkeleton } from "@/components/edit-account/EditAccountSkelet
 // Component
 // =============================================================================
 
-const LOWER_FORM_SCROLL_TARGET_Y = 100000;
-const BALANCE_FIELD_SCROLL_TARGET_Y = 360;
+const FOCUSED_FIELD_KEYBOARD_GAP = 24;
 
 export default function EditAccount(): React.ReactNode {
   const router = useRouter();
@@ -142,6 +143,7 @@ function EditAccountForm({
 }: EditAccountFormProps): React.JSX.Element {
   const { t } = useTranslation("accounts");
   const { t: tCommon } = useTranslation("common");
+  const { height: windowHeight } = useWindowDimensions();
   const { showToast } = useToast();
   // Resolve a display name (with currency suffix on duplicate names) so the
   // header + delete sheet show e.g. "Cash (EGP)" instead of an ambiguous
@@ -172,67 +174,68 @@ function EditAccountForm({
   const [showDeleteSheet, setShowDeleteSheet] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
-  const smsFocusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const shouldScrollSmsFieldRef = useRef(false);
+  const currentScrollYRef = useRef(0);
+  const keyboardHeightRef = useRef(0);
+  const activeKeyboardTargetRef = useRef<React.RefObject<View | null> | null>(
+    null
+  );
+  const balanceFieldRef = useRef<View>(null);
+  const smsMatchingSectionRef = useRef<View>(null);
+
+  const scrollTargetAboveKeyboard = useCallback(
+    (targetRef: React.RefObject<View | null>): void => {
+      activeKeyboardTargetRef.current = targetRef;
+
+      requestAnimationFrame(() => {
+        targetRef.current?.measureInWindow((_x, y, _width, height) => {
+          const visibleBottom =
+            windowHeight -
+            keyboardHeightRef.current -
+            bottomInset -
+            FOCUSED_FIELD_KEYBOARD_GAP;
+          const overflow = y + height - visibleBottom;
+
+          if (overflow > 0) {
+            scrollViewRef.current?.scrollTo({
+              y: currentScrollYRef.current + overflow,
+              animated: true,
+            });
+          }
+        });
+      });
+    },
+    [bottomInset, windowHeight]
+  );
 
   useEffect(() => {
     const keyboardDidShow = Keyboard.addListener("keyboardDidShow", (event) => {
-      setKeyboardHeight(event.endCoordinates.height);
+      const nextKeyboardHeight = event.endCoordinates.height;
+      keyboardHeightRef.current = nextKeyboardHeight;
+      setKeyboardHeight(nextKeyboardHeight);
 
-      if (shouldScrollSmsFieldRef.current) {
-        if (smsFocusTimerRef.current) {
-          clearTimeout(smsFocusTimerRef.current);
-        }
-
-        smsFocusTimerRef.current = setTimeout(() => {
-          scrollViewRef.current?.scrollTo({
-            y: LOWER_FORM_SCROLL_TARGET_Y,
-            animated: true,
-          });
-        }, 80);
+      if (activeKeyboardTargetRef.current) {
+        scrollTargetAboveKeyboard(activeKeyboardTargetRef.current);
       }
     });
     const keyboardDidHide = Keyboard.addListener("keyboardDidHide", () => {
+      keyboardHeightRef.current = 0;
       setKeyboardHeight(0);
-      shouldScrollSmsFieldRef.current = false;
+      activeKeyboardTargetRef.current = null;
     });
 
     return () => {
       keyboardDidShow.remove();
       keyboardDidHide.remove();
-      if (smsFocusTimerRef.current) {
-        clearTimeout(smsFocusTimerRef.current);
-      }
     };
-  }, []);
+  }, [scrollTargetAboveKeyboard]);
 
   const handleSmsFieldFocus = useCallback((): void => {
-    shouldScrollSmsFieldRef.current = true;
-
-    if (smsFocusTimerRef.current) {
-      clearTimeout(smsFocusTimerRef.current);
-    }
-
-    smsFocusTimerRef.current = setTimeout(() => {
-      scrollViewRef.current?.scrollTo({
-        y: LOWER_FORM_SCROLL_TARGET_Y,
-        animated: true,
-      });
-    }, 250);
-  }, []);
+    scrollTargetAboveKeyboard(smsMatchingSectionRef);
+  }, [scrollTargetAboveKeyboard]);
 
   const handleBalanceFieldFocus = useCallback((): void => {
-    if (smsFocusTimerRef.current) {
-      clearTimeout(smsFocusTimerRef.current);
-    }
-
-    smsFocusTimerRef.current = setTimeout(() => {
-      scrollViewRef.current?.scrollTo({
-        y: BALANCE_FIELD_SCROLL_TARGET_Y,
-        animated: true,
-      });
-    }, 250);
-  }, []);
+    scrollTargetAboveKeyboard(balanceFieldRef);
+  }, [scrollTargetAboveKeyboard]);
 
   const { performUpdate, isSubmitting } = useUpdateAccount();
   const {
@@ -320,7 +323,7 @@ function EditAccountForm({
     } else {
       // No balance change, save directly
       performUpdate(account.id, data).catch((err: unknown) =>
-        console.error("[EditAccount] Save failed:", err)
+        logger.error("[EditAccount] Save failed", err)
       );
     }
   }, [
@@ -354,7 +357,7 @@ function EditAccountForm({
           : undefined;
 
       performUpdate(account.id, data, balanceAdjustment).catch((err: unknown) =>
-        console.error("[EditAccount] Save failed:", err)
+        logger.error("[EditAccount] Save failed", err)
       );
     },
     [buildUpdateData, currency, account.id, performUpdate]
@@ -393,6 +396,10 @@ function EditAccountForm({
       <ScrollView
         ref={scrollViewRef}
         className="flex-1"
+        onScroll={(event) => {
+          currentScrollYRef.current = event.nativeEvent.contentOffset.y;
+        }}
+        scrollEventThrottle={16}
         contentContainerStyle={{
           paddingBottom: bottomInset + 160,
         }}
@@ -449,17 +456,19 @@ function EditAccountForm({
             />
           )}
 
-          <TextField
-            label={t("balance")}
-            placeholder="0"
-            value={formData.balance}
-            onChangeText={(text) => {
-              updateField("balance", text);
-            }}
-            error={errors.balance}
-            keyboardType="numeric"
-            onFocus={handleBalanceFieldFocus}
-          />
+          <View ref={balanceFieldRef}>
+            <TextField
+              label={t("balance")}
+              placeholder="0"
+              value={formData.balance}
+              onChangeText={(text) => {
+                updateField("balance", text);
+              }}
+              error={errors.balance}
+              keyboardType="numeric"
+              onFocus={handleBalanceFieldFocus}
+            />
+          </View>
 
           {/* Default Account Toggle */}
           <TouchableOpacity
@@ -511,23 +520,25 @@ function EditAccountForm({
             </View>
           </TouchableOpacity>
 
-          <SmsMatchingSection
-            accountType={accountType}
-            institutionId={formData.institutionId ?? null}
-            senderNames={formData.senderNames ?? []}
-            cardLast4={formData.cardLast4 ?? ""}
-            cardLast4Error={errors.cardLast4}
-            expanded={isSmsMatchingExpanded}
-            onToggleExpanded={() =>
-              setIsSmsMatchingExpanded(!isSmsMatchingExpanded)
-            }
-            onSenderNamesChange={updateSenderNames}
-            onFieldFocus={handleSmsFieldFocus}
-            onCardLast4Change={(val) => {
-              const cleaned = val.replace(/\D/g, "").slice(0, 4);
-              updateField("cardLast4", cleaned);
-            }}
-          />
+          <View ref={smsMatchingSectionRef}>
+            <SmsMatchingSection
+              accountType={accountType}
+              institutionId={formData.institutionId ?? null}
+              senderNames={formData.senderNames ?? []}
+              cardLast4={formData.cardLast4 ?? ""}
+              cardLast4Error={errors.cardLast4}
+              expanded={isSmsMatchingExpanded}
+              onToggleExpanded={() =>
+                setIsSmsMatchingExpanded(!isSmsMatchingExpanded)
+              }
+              onSenderNamesChange={updateSenderNames}
+              onFieldFocus={handleSmsFieldFocus}
+              onCardLast4Change={(val) => {
+                const cleaned = val.replace(/\D/g, "").slice(0, 4);
+                updateField("cardLast4", cleaned);
+              }}
+            />
+          </View>
 
           {/* Danger Zone */}
           <View className="mt-8 rounded-2xl border border-red-200 dark:border-red-800/30 bg-red-50/50 dark:bg-red-900/10 p-4">
@@ -579,7 +590,7 @@ function EditAccountForm({
         visible={showDeleteSheet}
         onConfirm={() => {
           performDelete(account.id).catch((err: unknown) =>
-            console.error("[EditAccount] Delete failed:", err)
+            logger.error("[EditAccount] Delete failed", err)
           );
         }}
         onCancel={() => setShowDeleteSheet(false)}

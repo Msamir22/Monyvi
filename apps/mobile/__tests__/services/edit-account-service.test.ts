@@ -1125,6 +1125,36 @@ describe("edit-account-service", () => {
       expect(account.providerDisplayName).toBe("CIB");
     });
 
+    it("rejects institution ids that do not match the existing account type", async () => {
+      const account = seedAccount("acc-1", {
+        name: "Bank Account",
+        type: "BANK",
+        isBank: true,
+        institutionId: "cib",
+        providerDisplayName: "CIB",
+      });
+
+      const result = await updateAccountWithBalanceAdjustment(
+        "acc-1",
+        "user-1",
+        {
+          name: "Bank Account",
+          balance: 25,
+          isDefault: false,
+          institutionId: "vodafone-cash",
+          providerDisplayName: "Vodafone Cash",
+        },
+        null
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe(
+        EDIT_ACCOUNT_ERROR_CODES.INVALID_INSTITUTION_FOR_ACCOUNT_TYPE
+      );
+      expect(account.institutionId).toBe("cib");
+      expect(account.providerDisplayName).toBe("CIB");
+    });
+
     it("preserves unchanged sender rows when replacing account sender names", async () => {
       const existingSender = mockModel("sender-1", {
         accountId: "acc-1",

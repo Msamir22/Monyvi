@@ -1,8 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import {
-  getInstitutionById,
-  type SelectableEgyptianInstitutionId,
-} from "@monyvi/logic";
 import type { AccountType } from "@monyvi/db";
 import { LinearGradient } from "expo-linear-gradient";
 import type { JSX } from "react";
@@ -10,12 +6,16 @@ import { Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
 import { palette } from "@/constants/colors";
-import {
-  getEgyptianInstitutionAsset,
-  type InstitutionLogo,
-} from "@/constants/egyptian-institution-assets";
+import type { InstitutionLogo } from "@/constants/egyptian-institution-assets";
 import { InstitutionLogoMark } from "@/components/institutions/InstitutionLogoMark";
 import { useTheme } from "@/context/ThemeContext";
+import {
+  formatAccountPreviewBalance,
+  getAccountPreviewCardGradient,
+  getAccountPreviewFallbackIcon,
+  getAccountPreviewInstitutionLogo,
+  getAccountPreviewProviderName,
+} from "@/utils/account-preview-presentation";
 
 interface AccountPreviewCardProps {
   readonly accountType: AccountType;
@@ -24,55 +24,6 @@ interface AccountPreviewCardProps {
   readonly currency: string;
   readonly institutionId: string | null;
   readonly providerDisplayName: string;
-}
-
-function getFallbackIcon(
-  accountType: AccountType
-): keyof typeof Ionicons.glyphMap {
-  if (accountType === "BANK") {
-    return "business-outline";
-  }
-  if (accountType === "DIGITAL_WALLET") {
-    return "phone-portrait-outline";
-  }
-  return "cash-outline";
-}
-
-function getInstitutionKind(
-  accountType: AccountType
-): "bank" | "wallet" | null {
-  if (accountType === "BANK") {
-    return "bank";
-  }
-  if (accountType === "DIGITAL_WALLET") {
-    return "wallet";
-  }
-  return null;
-}
-
-function formatProviderName(
-  accountType: AccountType,
-  institutionId: string | null,
-  providerDisplayName: string,
-  translateAccountType: (accountType: AccountType) => string
-): string {
-  const institution =
-    institutionId === null ? null : getInstitutionById(institutionId);
-  if (institution?.selectable) {
-    return institution.shortName;
-  }
-  if (providerDisplayName.trim()) {
-    return providerDisplayName.trim();
-  }
-  return translateAccountType(accountType);
-}
-
-function formatBalance(balance: string): string {
-  const trimmed = balance.trim();
-  if (!trimmed) {
-    return "0";
-  }
-  return trimmed;
 }
 
 interface PreviewLogoProps {
@@ -90,69 +41,13 @@ function PreviewLogo({ accountType, logo }: PreviewLogoProps): JSX.Element {
       defaultSurfaceClassName="border-transparent bg-transparent"
       fallback={
         <Ionicons
-          name={getFallbackIcon(accountType)}
+          name={getAccountPreviewFallbackIcon(accountType)}
           size={24}
           color={palette.nileGreen[700]}
         />
       }
     />
   );
-}
-
-function getPreviewInstitutionLogo(
-  accountType: AccountType,
-  institutionId: string | null
-): InstitutionLogo | null {
-  const kind = getInstitutionKind(accountType);
-  const institution =
-    institutionId === null ? null : getInstitutionById(institutionId);
-  const selectableInstitutionId =
-    institutionId !== null &&
-    institution?.selectable &&
-    institution.type === kind
-      ? (institutionId as SelectableEgyptianInstitutionId)
-      : null;
-
-  if (kind === null) {
-    return null;
-  }
-
-  return getEgyptianInstitutionAsset(selectableInstitutionId, kind).logo;
-}
-
-function getPreviewCardGradient({
-  accountType,
-  logo,
-  isDark,
-}: {
-  readonly accountType: AccountType;
-  readonly logo: InstitutionLogo | null;
-  readonly isDark: boolean;
-}): readonly [string, string] {
-  const themeKey = isDark ? "dark" : "light";
-
-  if (logo?.presentation?.cardGradientByMode?.[themeKey]) {
-    return logo.presentation.cardGradientByMode[themeKey];
-  }
-
-  if (accountType === "BANK") {
-    return [
-      palette.blue[800],
-      isDark ? palette.slate[950] : palette.slate[800],
-    ];
-  }
-
-  if (accountType === "DIGITAL_WALLET") {
-    return [
-      palette.nileGreen[700],
-      isDark ? palette.slate[950] : palette.slate[800],
-    ];
-  }
-
-  return [
-    palette.nileGreen[700],
-    isDark ? palette.slate[950] : palette.nileGreen[800],
-  ];
 }
 
 export function AccountPreviewCard({
@@ -166,14 +61,14 @@ export function AccountPreviewCard({
   const { t } = useTranslation("accounts");
   const { isDark } = useTheme();
   const displayName = accountName.trim() || t("account_preview");
-  const providerName = formatProviderName(
+  const providerName = getAccountPreviewProviderName(
     accountType,
     institutionId,
     providerDisplayName,
     (type) => t(`account_type_${type.toLowerCase()}`)
   );
-  const logo = getPreviewInstitutionLogo(accountType, institutionId);
-  const gradient = getPreviewCardGradient({ accountType, logo, isDark });
+  const logo = getAccountPreviewInstitutionLogo(accountType, institutionId);
+  const gradient = getAccountPreviewCardGradient({ accountType, logo, isDark });
 
   return (
     <LinearGradient
@@ -212,7 +107,7 @@ export function AccountPreviewCard({
             {currency}
           </Text>
           <Text className="mt-0.5 text-lg font-black text-white">
-            {formatBalance(balance)}
+            {formatAccountPreviewBalance(balance)}
           </Text>
         </View>
       </View>

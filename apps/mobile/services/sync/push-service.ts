@@ -100,7 +100,11 @@ export async function pushChanges(
       const upsertRecords = async (
         records: ReadonlyArray<Record<string, unknown>>
       ): Promise<void> => {
-        for (const record of records) {
+        if (records.length === 0) {
+          return;
+        }
+
+        const transformedRecords = records.map((record) => {
           assertPushRecordBelongsToCurrentUser(
             table,
             record,
@@ -108,20 +112,20 @@ export async function pushChanges(
             childConfig,
             isDeletedRecord(record) ? deleteParentIds : activeParentIds
           );
-          const transformed = transformToSupabase(
+          return transformToSupabase(
             table,
             record,
             userId,
             isChildTable
           );
+        });
 
-          const { error } = await getSupabaseWriteTable(table).upsert(
-            transformed,
-            { onConflict: "id" }
-          );
-          if (error) {
-            throw createSyncTableError("upsert", table, error);
-          }
+        const { error } = await getSupabaseWriteTable(table).upsert(
+          transformedRecords,
+          { onConflict: "id" }
+        );
+        if (error) {
+          throw createSyncTableError("upsert", table, error);
         }
       };
 

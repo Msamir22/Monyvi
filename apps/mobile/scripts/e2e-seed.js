@@ -167,9 +167,9 @@ function readLocalSupabaseStatusEnv() {
 
 function resolveLocalSupabaseKeys(env, readStatusEnv) {
   const explicitAnonKey =
-    env.EXPO_PUBLIC_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY || env.ANON_KEY;
+    env.E2E_LOCAL_SUPABASE_ANON_KEY || env.E2E_LOCAL_ANON_KEY;
   const explicitServiceRoleKey =
-    env.SUPABASE_SERVICE_ROLE_KEY || env.SERVICE_ROLE_KEY;
+    env.E2E_LOCAL_SUPABASE_SERVICE_ROLE_KEY || env.E2E_LOCAL_SERVICE_ROLE_KEY;
 
   if (explicitAnonKey && explicitServiceRoleKey) {
     return { anonKey: explicitAnonKey, serviceRoleKey: explicitServiceRoleKey };
@@ -206,6 +206,14 @@ function resolveLocalSupabaseKeys(env, readStatusEnv) {
   return { anonKey, serviceRoleKey };
 }
 
+function getLocalSeedSupabaseUrl(env) {
+  return env.E2E_LOCAL_SUPABASE_URL || LOCAL_SUPABASE_URL;
+}
+
+function getLocalSeedAppSupabaseUrl(env) {
+  return env.E2E_LOCAL_APP_SUPABASE_URL || LOCAL_ANDROID_SUPABASE_URL;
+}
+
 function getE2eSeedConfig(env = process.env, options = {}) {
   const mode = env.E2E_SUPABASE_MODE === "remote" ? "remote" : "local";
   const isLocal = mode === "local";
@@ -220,25 +228,23 @@ function getE2eSeedConfig(env = process.env, options = {}) {
 
   return {
     mode,
-    supabaseUrl:
-      env.E2E_SUPABASE_URL ??
-      env.SUPABASE_URL ??
-      (isLocal
-        ? LOCAL_SUPABASE_URL
-        : requiredRemoteEnv(env, "EXPO_PUBLIC_SUPABASE_URL")),
+    supabaseUrl: isLocal
+      ? getLocalSeedSupabaseUrl(env)
+      : env.E2E_SUPABASE_URL ??
+        env.SUPABASE_URL ??
+        requiredRemoteEnv(env, "EXPO_PUBLIC_SUPABASE_URL"),
     appSupabaseUrl:
-      env.EXPO_PUBLIC_SUPABASE_URL ??
-      (isLocal ? LOCAL_ANDROID_SUPABASE_URL : env.E2E_SUPABASE_URL),
-    serviceRoleKey:
-      env.SUPABASE_SERVICE_ROLE_KEY ??
-      (isLocal
-        ? localKeys.serviceRoleKey
-        : requiredRemoteEnv(env, "SUPABASE_SERVICE_ROLE_KEY")),
-    anonKey:
-      env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??
-      (isLocal
-        ? localKeys.anonKey
-        : requiredRemoteEnv(env, "EXPO_PUBLIC_SUPABASE_ANON_KEY")),
+      isLocal
+        ? getLocalSeedAppSupabaseUrl(env)
+        : env.EXPO_PUBLIC_SUPABASE_URL ?? env.E2E_SUPABASE_URL,
+    serviceRoleKey: isLocal
+      ? localKeys.serviceRoleKey
+      : env.SUPABASE_SERVICE_ROLE_KEY ??
+        requiredRemoteEnv(env, "SUPABASE_SERVICE_ROLE_KEY"),
+    anonKey: isLocal
+      ? localKeys.anonKey
+      : env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??
+        requiredRemoteEnv(env, "EXPO_PUBLIC_SUPABASE_ANON_KEY"),
     email:
       env.MAESTRO_E2E_EMAIL ??
       (isLocal

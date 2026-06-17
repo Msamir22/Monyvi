@@ -171,6 +171,7 @@
   "validation_initial_balance_non_negative": "لا يمكن أن يكون الرصيد الأولي سالباً",
   "validation_bank_name_max": "يجب أن يكون اسم البنك أقل من 50 حرفاً",
   "validation_institution_id_required": "اختر البنك أو المحفظة أو اكتب الاسم",
+  "validation_institution_invalid_for_type": "اختر بنكًا أو محفظة مناسبة لنوع الحساب",
   "validation_provider_display_name_max": "يجب أن يكون اسم البنك أو المحفظة أقل من 100 حرف",
   "validation_card_last_4": "يجب أن يكون 4 أرقام بالضبط",
   "validation_sms_sender_name_max": "يجب أن يكون اسم مرسل الرسائل أقل من 100 حرف",

@@ -44,9 +44,9 @@ describe("SenderChipsField", () => {
       "className",
       expect.stringContaining("dark:text-text-primary-dark")
     );
-    expect(screen.getByText("x")).toHaveProp(
-      "className",
-      expect.stringContaining("dark:text-slate-300")
+    expect(screen.getByLabelText("Remove CIB")).toHaveProp(
+      "accessibilityRole",
+      "button"
     );
     expect(screen.getByPlaceholderText("Add sender")).toHaveProp(
       "className",

@@ -58,14 +58,37 @@ describe("e2e-seed script helpers", () => {
   it("uses explicit local Supabase keys without requiring the local JWT secret", () => {
     const config = getE2eSeedConfig({
       E2E_SUPABASE_MODE: "local",
-      EXPO_PUBLIC_SUPABASE_ANON_KEY: "anon-key",
-      SUPABASE_SERVICE_ROLE_KEY: "service-role-key",
+      E2E_LOCAL_SUPABASE_ANON_KEY: "anon-key",
+      E2E_LOCAL_SUPABASE_SERVICE_ROLE_KEY: "service-role-key",
       MAESTRO_E2E_EMAIL: "e2e@monyvi.test",
       MAESTRO_E2E_PASSWORD: "Password123!",
     });
 
     expect(config.anonKey).toBe("anon-key");
     expect(config.serviceRoleKey).toBe("service-role-key");
+  });
+
+  it("ignores remote Supabase env vars when local mode reads local status", () => {
+    const config = getE2eSeedConfig(
+      {
+        E2E_SUPABASE_MODE: "local",
+        EXPO_PUBLIC_SUPABASE_URL: "https://remote-project.supabase.co",
+        EXPO_PUBLIC_SUPABASE_ANON_KEY: "remote-anon-key",
+        SUPABASE_SERVICE_ROLE_KEY: "remote-service-role-key",
+      },
+      {
+        readLocalSupabaseStatusEnv: () =>
+          [
+            'ANON_KEY="local-anon-key"',
+            'SERVICE_ROLE_KEY="local-service-role-key"',
+          ].join("\n"),
+      }
+    );
+
+    expect(config.supabaseUrl).toBe("http://127.0.0.1:54321");
+    expect(config.appSupabaseUrl).toBe("http://10.0.2.2:54321");
+    expect(config.anonKey).toBe("local-anon-key");
+    expect(config.serviceRoleKey).toBe("local-service-role-key");
   });
 
   it("requires explicit service role and credentials for remote Supabase mode", () => {

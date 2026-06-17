@@ -268,6 +268,29 @@ describe("useEditAccountForm", () => {
     await flushAct();
   });
 
+  it("keeps custom sender names when re-selecting the same known provider", () => {
+    const bankAccount = createAccount({
+      type: "BANK",
+      institutionId: "cib",
+      providerDisplayName: "CIB",
+    });
+    const { result } = renderHook(() =>
+      useEditAccountForm(bankAccount, {
+        bankName: "CIB",
+        cardLast4: "",
+        smsSenderNames: ["CIBCUSTOM"],
+      })
+    );
+
+    act(() => {
+      result.current.selectKnownInstitution("cib");
+    });
+
+    expect(result.current.formData.institutionId).toBe("cib");
+    expect(result.current.formData.providerDisplayName).toBe("CIB");
+    expect(result.current.formData.senderNames).toEqual(["CIBCUSTOM"]);
+  });
+
   it("marks the form dirty when all sender names are removed", () => {
     const walletAccount = createAccount({
       type: "DIGITAL_WALLET",

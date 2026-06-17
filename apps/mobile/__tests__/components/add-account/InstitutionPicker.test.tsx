@@ -1,7 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react-native";
 import { getSelectableEgyptianInstitutions } from "@monyvi/logic";
 
-import { InstitutionPicker } from "../../../components/add-account/InstitutionPicker";
+import {
+  InstitutionPicker,
+  getInstitutionPickerLogoTestId,
+} from "../../../components/add-account/InstitutionPicker";
 import { palette } from "../../../constants/colors";
 
 interface InstitutionLabelFixture {
@@ -137,9 +140,8 @@ describe("InstitutionPicker", () => {
     expect(
       screen.getByText("CIB (Commercial International Bank)")
     ).toBeTruthy();
-    expect(
-      screen.getByTestId("CIB (Commercial International Bank) logo")
-    ).toBeTruthy();
+    expect(screen.getByTestId(getInstitutionPickerLogoTestId("bank", "cib")))
+      .toBeTruthy();
     expect(screen.queryByText("Vodafone Cash")).toBeNull();
   });
 
@@ -159,7 +161,11 @@ describe("InstitutionPicker", () => {
 
     expect(screen.getByText("Wallet")).toBeTruthy();
     expect(screen.getByText("Vodafone Cash")).toBeTruthy();
-    expect(screen.getByTestId("Vodafone Cash logo")).toBeTruthy();
+    expect(
+      screen.getByTestId(
+        getInstitutionPickerLogoTestId("wallet", "vodafone-cash")
+      )
+    ).toBeTruthy();
     expect(screen.getByText("e& money")).toBeTruthy();
     expect(
       screen.queryByText("CIB (Commercial International Bank)")
@@ -252,19 +258,35 @@ describe("InstitutionPicker", () => {
 
     fireEvent.press(screen.getByLabelText("Choose wallet"));
 
-    expect(screen.getByTestId("Vodafone Cash logo")).toHaveProp(
+    expect(
+      screen.getByTestId(
+        getInstitutionPickerLogoTestId("wallet", "vodafone-cash")
+      )
+    ).toHaveProp(
       "className",
       expect.stringContaining("h-12 w-16")
     );
-    expect(screen.getByTestId("Vodafone Cash logo")).toHaveProp(
+    expect(
+      screen.getByTestId(
+        getInstitutionPickerLogoTestId("wallet", "vodafone-cash")
+      )
+    ).toHaveProp(
       "className",
       expect.stringContaining("bg-transparent")
     );
-    expect(screen.getByTestId("Vodafone Cash logo")).toHaveProp(
+    expect(
+      screen.getByTestId(
+        getInstitutionPickerLogoTestId("wallet", "vodafone-cash")
+      )
+    ).toHaveProp(
       "className",
       expect.not.stringContaining("dark:bg-white")
     );
-    expect(screen.getByTestId("Vodafone Cash logo")).toHaveProp(
+    expect(
+      screen.getByTestId(
+        getInstitutionPickerLogoTestId("wallet", "vodafone-cash")
+      )
+    ).toHaveProp(
       "className",
       expect.stringContaining("overflow-hidden")
     );
@@ -283,45 +305,53 @@ describe("InstitutionPicker", () => {
     fireEvent.press(screen.getByLabelText("Choose bank"));
     fireEvent.changeText(screen.getByPlaceholderText("Search"), "NBK");
 
-    const label = "NBK Egypt (National Bank of Kuwait - Egypt)";
-
-    expect(screen.getByTestId(`${label} logo`)).toHaveProp(
+    expect(
+      screen.getByTestId(getInstitutionPickerLogoTestId("bank", "nbk-egypt"))
+    ).toHaveProp(
       "className",
       expect.stringContaining("h-12 w-16")
     );
-    expect(screen.getByTestId(`${label} logo image`)).toHaveProp(
-      "resizeMode",
-      "cover"
-    );
+    expect(
+      screen.getByTestId(
+        `${getInstitutionPickerLogoTestId("bank", "nbk-egypt")} image`
+      )
+    ).toHaveProp("resizeMode", "cover");
   });
 
   it("renders edge-sensitive bank logos inside the fixed row viewport", () => {
     const edgeSensitiveBanks = [
       {
+        id: "suez-canal-bank",
         search: "SC Bank",
         label: "SC Bank (Suez Canal Bank)",
       },
       {
+        id: "kfh-egypt",
         search: "KFH Egypt",
         label: "KFH Egypt",
       },
       {
+        id: "fab-misr",
         search: "FAB Misr",
         label: "FAB Misr (First Abu Dhabi Bank Misr)",
       },
       {
+        id: "credit-agricole-egypt",
         search: "Credit Agricole",
         label: "Credit Agricole",
       },
       {
+        id: "bank-nxt",
         search: "Bank NXT",
         label: "Bank NXT",
       },
       {
+        id: "abk-egypt",
         search: "ABK Egypt",
         label: "ABK Egypt (Al Ahli Bank of Kuwait - Egypt)",
       },
       {
+        id: "agricultural-bank-of-egypt",
         search: "ABE",
         label: "ABE (Agricultural Bank of Egypt)",
       },
@@ -342,7 +372,9 @@ describe("InstitutionPicker", () => {
       fireEvent.changeText(screen.getByPlaceholderText("Search"), bank.search);
 
       expect(screen.getByText(bank.label)).toBeTruthy();
-      expect(screen.getByTestId(`${bank.label} logo`)).toHaveProp(
+      expect(
+        screen.getByTestId(getInstitutionPickerLogoTestId("bank", bank.id))
+      ).toHaveProp(
         "className",
         expect.stringContaining("h-12 w-16")
       );
@@ -352,22 +384,27 @@ describe("InstitutionPicker", () => {
   it("keeps light-mode dropdown logos transparent unless a row surface is required", () => {
     const surfaceFixtures = [
       {
+        id: "adcb-egypt",
         search: "ADCB",
         label: "ADCB (Abu Dhabi Commercial Bank Egypt)",
       },
       {
+        id: "arab-international-bank",
         search: "AIB",
         label: "AIB (Arab International Bank)",
       },
       {
+        id: "bank-nxt",
         search: "Bank NXT",
         label: "Bank NXT",
       },
       {
+        id: "hdb-egypt",
         search: "HDB",
         label: "HDB (Housing and Development Bank)",
       },
       {
+        id: "qnb-egypt",
         search: "QNB",
         label: "QNB",
       },
@@ -391,9 +428,9 @@ describe("InstitutionPicker", () => {
       );
 
       expect(screen.getByText(fixture.label)).toBeTruthy();
-      expect(screen.getByTestId(`${fixture.label} logo`)).not.toHaveProp(
-        "style"
-      );
+      expect(
+        screen.getByTestId(getInstitutionPickerLogoTestId("bank", fixture.id))
+      ).not.toHaveProp("style");
     }
   });
 
@@ -413,21 +450,25 @@ describe("InstitutionPicker", () => {
 
     const contrastFixtures = [
       {
+        id: "qnb-egypt",
         search: "QNB",
         label: "QNB",
         expectsContrastSurface: true,
       },
       {
+        id: "adcb-egypt",
         search: "ADCB",
         label: "ADCB (Abu Dhabi Commercial Bank Egypt)",
         expectsContrastSurface: true,
       },
       {
+        id: "bank-nxt",
         search: "Bank NXT",
         label: "Bank NXT",
         expectsContrastSurface: false,
       },
       {
+        id: "nasser-social-bank",
         search: "Nasser Social",
         label: "Nasser Social Bank",
         expectsContrastSurface: true,
@@ -442,7 +483,11 @@ describe("InstitutionPicker", () => {
 
       expect(screen.getByText(fixture.label)).toBeTruthy();
       if (fixture.expectsContrastSurface) {
-        expect(screen.getByTestId(`${fixture.label} logo`)).toHaveProp(
+        expect(
+          screen.getByTestId(
+            getInstitutionPickerLogoTestId("bank", fixture.id)
+          )
+        ).toHaveProp(
           "style",
           expect.objectContaining({
             backgroundColor: palette.slate[25],
@@ -450,9 +495,11 @@ describe("InstitutionPicker", () => {
           })
         );
       } else {
-        expect(screen.getByTestId(`${fixture.label} logo`)).not.toHaveProp(
-          "style"
-        );
+        expect(
+          screen.getByTestId(
+            getInstitutionPickerLogoTestId("bank", fixture.id)
+          )
+        ).not.toHaveProp("style");
       }
     }
   });
@@ -473,7 +520,9 @@ describe("InstitutionPicker", () => {
     fireEvent.changeText(screen.getByPlaceholderText("Search"), "WE");
 
     expect(screen.getByText("WE Pay")).toBeTruthy();
-    expect(screen.getByTestId("WE Pay logo")).toHaveProp(
+    expect(
+      screen.getByTestId(getInstitutionPickerLogoTestId("wallet", "we-pay"))
+    ).toHaveProp(
       "style",
       expect.objectContaining({
         backgroundColor: palette.slate[25],
@@ -500,7 +549,11 @@ describe("InstitutionPicker", () => {
     const label = "AIB (Arab International Bank)";
 
     expect(screen.getByText(label)).toBeTruthy();
-    expect(screen.getByTestId(`${label} logo`)).not.toHaveProp("style");
+    expect(
+      screen.getByTestId(
+        getInstitutionPickerLogoTestId("bank", "arab-international-bank")
+      )
+    ).not.toHaveProp("style");
   });
 
   it("renders NBE inside the fixed row viewport", () => {
@@ -519,11 +572,15 @@ describe("InstitutionPicker", () => {
     const label = "NBE (National Bank of Egypt)";
 
     expect(screen.getByText(label)).toBeTruthy();
-    expect(screen.getByTestId(`${label} logo`)).toHaveProp(
+    expect(
+      screen.getByTestId(getInstitutionPickerLogoTestId("bank", "nbe"))
+    ).toHaveProp(
       "className",
       expect.stringContaining("h-12 w-16")
     );
-    expect(screen.getByTestId(`${label} logo`)).not.toHaveProp("style");
+    expect(
+      screen.getByTestId(getInstitutionPickerLogoTestId("bank", "nbe"))
+    ).not.toHaveProp("style");
   });
 
   it("adds bottom safe-area space so Other stays above Android navigation", () => {
@@ -565,7 +622,8 @@ describe("InstitutionPicker", () => {
       const label = getExpectedInstitutionLabel(bank);
 
       expect(screen.getByText(label)).toBeTruthy();
-      expect(screen.getByTestId(`${label} logo`)).toBeTruthy();
+      expect(screen.getByTestId(getInstitutionPickerLogoTestId("bank", bank.id)))
+        .toBeTruthy();
     }
   });
 
@@ -589,7 +647,9 @@ describe("InstitutionPicker", () => {
       const label = getExpectedInstitutionLabel(wallet);
 
       expect(screen.getByText(label)).toBeTruthy();
-      expect(screen.getByTestId(`${label} logo`)).toBeTruthy();
+      expect(
+        screen.getByTestId(getInstitutionPickerLogoTestId("wallet", wallet.id))
+      ).toBeTruthy();
     }
   });
 

@@ -220,7 +220,7 @@ function AccountCard({ data, cardWidth }: AccountCardProps): React.JSX.Element {
             }
           />
 
-          <View className="absolute end-0 top-0 w-13 items-center rounded-full border border-slate-950 bg-white px-1 py-0.5">
+          <View className="absolute end-0 top-0 w-14 items-center rounded-full border border-slate-950 bg-white px-1 py-0.5">
             <Text
               className="text-[9px] font-bold uppercase"
               numberOfLines={1}

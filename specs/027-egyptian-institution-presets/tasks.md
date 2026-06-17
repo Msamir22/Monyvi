@@ -296,7 +296,7 @@ state is preserved.
 
 - [x] T054 [P] [US4] Add failing explainer component tests for
       open/dismiss/outside-tap behavior and no native Alert usage in
-      `apps/mobile/__tests__/components/add-account/WhyInstitutionDetailsSheet.test.tsx`
+      `apps/mobile/__tests__/components/add-account/InstitutionProviderSection.test.tsx`
 - [x] T055 [P] [US4] Add failing account form UI tests for info control presence
       in create and edit flows in
       `apps/mobile/__tests__/app/add-account-institution-info.test.tsx` and
@@ -308,8 +308,8 @@ state is preserved.
 
 ### Implementation for User Story 4
 
-- [x] T057 [US4] Implement the Monyvi-owned provider details explainer popover
-      in `apps/mobile/components/add-account/WhyInstitutionDetailsSheet.tsx`
+- [x] T057 [US4] Implement the Monyvi-owned provider details explainer tooltip
+      in `apps/mobile/components/add-account/InstitutionProviderSection.tsx`
 - [x] T058 [US4] Add the explainer info control to the provider-and-senders
       section in
       `apps/mobile/components/add-account/InstitutionProviderSection.tsx`
@@ -347,7 +347,11 @@ state is preserved.
       `apps/mobile/locales/en/accounts.json` and
       `apps/mobile/locales/ar/accounts.json`
 - [ ] T067 Run and fix issues from Maestro account journeys in
-      `apps/mobile/e2e/maestro/accounts/egyptian-institution-presets.yaml`
+      `apps/mobile/e2e/maestro/accounts/egyptian-institution-presets.yaml`.
+      Latest focused attempts updated the flow for the searchable provider
+      picker, then blocked before assertions on the local Maestro/emulator
+      runner preflight and Android driver startup. Treat as runner validation
+      pending, not an app assertion failure.
 - [x] T068 Complete the PR coverage matrix mapping quickstart manual scenarios,
       90-second timing checks, automated tests, and manual-only checks in
       `specs/027-egyptian-institution-presets/quickstart.md`
