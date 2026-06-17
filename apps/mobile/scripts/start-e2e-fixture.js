@@ -5,11 +5,19 @@ function resolveNpxCommand() {
   return process.platform === "win32" ? "npx.cmd" : "npx";
 }
 
+function hasExplicitSupabaseAppEnv(baseEnv) {
+  return Boolean(
+    baseEnv.EXPO_PUBLIC_SUPABASE_URL && baseEnv.EXPO_PUBLIC_SUPABASE_ANON_KEY
+  );
+}
+
 function buildE2eFixtureEnv(baseEnv = process.env) {
-  const config = getE2eSeedConfig({
-    ...baseEnv,
-    E2E_SUPABASE_MODE: "local",
-  });
+  const config = hasExplicitSupabaseAppEnv(baseEnv)
+    ? null
+    : getE2eSeedConfig({
+        ...baseEnv,
+        E2E_SUPABASE_MODE: "local",
+      });
 
   return {
     ...baseEnv,

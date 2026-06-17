@@ -78,7 +78,6 @@ export function AccountPreviewCard({
       className="mb-5 overflow-hidden rounded-[30px] px-5 py-4"
       style={{
         borderColor: `${palette.slate[25]}33`,
-        borderRadius: 30,
         borderWidth: 1,
         elevation: 4,
         shadowColor: palette.slate[950],

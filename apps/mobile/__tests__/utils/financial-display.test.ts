@@ -13,6 +13,16 @@ describe("financial display helpers", () => {
     ).toBe("1,234.50 EGP");
   });
 
+  it("does not force maximum fraction digits as a minimum", () => {
+    expect(
+      formatAccountBalance({
+        balance: 1234,
+        currency: "EGP",
+        maximumFractionDigits: 4,
+      })
+    ).toBe("1,234 EGP");
+  });
+
   it("formats expense transactions with a negative sign", () => {
     expect(
       formatSignedTransactionAmount({

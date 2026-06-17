@@ -397,7 +397,9 @@ export async function updateAccountWithinWriter(
       existingAccount.type
     )
   ) {
-    throw new Error(EDIT_ACCOUNT_ERROR_CODES.INVALID_INSTITUTION_FOR_ACCOUNT_TYPE);
+    throw new Error(
+      EDIT_ACCOUNT_ERROR_CODES.INVALID_INSTITUTION_FOR_ACCOUNT_TYPE
+    );
   }
 
   const previousBalance = existingAccount.balance;
@@ -430,12 +432,10 @@ export async function updateAccountWithinWriter(
       acc.institutionId = data.institutionId?.trim() || undefined;
     }
 
-    if (
-      hasOwnDataField(data, "providerDisplayName") ||
-      hasOwnDataField(data, "bankName")
-    ) {
-      acc.providerDisplayName =
-        data.providerDisplayName?.trim() || data.bankName?.trim() || undefined;
+    if (hasOwnDataField(data, "providerDisplayName")) {
+      acc.providerDisplayName = data.providerDisplayName?.trim() || undefined;
+    } else if (hasOwnDataField(data, "bankName")) {
+      acc.providerDisplayName = data.bankName?.trim() || undefined;
     }
   });
 

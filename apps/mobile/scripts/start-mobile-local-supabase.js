@@ -98,7 +98,11 @@ function parseCliArgs(args) {
     }
 
     if (arg === "--password") {
-      password = args[index + 1] ?? null;
+      const nextArg = args[index + 1] ?? null;
+      if (!nextArg || nextArg.startsWith("--")) {
+        throw new Error("--password requires a value");
+      }
+      password = nextArg;
       index += 1;
       continue;
     }

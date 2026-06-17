@@ -1,7 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react-native";
 
 import { AccountTypeSelector } from "../../../components/add-account/AccountTypeSelector";
-import { InstitutionPicker } from "../../../components/add-account/InstitutionPicker";
+import {
+  getInstitutionPickerLogoTestId,
+  InstitutionPicker,
+} from "../../../components/add-account/InstitutionPicker";
 import { SmsMatchingSection } from "../../../components/add-account/SmsMatchingSection";
 
 jest.mock("@/context/ThemeContext", () => ({
@@ -115,7 +118,7 @@ describe("add account dark mode", () => {
       expect.stringContaining("dark:text-text-primary-dark")
     );
     expect(
-      screen.getByTestId("ADCB (Abu Dhabi Commercial Bank Egypt) logo")
+      screen.getByTestId(getInstitutionPickerLogoTestId("bank", "adcb-egypt"))
     ).toHaveProp("className", expect.stringContaining("bg-transparent"));
   });
 });

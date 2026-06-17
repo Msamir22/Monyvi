@@ -69,13 +69,13 @@ function CurrencyRow({
             {item.name}
           </Text>
         </View>
-        {isSelected && (
+        <View className="w-6 items-center">
           <Ionicons
             name="checkmark-circle"
             size={22}
-            color={palette.nileGreen[500]}
+            color={isSelected ? palette.nileGreen[500] : "transparent"}
           />
-        )}
+        </View>
         <Text className="text-sm text-slate-400 dark:text-slate-500 me-2">
           {item.symbol}
         </Text>

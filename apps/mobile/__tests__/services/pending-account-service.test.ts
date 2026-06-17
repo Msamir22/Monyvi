@@ -84,6 +84,16 @@ jest.mock("@/services/user-data-access", () => ({
   })),
 }));
 
+jest.mock("i18next", () => ({
+  t: jest.fn(
+    (
+      _key: string,
+      values: { readonly name: string; readonly currency: string }
+    ): string =>
+      `An account named ${values.name} already exists in ${values.currency}`
+  ),
+}));
+
 import {
   persistPendingAccounts,
   type PendingAccount,

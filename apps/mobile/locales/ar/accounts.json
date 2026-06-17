@@ -175,6 +175,7 @@
   "validation_provider_display_name_max": "يجب أن يكون اسم البنك أو المحفظة أقل من 100 حرف",
   "validation_card_last_4": "يجب أن يكون 4 أرقام بالضبط",
   "validation_sms_sender_name_max": "يجب أن يكون اسم مرسل الرسائل أقل من 100 حرف",
+  "pending_account_type_conflict": "يوجد حساب باسم {{name}} بعملة {{currency}}. غيّر اسم الحساب المكتشف أو اختر الحساب الموجود.",
   "toast_create_session_required_title": "تسجيل الدخول مطلوب",
   "toast_create_session_required_message": "يجب تسجيل الدخول لإنشاء حساب",
   "toast_create_duplicate_title": "الحساب موجود بالفعل",

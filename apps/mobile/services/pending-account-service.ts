@@ -25,6 +25,7 @@ import {
   type CurrencyType,
 } from "@monyvi/db";
 import { Q } from "@nozbe/watermelondb";
+import { t } from "i18next";
 import { getCurrentUserId } from "./supabase";
 import { queryOwned } from "./user-data-access";
 
@@ -156,7 +157,10 @@ async function persistPendingAccounts(
         existingNameCurrencyMatch.type !== pending.type
       ) {
         errors.push(
-          `An account named "${pending.name}" already exists for ${pending.currency}. Rename the detected bank account or select the existing account manually.`
+          t("accounts:pending_account_type_conflict", {
+            name: pending.name,
+            currency: pending.currency,
+          })
         );
         break;
       }

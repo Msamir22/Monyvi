@@ -329,6 +329,7 @@ interface AccountsTranslations {
   readonly default_account_description: string;
   readonly delete_account: string;
   readonly delete_account_warning: string;
+  readonly pending_account_type_conflict: string;
   readonly account_type_bank: string;
   readonly account_type_digital_wallet: string;
   readonly account_type_cash: string;

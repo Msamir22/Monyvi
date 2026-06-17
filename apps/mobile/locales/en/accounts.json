@@ -155,6 +155,7 @@
   "validation_provider_display_name_max": "Bank or wallet name must be less than 100 characters",
   "validation_card_last_4": "Must be exactly 4 digits",
   "validation_sms_sender_name_max": "SMS sender name must be less than 100 characters",
+  "pending_account_type_conflict": "An account named {{name}} already exists in {{currency}}. Rename the detected account or choose the existing one.",
   "toast_create_session_required_title": "Session required",
   "toast_create_session_required_message": "You must be signed in to create an account",
   "toast_create_duplicate_title": "Account already exists",

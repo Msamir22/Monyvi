@@ -126,6 +126,16 @@ describe("start-mobile-local-supabase script helpers", () => {
     });
   });
 
+  it("rejects a password flag without a value", () => {
+    expect(() =>
+      startMobileLocalSupabase.parseCliArgs([
+        "--wireless-device",
+        "--password",
+        "--clear",
+      ])
+    ).toThrow("--password requires a value");
+  });
+
   it("preserves the existing manual QA password in wireless-device mode by default", () => {
     expect(
       startMobileLocalSupabase.buildManualQaSeedEnv(null, {})

@@ -1125,6 +1125,30 @@ describe("edit-account-service", () => {
       expect(account.providerDisplayName).toBe("CIB");
     });
 
+    it("respects an explicit provider display name clear", async () => {
+      const account = seedAccount("acc-1", {
+        name: "Bank Account",
+        type: "BANK",
+        isBank: true,
+        providerDisplayName: "Legacy Bank",
+      });
+
+      await updateAccountWithBalanceAdjustment(
+        "acc-1",
+        "user-1",
+        {
+          name: "Bank Account",
+          balance: 25,
+          isDefault: false,
+          bankName: "Legacy Bank",
+          providerDisplayName: "",
+        },
+        null
+      );
+
+      expect(account.providerDisplayName).toBeUndefined();
+    });
+
     it("rejects institution ids that do not match the existing account type", async () => {
       const account = seedAccount("acc-1", {
         name: "Bank Account",

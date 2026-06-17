@@ -18,8 +18,7 @@ export function formatAccountBalance(account: AccountBalanceInput): string {
   return formatCurrency({
     amount: account.balance,
     currency: account.currency,
-    minimumFractionDigits:
-      account.minimumFractionDigits ?? account.maximumFractionDigits,
+    minimumFractionDigits: account.minimumFractionDigits,
     maximumFractionDigits: account.maximumFractionDigits,
   });
 }
