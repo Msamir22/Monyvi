@@ -101,6 +101,7 @@ jobs:
       E2E_SUPABASE_MODE: local
       EXPO_PUBLIC_MONYVI_TEST_MODE: e2e
       EXPO_PUBLIC_AI_SMS_PARSER_MODE: fixture
+      E2E_PREFLIGHT_ATTEMPT_TIMEOUT_MS: 600000
       ANDROID_SERIAL: emulator-5554
     steps:
       - name: Checkout code
