@@ -175,6 +175,25 @@ describe("InstitutionPicker", () => {
     expect(onSelectOther).toHaveBeenCalledTimes(1);
   });
 
+  it("does not clear manual provider data when the selected Other row is tapped again", () => {
+    const onSelectOther = jest.fn();
+
+    render(
+      <InstitutionPicker
+        type="bank"
+        selectedInstitutionId={null}
+        isOtherSelected={true}
+        onSelectInstitution={jest.fn()}
+        onSelectOther={onSelectOther}
+      />
+    );
+
+    fireEvent.press(screen.getByLabelText("Choose bank"));
+    fireEvent.press(screen.getAllByText("Other")[1]);
+
+    expect(onSelectOther).not.toHaveBeenCalled();
+  });
+
   it("filters providers by search text", () => {
     render(
       <InstitutionPicker

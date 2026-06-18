@@ -16,7 +16,7 @@ appId: com.monyvi.app
 
 # Known bank: selecting a preset should save with registry sender matching handled internally.
 - tapOn:
-    id: "header-right-action"
+    id: "accounts-add-button"
 - extendedWaitUntil:
     visible: "Add Account"
     timeout: 30000
@@ -57,7 +57,7 @@ appId: com.monyvi.app
 
 # Known wallet: separate wallet picker should show wallet providers and save in <= 90s.
 - tapOn:
-    id: "header-right-action"
+    id: "accounts-add-button"
 - extendedWaitUntil:
     visible: "Add Account"
     timeout: 30000
@@ -98,7 +98,7 @@ appId: com.monyvi.app
 
 # Other bank: user can bypass presets and enter free-text provider/sender values.
 - tapOn:
-    id: "header-right-action"
+    id: "accounts-add-button"
 - extendedWaitUntil:
     visible: "Add Account"
     timeout: 30000
@@ -140,7 +140,7 @@ appId: com.monyvi.app
 
 # Other wallet: user can bypass wallet presets and enter free-text provider/sender values.
 - tapOn:
-    id: "header-right-action"
+    id: "accounts-add-button"
 - extendedWaitUntil:
     visible: "Add Account"
     timeout: 30000
@@ -182,7 +182,7 @@ appId: com.monyvi.app
 
 # Account-type switch during create: Bank picker changes to wallet picker and clears provider choice.
 - tapOn:
-    id: "header-right-action"
+    id: "accounts-add-button"
 - extendedWaitUntil:
     visible: "Add Account"
     timeout: 30000

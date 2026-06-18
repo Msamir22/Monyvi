@@ -210,6 +210,7 @@ export default function Accounts(): ReactElement {
         rightAction={{
           icon: "add",
           onPress: handleAddAccount,
+          testID: "accounts-add-button",
         }}
       />
 

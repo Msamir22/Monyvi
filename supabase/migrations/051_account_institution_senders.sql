@@ -98,20 +98,26 @@ INSERT INTO public.account_sms_senders (
   updated_at,
   deleted
 )
-SELECT DISTINCT ON (bank_details.account_id, lower(btrim(bank_details.sms_sender_name)))
-  bank_details.account_id,
-  btrim(bank_details.sms_sender_name),
-  lower(btrim(bank_details.sms_sender_name)),
+SELECT DISTINCT ON (legacy_senders.account_id, legacy_senders.normalized_sender_name)
+  legacy_senders.account_id,
+  legacy_senders.sender_name,
+  legacy_senders.normalized_sender_name,
   now(),
   now(),
   false
-FROM public.bank_details AS bank_details
-JOIN public.accounts AS account
-  ON account.id = bank_details.account_id
-WHERE bank_details.deleted = false
-  AND account.deleted = false
-  AND bank_details.sms_sender_name IS NOT NULL
-  AND btrim(bank_details.sms_sender_name) <> ''
+FROM (
+  SELECT
+    bank_details.account_id,
+    regexp_replace(btrim(bank_details.sms_sender_name), '\s+', ' ', 'g') AS sender_name,
+    lower(regexp_replace(btrim(bank_details.sms_sender_name), '\s+', ' ', 'g')) AS normalized_sender_name
+  FROM public.bank_details AS bank_details
+  JOIN public.accounts AS account
+    ON account.id = bank_details.account_id
+  WHERE bank_details.deleted = false
+    AND account.deleted = false
+    AND bank_details.sms_sender_name IS NOT NULL
+    AND btrim(bank_details.sms_sender_name) <> ''
+) AS legacy_senders
 ON CONFLICT (account_id, normalized_sender_name)
   WHERE deleted = false
   DO NOTHING;

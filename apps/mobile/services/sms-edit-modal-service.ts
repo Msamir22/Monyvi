@@ -64,6 +64,11 @@ interface BuildTransactionEditsInput {
   readonly note?: string;
 }
 
+interface AccountDuplicateIdentity {
+  readonly institutionId?: string | null;
+  readonly providerDisplayName?: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -77,16 +82,27 @@ function isDuplicateAccount(
   name: string,
   currency: string,
   accounts: readonly AccountWithBankDetails[],
-  pendingAccounts: readonly PendingAccount[]
+  pendingAccounts: readonly PendingAccount[],
+  candidateIdentity: AccountDuplicateIdentity = {}
 ): boolean {
-  const normalize = (value: string): string => value.trim().toLowerCase();
-  const normalized = normalize(name);
-  if (!normalized) return false;
+  const candidateKey = buildAccountDuplicateKey({
+    name,
+    currency,
+    ...candidateIdentity,
+  });
+  if (!candidateKey) return false;
+
   const existsInAccounts = accounts.some(
-    (acc) => normalize(acc.name) === normalized && acc.currency === currency
+    (acc) =>
+      buildAccountDuplicateKey({
+        name: acc.name,
+        currency: acc.currency,
+        institutionId: acc.institutionId,
+        providerDisplayName: acc.bankName,
+      }) === candidateKey
   );
   const existsInPending = pendingAccounts.some(
-    (pa) => normalize(pa.name) === normalized && pa.currency === currency
+    (pa) => buildAccountDuplicateKey(pa) === candidateKey
   );
   return existsInAccounts || existsInPending;
 }
@@ -139,6 +155,27 @@ function buildTransactionEdits(
     toAccountName: input.toAccountName,
     note: input.note,
   };
+}
+
+function buildAccountDuplicateKey(account: {
+  readonly name: string;
+  readonly currency: string;
+  readonly institutionId?: string | null;
+  readonly providerDisplayName?: string | null;
+}): string | null {
+  const normalizedName = account.name.trim().toLowerCase();
+  if (!normalizedName) return null;
+
+  const institutionId = account.institutionId?.trim();
+  const providerDisplayName = account.providerDisplayName
+    ?.trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+  const providerIdentity = institutionId
+    ? `institution:${institutionId}`
+    : `manual:${providerDisplayName || "__monyvi_no_provider__"}`;
+
+  return [normalizedName, account.currency, providerIdentity].join("|");
 }
 
 export {

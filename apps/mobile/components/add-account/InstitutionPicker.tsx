@@ -283,7 +283,9 @@ export function InstitutionPicker({
     (): JSX.Element => (
       <TouchableOpacity
         onPress={() => {
-          onSelectOther();
+          if (!isOtherSelected) {
+            onSelectOther();
+          }
           setIsDropdownOpen(false);
         }}
         className={`mt-1 h-20 flex-row items-center rounded-xl border border-dashed px-4 py-3 ${

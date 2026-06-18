@@ -1,6 +1,27 @@
-import { buildPendingAccount } from "@/services/sms-edit-modal-service";
+import {
+  buildPendingAccount,
+  isDuplicateAccount,
+} from "@/services/sms-edit-modal-service";
+import type { AccountWithBankDetails } from "@/services/sms-account-matcher";
 
 describe("sms-edit-modal-service", () => {
+  function buildAccount(
+    overrides: Partial<AccountWithBankDetails> = {}
+  ): AccountWithBankDetails {
+    return {
+      id: "account-1",
+      name: "Main",
+      currency: "EGP",
+      isDefault: false,
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      type: "BANK",
+      institutionId: "cib",
+      smsSenderNames: [],
+      bankName: "CIB",
+      ...overrides,
+    };
+  }
+
   it("infers wallet pending accounts from known wallet senders", () => {
     const pendingAccount = buildPendingAccount("temp-wallet-1", {
       name: "Vodafone Cash",
@@ -46,5 +67,54 @@ describe("sms-edit-modal-service", () => {
     });
     expect(pendingAccount.institutionId).toBeUndefined();
     expect(pendingAccount.providerDisplayName).toBeUndefined();
+  });
+
+  it("allows SMS-created accounts with the same name and currency for different known providers", () => {
+    expect(
+      isDuplicateAccount(
+        "Main",
+        "EGP",
+        [buildAccount()],
+        [],
+        {
+          institutionId: "nbe",
+          providerDisplayName: "NBE",
+        }
+      )
+    ).toBe(false);
+  });
+
+  it("rejects SMS-created accounts with the same provider-aware uniqueness key", () => {
+    expect(
+      isDuplicateAccount(
+        " Main ",
+        "EGP",
+        [buildAccount()],
+        [],
+        {
+          institutionId: "cib",
+          providerDisplayName: "CIB",
+        }
+      )
+    ).toBe(true);
+  });
+
+  it("normalizes manual provider names when checking SMS-created duplicates", () => {
+    expect(
+      isDuplicateAccount(
+        "Main",
+        "EGP",
+        [
+          buildAccount({
+            institutionId: undefined,
+            bankName: "Manual   Bank",
+          }),
+        ],
+        [],
+        {
+          providerDisplayName: " manual bank ",
+        }
+      )
+    ).toBe(true);
   });
 });

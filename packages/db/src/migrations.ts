@@ -348,25 +348,29 @@ select
   ''
 from (
   select
-    "bank_details"."account_id",
-    min(trim("bank_details"."sms_sender_name")) as "sender_name",
-    lower(trim("bank_details"."sms_sender_name")) as "normalized_sender_name",
-    min(coalesce("bank_details"."created_at", strftime('%s', 'now') * 1000)) as "created_at",
-    max(coalesce("bank_details"."updated_at", strftime('%s', 'now') * 1000)) as "updated_at",
-    case
-      when max(case when "accounts"."_status" = 'created' then 1 else 0 end) = 1 then 'created'
-      when max(case when coalesce("bank_details"."_status", 'synced') != 'synced' then 1 else 0 end) = 1 then 'created'
-      else 'synced'
-    end as "sync_status"
-  from "bank_details"
-  join "accounts" on "accounts"."id" = "bank_details"."account_id"
-  where coalesce("bank_details"."deleted", 0) != 1
-    and coalesce("accounts"."deleted", 0) != 1
-    and "bank_details"."sms_sender_name" is not null
-    and trim("bank_details"."sms_sender_name") != ''
+    "legacy_senders"."account_id",
+    min("legacy_senders"."sender_name") as "sender_name",
+    lower("legacy_senders"."sender_name") as "normalized_sender_name",
+    min("legacy_senders"."created_at") as "created_at",
+    max("legacy_senders"."updated_at") as "updated_at",
+    'created' as "sync_status"
+  from (
+    select
+      "bank_details"."account_id",
+      replace(replace(replace(replace(replace(trim(replace(replace(replace("bank_details"."sms_sender_name", char(9), ' '), char(10), ' '), char(13), ' ')), '  ', ' '), '  ', ' '), '  ', ' '), '  ', ' '), '  ', ' ') as "sender_name",
+      coalesce("bank_details"."created_at", strftime('%s', 'now') * 1000) as "created_at",
+      coalesce("bank_details"."updated_at", strftime('%s', 'now') * 1000) as "updated_at"
+    from "bank_details"
+    join "accounts" on "accounts"."id" = "bank_details"."account_id"
+    where coalesce("bank_details"."deleted", 0) != 1
+      and coalesce("accounts"."deleted", 0) != 1
+      and "bank_details"."sms_sender_name" is not null
+      and trim("bank_details"."sms_sender_name") != ''
+      and "accounts"."_status" = 'created'
+  ) as "legacy_senders"
   group by
-    "bank_details"."account_id",
-    lower(trim("bank_details"."sms_sender_name"))
+    "legacy_senders"."account_id",
+    lower("legacy_senders"."sender_name")
 ) as "deduped_senders";`
         ),
         unsafeExecuteSql(

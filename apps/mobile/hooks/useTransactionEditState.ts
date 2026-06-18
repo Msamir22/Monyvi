@@ -418,20 +418,6 @@ export function useTransactionEditState({
         return;
       }
 
-      if (
-        isDuplicateAccount(
-          trimmedName,
-          newAccountCurrency,
-          accounts,
-          pendingAccounts
-        )
-      ) {
-        setNewAccountError(
-          `An account named "${trimmedName}" in ${newAccountCurrency} already exists`
-        );
-        return;
-      }
-
       const tempId = generatePendingTempId();
       pendingAccountToCreate = buildPendingAccount(tempId, {
         name: trimmedName,
@@ -442,6 +428,21 @@ export function useTransactionEditState({
             ? ((transaction as { cardLast4?: string }).cardLast4 ?? undefined)
             : undefined,
       });
+
+      if (
+        isDuplicateAccount(
+          trimmedName,
+          newAccountCurrency,
+          accounts,
+          pendingAccounts,
+          pendingAccountToCreate
+        )
+      ) {
+        setNewAccountError(
+          `An account named "${trimmedName}" in ${newAccountCurrency} already exists`
+        );
+        return;
+      }
 
       resolvedAccountId = tempId;
       resolvedAccountName = trimmedName;
