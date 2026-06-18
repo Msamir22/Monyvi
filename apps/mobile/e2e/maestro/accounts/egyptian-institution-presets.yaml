@@ -41,6 +41,8 @@ appId: com.monyvi.app
     direction: DOWN
     timeout: 60000
     visibilityPercentage: 50
+- waitForAnimationToEnd:
+    timeout: 5000
 
 # Edit known bank: provider and message-detection sections remain available.
 - tapOn: "E2E CIB Preset"
@@ -82,6 +84,8 @@ appId: com.monyvi.app
     direction: DOWN
     timeout: 60000
     visibilityPercentage: 50
+- waitForAnimationToEnd:
+    timeout: 5000
 
 # Edit known wallet: provider and message-detection sections remain available too.
 - tapOn: "E2E Vodafone Preset"
@@ -137,6 +141,8 @@ appId: com.monyvi.app
     direction: DOWN
     timeout: 60000
     visibilityPercentage: 50
+- waitForAnimationToEnd:
+    timeout: 5000
 
 # Other wallet: user can bypass wallet presets and enter free-text provider/sender values.
 - tapOn:
@@ -179,6 +185,8 @@ appId: com.monyvi.app
     direction: DOWN
     timeout: 60000
     visibilityPercentage: 50
+- waitForAnimationToEnd:
+    timeout: 5000
 
 # Account-type switch during create: Bank picker changes to wallet picker and clears provider choice.
 - tapOn:
@@ -216,3 +224,5 @@ appId: com.monyvi.app
     direction: DOWN
     timeout: 60000
     visibilityPercentage: 50
+- waitForAnimationToEnd:
+    timeout: 5000
