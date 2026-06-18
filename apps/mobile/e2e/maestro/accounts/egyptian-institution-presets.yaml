@@ -45,7 +45,7 @@ appId: com.monyvi.app
     timeout: 5000
 
 # Edit known bank: provider and message-detection sections remain available.
-- tapOn: "E2E CIB Preset"
+- tapOn: "E2E CIB Preset, .*"
 - extendedWaitUntil:
     visible: "Edit Account"
     timeout: 30000
@@ -88,7 +88,7 @@ appId: com.monyvi.app
     timeout: 5000
 
 # Edit known wallet: provider and message-detection sections remain available too.
-- tapOn: "E2E Vodafone Preset"
+- tapOn: "E2E Vodafone Preset, .*"
 - extendedWaitUntil:
     visible: "Edit Account"
     timeout: 30000
