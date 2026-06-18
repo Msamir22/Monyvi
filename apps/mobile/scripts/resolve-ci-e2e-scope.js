@@ -64,6 +64,7 @@ function getSuitesForFile(filePath) {
   ) {
     if (/account/i.test(normalized)) {
       suites.push("accounts");
+      suites.push("transactions");
     }
     if (/transaction|category|transfer|recurring-payment/i.test(normalized)) {
       suites.push("transactions");

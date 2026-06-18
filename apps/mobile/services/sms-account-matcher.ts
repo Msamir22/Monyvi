@@ -267,11 +267,20 @@ function doesAccountMatchSender(
     });
   }
 
-  return senderNames.some((senderName) =>
+  const hasSenderNameMatch = senderNames.some((senderName) =>
     isSenderMatch(senderDisplayName, {
       bankSmsSenderName: senderName,
     })
   );
+
+  if (hasSenderNameMatch) {
+    return true;
+  }
+
+  return isSenderMatch(senderDisplayName, {
+    bankName: account.bankName,
+    accountName: account.name,
+  });
 }
 
 // ---------------------------------------------------------------------------

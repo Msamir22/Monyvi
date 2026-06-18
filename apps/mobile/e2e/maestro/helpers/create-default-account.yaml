@@ -18,9 +18,9 @@ appId: com.monyvi.app
 # Step 3: CASH type is selected by default — no need to tap
 
 # Step 4: Enter account name
-- tapOn: "Account Name"
+- tapOn:
+    id: "account-name-input"
 - inputText: "Test Wallet"
-- waitForAnimationToEnd
 
 # Step 5: Currency defaults to EGP — skip
 

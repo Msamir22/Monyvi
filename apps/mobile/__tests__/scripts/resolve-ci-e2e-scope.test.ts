@@ -62,14 +62,14 @@ describe("resolve-ci-e2e-scope", () => {
     });
   });
 
-  it("selects account E2E for account form changes", () => {
+  it("keeps transaction E2E coverage for account form changes", () => {
     expect(
       scopeResolver.resolveCiE2eScope([
         "apps/mobile/components/add-account/InstitutionPicker.tsx",
       ])
     ).toEqual({
       shouldRun: true,
-      suites: ["accounts"],
+      suites: ["accounts", "transactions"],
     });
   });
 

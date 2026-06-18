@@ -161,4 +161,80 @@ describe("persistPendingAccounts", () => {
     expect(mockDatabase.batch).not.toHaveBeenCalled();
     expect(mockCreatedRecords.accounts ?? []).toHaveLength(0);
   });
+
+  it("persists a pending wallet account without bank details", async () => {
+    const result = await persistPendingAccounts([
+      buildPendingAccount({
+        tempId: "temp-wallet-1",
+        name: "Vodafone Cash",
+        type: "DIGITAL_WALLET",
+        senderDisplayName: "VodafoneCash",
+      }),
+    ]);
+
+    expect(result.errors).toEqual([]);
+    expect(result.createdCount).toBe(1);
+    expect(result.tempToRealIdMap.get("temp-wallet-1")).toBe("new-accounts-1");
+    expect(mockCreatedRecords.accounts?.[0]).toEqual(
+      expect.objectContaining({
+        name: "Vodafone Cash",
+        type: "DIGITAL_WALLET",
+      })
+    );
+    expect(mockCreatedRecords.account_sms_senders?.[0]).toEqual(
+      expect.objectContaining({
+        accountId: "new-accounts-1",
+        senderName: "VodafoneCash",
+      })
+    );
+    expect(mockCreatedRecords.bank_details ?? []).toHaveLength(0);
+  });
+
+  it("reuses an existing manual wallet account with the same name and currency", async () => {
+    seedExistingAccount({
+      id: "existing-wallet-1",
+      name: "Vodafone Cash",
+      currency: "EGP",
+      type: "DIGITAL_WALLET",
+    });
+
+    const result = await persistPendingAccounts([
+      buildPendingAccount({
+        tempId: "temp-wallet-1",
+        name: "Vodafone Cash",
+        type: "DIGITAL_WALLET",
+        senderDisplayName: "VodafoneCash",
+      }),
+    ]);
+
+    expect(result.errors).toEqual([]);
+    expect(result.createdCount).toBe(0);
+    expect(result.tempToRealIdMap.get("temp-wallet-1")).toBe(
+      "existing-wallet-1"
+    );
+    expect(mockDatabase.batch).not.toHaveBeenCalled();
+  });
+
+  it("does not map a pending SMS wallet account to a bank account with the same name and currency", async () => {
+    seedExistingAccount({
+      id: "existing-bank-1",
+      name: "Vodafone Cash",
+      currency: "EGP",
+      type: "BANK",
+    });
+
+    const result = await persistPendingAccounts([
+      buildPendingAccount({
+        tempId: "temp-wallet-1",
+        name: "Vodafone Cash",
+        type: "DIGITAL_WALLET",
+        senderDisplayName: "VodafoneCash",
+      }),
+    ]);
+
+    expect(result.errors).toEqual([expect.stringContaining("Vodafone Cash")]);
+    expect(result.createdCount).toBe(0);
+    expect(result.tempToRealIdMap.get("temp-wallet-1")).toBeUndefined();
+    expect(mockDatabase.batch).not.toHaveBeenCalled();
+  });
 });

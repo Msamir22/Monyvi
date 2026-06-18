@@ -180,6 +180,30 @@ describe("sms-account-matcher - matchAccountCore", () => {
     });
   });
 
+  it("falls back to provider name when custom sender rows do not match", () => {
+    const accountWithCustomSender: AccountWithBankDetails = {
+      id: "acc_cib",
+      name: "Main",
+      currency: "EGP",
+      isDefault: false,
+      createdAt: baseDate,
+      type: "BANK",
+      smsSenderNames: ["CIBCUSTOM"],
+      bankName: "CIB",
+      cardLast4: "1234",
+    };
+
+    const result = matchAccountCore(
+      { senderDisplayName: "CIB", cardLast4: "1234", currency: "EGP" },
+      [accountWithCustomSender]
+    );
+
+    expect(result).toMatchObject({
+      accountId: "acc_cib",
+      matchReason: "card_last4",
+    });
+  });
+
   it("Step 3: Matches based on bank registry name and currency", () => {
     const input: MatchInput = {
       senderDisplayName: "BANQUEMISR", // Known financial sender mapped to "Banque Misr"

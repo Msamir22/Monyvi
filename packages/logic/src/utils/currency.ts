@@ -214,8 +214,10 @@ export const formatCurrency = ({
     normalizedAmount,
     precision
   );
-  const minDigits = minimumFractionDigits ?? (hasFraction ? precision : 0);
   const maxDigits = maximumFractionDigits ?? precision;
+  const inferredMinDigits = hasFraction ? precision : 0;
+  const minDigits =
+    minimumFractionDigits ?? Math.min(inferredMinDigits, maxDigits);
 
   const formattedNumber = new Intl.NumberFormat("en-US", {
     style: "decimal",

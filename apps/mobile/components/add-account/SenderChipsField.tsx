@@ -91,11 +91,7 @@ export function SenderChipsField({
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 className="ms-2 h-5 w-5 items-center justify-center rounded-full"
               >
-                <Ionicons
-                  name="close"
-                  size={14}
-                  color={palette.slate[500]}
-                />
+                <Ionicons name="close" size={14} color={palette.slate[500]} />
               </TouchableOpacity>
             </View>
           );
@@ -108,11 +104,13 @@ export function SenderChipsField({
           value={inputValue}
           onChangeText={setInputValue}
           onFocus={onInputFocus}
+          testID="sms-sender-input"
           placeholderTextColor={palette.slate[400]}
           className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-3 text-text-primary dark:border-slate-700 dark:bg-slate-800 dark:text-text-primary-dark"
         />
         <TouchableOpacity
           accessibilityLabel={t("sender_add_accessibility")}
+          testID="sms-sender-add"
           onPress={addSender}
           className="rounded-xl bg-nileGreen-500 px-4 py-3"
         >

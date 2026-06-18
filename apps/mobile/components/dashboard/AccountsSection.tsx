@@ -35,7 +35,6 @@ const CARD_WIDTH = (SCREEN_WIDTH - 40 - CARD_GAP * 2) / 3;
 const SCROLLABLE_CARD_PEEK_WIDTH = 18;
 const SCROLLABLE_CARD_WIDTH =
   (SCREEN_WIDTH - 40 - CARD_GAP * 2 - SCROLLABLE_CARD_PEEK_WIDTH) / 3;
-const VISIBLE_CARDS_PER_SCREEN = 3;
 
 // =============================================================================
 // Types
@@ -163,6 +162,26 @@ function getCardLabelColor({
     institutionLogo?.presentation?.cardLabelColorByMode?.[themeKey] ??
     accentColor
   );
+}
+
+export function shouldEnableAccountsScroll({
+  accountCount,
+  cardWidth,
+  cardGap,
+  availableWidth,
+}: {
+  readonly accountCount: number;
+  readonly cardWidth: number;
+  readonly cardGap: number;
+  readonly availableWidth: number;
+}): boolean {
+  if (accountCount <= 0) {
+    return false;
+  }
+
+  const totalCardsWidth =
+    accountCount * cardWidth + Math.max(accountCount - 1, 0) * cardGap;
+  return totalCardsWidth > availableWidth;
 }
 
 function getResponsiveCardWidth(hasScrollableAccounts: boolean): number {
@@ -330,7 +349,12 @@ function AccountsSectionComponent({
   const keyExtractor = useCallback((card: AccountCardData): string => {
     return card.id;
   }, []);
-  const hasScrollableAccounts = cardData.length > VISIBLE_CARDS_PER_SCREEN;
+  const hasScrollableAccounts = shouldEnableAccountsScroll({
+    accountCount: cardData.length,
+    cardWidth: getResponsiveCardWidth(false),
+    cardGap: CARD_GAP,
+    availableWidth: SCREEN_WIDTH - 40,
+  });
   const cardWidth = getResponsiveCardWidth(hasScrollableAccounts);
 
   const renderAccountCard = useCallback(

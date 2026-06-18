@@ -16,7 +16,10 @@
 
 import type { AccountWithBankDetails } from "@/services/sms-account-matcher";
 import type { PendingAccount } from "@/services/pending-account-service";
-import type { ParsedSmsTransaction } from "@monyvi/logic";
+import {
+  isKnownFinancialSender,
+  type ParsedSmsTransaction,
+} from "@monyvi/logic";
 import type { TransactionType } from "@monyvi/db";
 
 // ---------------------------------------------------------------------------
@@ -103,11 +106,13 @@ function buildPendingAccount(
   tempId: string,
   input: BuildPendingAccountInput
 ): PendingAccount {
+  const knownSender = isKnownFinancialSender(input.senderDisplayName);
+
   return {
     tempId,
     name: input.name,
     currency: input.currency,
-    type: "BANK",
+    type: knownSender?.type === "wallet" ? "DIGITAL_WALLET" : "BANK",
     senderDisplayName: input.senderDisplayName,
     cardLast4: input.cardLast4,
   };

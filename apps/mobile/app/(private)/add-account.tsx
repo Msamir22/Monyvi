@@ -219,7 +219,7 @@ export default function AddAccount(): React.ReactNode {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
       className="flex-1 bg-background dark:bg-background-dark"
     >
       <StatusBar
@@ -271,6 +271,7 @@ export default function AddAccount(): React.ReactNode {
 
           <TextField
             label={t("account_name")}
+            testID="account-name-input"
             placeholder={
               formData.accountType === "BANK"
                 ? t("account_name_placeholder_bank")
@@ -315,6 +316,7 @@ export default function AddAccount(): React.ReactNode {
           <View ref={balanceFieldRef}>
             <TextField
               label={t("initial_balance")}
+              testID="initial-balance-input"
               placeholder="0"
               value={formData.balance}
               onChangeText={(text) => {

@@ -23,23 +23,24 @@ appId: com.monyvi.app
 - tapOn: "Bank Account"
 - assertVisible: "Bank"
 - assertVisible: "Message detection (Optional)"
-- tapOn: "Choose a bank"
-- tapOn: "Search"
+- tapOn:
+    id: "institution-picker-trigger-bank"
+- tapOn:
+    id: "institution-picker-search-bank"
 - inputText: "CIB"
 - waitForAnimationToEnd
 - tapOn: "CIB \\(Commercial International Bank\\)"
-- scrollUntilVisible:
-    element: "Account Name"
-    direction: UP
-    centerElement: true
-- tapOn: "Account Name"
-- inputText: "E2E CIB Preset"
 - waitForAnimationToEnd
 - tapOn:
+    id: "account-name-input"
+- inputText: "E2E CIB Preset"
+- tapOn:
     id: "header-save"
-- extendedWaitUntil:
-    visible: "E2E CIB Preset"
-    timeout: 90000
+- scrollUntilVisible:
+    element: "E2E CIB Preset"
+    direction: DOWN
+    timeout: 60000
+    visibilityPercentage: 50
 
 # Edit known bank: provider and message-detection sections remain available.
 - tapOn: "E2E CIB Preset"
@@ -63,23 +64,24 @@ appId: com.monyvi.app
 - tapOn: "Digital Wallet"
 - assertVisible: "Wallet"
 - assertVisible: "Message detection (Optional)"
-- tapOn: "Choose a wallet"
-- tapOn: "Search"
+- tapOn:
+    id: "institution-picker-trigger-wallet"
+- tapOn:
+    id: "institution-picker-search-wallet"
 - inputText: "Vodafone"
 - waitForAnimationToEnd
 - tapOn: "Vodafone Cash"
-- scrollUntilVisible:
-    element: "Account Name"
-    direction: UP
-    centerElement: true
-- tapOn: "Account Name"
-- inputText: "E2E Vodafone Preset"
 - waitForAnimationToEnd
 - tapOn:
+    id: "account-name-input"
+- inputText: "E2E Vodafone Preset"
+- tapOn:
     id: "header-save"
-- extendedWaitUntil:
-    visible: "E2E Vodafone Preset"
-    timeout: 90000
+- scrollUntilVisible:
+    element: "E2E Vodafone Preset"
+    direction: DOWN
+    timeout: 60000
+    visibilityPercentage: 50
 
 # Edit known wallet: provider and message-detection sections remain available too.
 - tapOn: "E2E Vodafone Preset"
@@ -101,32 +103,40 @@ appId: com.monyvi.app
     visible: "Add Account"
     timeout: 30000
 - tapOn: "Bank Account"
-- tapOn: "Choose a bank"
-- tapOn: "Search"
+- tapOn:
+    id: "institution-picker-trigger-bank"
+- tapOn:
+    id: "institution-picker-search-bank"
 - inputText: "ZZZ"
 - waitForAnimationToEnd
 - tapOn: "Other"
-- tapOn: "Bank name"
+- tapOn:
+    id: "account-name-input"
+- inputText: "E2E Other Bank"
+- pressKey: Enter
+- waitForAnimationToEnd
+- tapOn:
+    id: "manual-provider-name-bank"
 - inputText: "E2E Manual Bank"
+- pressKey: Enter
 - waitForAnimationToEnd
 - tapOn: "Message detection (Optional)"
-- tapOn: "Add sender"
+- tapOn:
+    id: "sms-sender-input"
 - inputText: "E2EBANK"
+- pressKey: Enter
 - waitForAnimationToEnd
-- tapOn: "Add"
+- tapOn:
+    id: "sms-sender-add"
 - assertVisible: "E2EBANK"
-- scrollUntilVisible:
-    element: "Account Name"
-    direction: UP
-    centerElement: true
-- tapOn: "Account Name"
-- inputText: "E2E Other Bank"
 - waitForAnimationToEnd
 - tapOn:
     id: "header-save"
-- extendedWaitUntil:
-    visible: "E2E Other Bank"
-    timeout: 30000
+- scrollUntilVisible:
+    element: "E2E Other Bank"
+    direction: DOWN
+    timeout: 60000
+    visibilityPercentage: 50
 
 # Other wallet: user can bypass wallet presets and enter free-text provider/sender values.
 - tapOn:
@@ -135,32 +145,40 @@ appId: com.monyvi.app
     visible: "Add Account"
     timeout: 30000
 - tapOn: "Digital Wallet"
-- tapOn: "Choose a wallet"
-- tapOn: "Search"
+- tapOn:
+    id: "institution-picker-trigger-wallet"
+- tapOn:
+    id: "institution-picker-search-wallet"
 - inputText: "ZZZ"
 - waitForAnimationToEnd
 - tapOn: "Other"
-- tapOn: "Wallet name"
+- tapOn:
+    id: "account-name-input"
+- inputText: "E2E Other Wallet"
+- pressKey: Enter
+- waitForAnimationToEnd
+- tapOn:
+    id: "manual-provider-name-wallet"
 - inputText: "E2E Manual Wallet"
+- pressKey: Enter
 - waitForAnimationToEnd
 - tapOn: "Message detection (Optional)"
-- tapOn: "Add sender"
+- tapOn:
+    id: "sms-sender-input"
 - inputText: "E2EWALLET"
+- pressKey: Enter
 - waitForAnimationToEnd
-- tapOn: "Add"
+- tapOn:
+    id: "sms-sender-add"
 - assertVisible: "E2EWALLET"
-- scrollUntilVisible:
-    element: "Account Name"
-    direction: UP
-    centerElement: true
-- tapOn: "Account Name"
-- inputText: "E2E Other Wallet"
 - waitForAnimationToEnd
 - tapOn:
     id: "header-save"
-- extendedWaitUntil:
-    visible: "E2E Other Wallet"
-    timeout: 30000
+- scrollUntilVisible:
+    element: "E2E Other Wallet"
+    direction: DOWN
+    timeout: 60000
+    visibilityPercentage: 50
 
 # Account-type switch during create: Bank picker changes to wallet picker and clears provider choice.
 - tapOn:
@@ -169,29 +187,32 @@ appId: com.monyvi.app
     visible: "Add Account"
     timeout: 30000
 - tapOn: "Bank Account"
-- tapOn: "Choose a bank"
-- tapOn: "Search"
+- tapOn:
+    id: "institution-picker-trigger-bank"
+- tapOn:
+    id: "institution-picker-search-bank"
 - inputText: "CIB"
 - waitForAnimationToEnd
 - assertVisible: "CIB \\(Commercial International Bank\\)"
 - tapOn: "Close bank list"
 - tapOn: "Digital Wallet"
-- tapOn: "Choose a wallet"
-- tapOn: "Search"
+- tapOn:
+    id: "institution-picker-trigger-wallet"
+- tapOn:
+    id: "institution-picker-search-wallet"
 - inputText: "Vodafone"
 - waitForAnimationToEnd
 - assertVisible: "Vodafone Cash"
 - assertNotVisible: "CIB \\(Commercial International Bank\\)"
 - tapOn: "Vodafone Cash"
-- scrollUntilVisible:
-    element: "Account Name"
-    direction: UP
-    centerElement: true
-- tapOn: "Account Name"
-- inputText: "E2E Switch Wallet"
 - waitForAnimationToEnd
 - tapOn:
+    id: "account-name-input"
+- inputText: "E2E Switch Wallet"
+- tapOn:
     id: "header-save"
-- extendedWaitUntil:
-    visible: "E2E Switch Wallet"
-    timeout: 30000
+- scrollUntilVisible:
+    element: "E2E Switch Wallet"
+    direction: DOWN
+    timeout: 60000
+    visibilityPercentage: 50

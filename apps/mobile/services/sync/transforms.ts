@@ -115,6 +115,11 @@ export function transformToSupabase(
   delete transformed["_changed"];
   delete transformed["sms_body_hash"];
 
+  if (table === "bank_details") {
+    delete transformed["bank_name"];
+    delete transformed["sms_sender_name"];
+  }
+
   if (!isChildTable) {
     transformed.user_id = userId;
   }

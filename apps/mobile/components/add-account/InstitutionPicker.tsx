@@ -226,7 +226,9 @@ export function InstitutionPicker({
     }),
     []
   );
-  const renderInstitutionItem = useCallback<ListRenderItem<SelectableEgyptianInstitution>>(
+  const renderInstitutionItem = useCallback<
+    ListRenderItem<SelectableEgyptianInstitution>
+  >(
     ({ item }) => {
       const label = getInstitutionLabel({
         ...item,
@@ -316,6 +318,7 @@ export function InstitutionPicker({
           setSearchText("");
           setIsDropdownOpen(true);
         }}
+        testID={`institution-picker-trigger-${type}`}
         accessibilityRole="button"
         accessibilityLabel={t(getPickerAccessibilityKey(type))}
         className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800"
@@ -399,6 +402,7 @@ export function InstitutionPicker({
                     placeholderTextColor={palette.slate[400]}
                     value={searchText}
                     onChangeText={setSearchText}
+                    testID={`institution-picker-search-${type}`}
                     className="mb-3 rounded-xl border border-slate-300 bg-slate-25 px-4 py-3 text-text-primary dark:border-slate-700 dark:bg-slate-800 dark:text-text-primary-dark"
                   />
 

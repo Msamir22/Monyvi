@@ -206,6 +206,7 @@ export function InstitutionProviderSection({
         <TextField
           label={t(getManualNameLabelKey(accountType))}
           accessibilityLabel={t(getManualNameLabelKey(accountType))}
+          testID={`manual-provider-name-${pickerType}`}
           placeholder={
             pickerType === "bank"
               ? t("provider_name_placeholder_bank")

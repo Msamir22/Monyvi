@@ -208,14 +208,13 @@ export function useTransactionEditState({
       name: pa.name,
       currency: pa.currency,
       isPending: true,
-      type: "BANK",
+      type: pa.type,
     }));
     const all = [...real, ...pending];
     return isVoiceSource
       ? all
       : all.filter(
-          (option) =>
-            option.type === "BANK" || option.type === "DIGITAL_WALLET"
+          (option) => option.type === "BANK" || option.type === "DIGITAL_WALLET"
         );
   }, [accounts, pendingAccounts, isVoiceSource]);
 

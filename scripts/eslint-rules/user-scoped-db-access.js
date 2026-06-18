@@ -15,7 +15,11 @@ const DIRECT_USER_OWNED_TABLES = new Set([
   "user_category_settings",
 ]);
 
-const CHILD_USER_OWNED_TABLES = new Set(["asset_metals", "bank_details"]);
+const CHILD_USER_OWNED_TABLES = new Set([
+  "account_sms_senders",
+  "asset_metals",
+  "bank_details",
+]);
 
 const MIXED_VISIBILITY_TABLES = new Set(["categories"]);
 

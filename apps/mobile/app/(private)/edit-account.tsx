@@ -372,7 +372,7 @@ function EditAccountForm({
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
       className="flex-1 bg-background dark:bg-background-dark"
     >
       <StatusBar
@@ -431,6 +431,7 @@ function EditAccountForm({
 
           <TextField
             label={t("account_name")}
+            testID="account-name-input"
             placeholder={t("account_name_placeholder_bank")}
             value={formData.name}
             onChangeText={(text) => updateField("name", text)}
@@ -459,6 +460,7 @@ function EditAccountForm({
           <View ref={balanceFieldRef}>
             <TextField
               label={t("balance")}
+              testID="initial-balance-input"
               placeholder="0"
               value={formData.balance}
               onChangeText={(text) => {

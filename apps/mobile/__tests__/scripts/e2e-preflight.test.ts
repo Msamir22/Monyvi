@@ -7,6 +7,7 @@ interface E2ePreflightModule {
   getHttpClientNameForUrl(url: string): "http" | "https";
   isAppReady(uiXml: string): boolean;
   isNativeRootMounted(uiXml: string): boolean;
+  shouldRestoreFromDevLauncher(uiXml: string, currentFocus: string): boolean;
   resolveMetroUrls(env?: Readonly<Record<string, string | undefined>>): {
     hostMetroUrl: string;
     metroUrl: string;
@@ -110,6 +111,24 @@ describe("e2e-preflight", () => {
         "mCurrentFocus=Window{b4ae2b7 u0 com.monyvi.app/expo.modules.devmenu.DevMenuActivity}"
       )
     ).toBe(true);
+  });
+
+  it("does not relaunch while the Expo dev launcher activity owns a loading splash", () => {
+    const focus =
+      "mCurrentFocus=Window{4a98ee6 u0 com.monyvi.app/expo.modules.devlauncher.launcher.DevLauncherActivity}";
+    const uiXml =
+      '<hierarchy><node package="com.monyvi.app" text="Monyvi" /></hierarchy>';
+
+    expect(preflight.shouldRestoreFromDevLauncher(uiXml, focus)).toBe(false);
+  });
+
+  it("relaunches when the Expo development server picker is visible", () => {
+    const focus =
+      "mCurrentFocus=Window{4a98ee6 u0 com.monyvi.app/expo.modules.devlauncher.launcher.DevLauncherActivity}";
+    const uiXml =
+      '<hierarchy><node package="com.monyvi.app" text="Development servers" /></hierarchy>';
+
+    expect(preflight.shouldRestoreFromDevLauncher(uiXml, focus)).toBe(true);
   });
 
   it("detects launcher focus even when stale dev menu records are present", () => {

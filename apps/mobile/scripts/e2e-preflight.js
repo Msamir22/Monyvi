@@ -10,11 +10,11 @@ const { hostMetroUrl, metroUrl } = resolveMetroUrls(process.env);
 const isReleaseBuild = process.env.E2E_RELEASE_BUILD === "1";
 const preflightLaunchAttempts = parsePositiveInt(
   process.env.E2E_PREFLIGHT_LAUNCH_ATTEMPTS,
-  3
+  2
 );
 const preflightAttemptTimeoutMs = parsePositiveInt(
   process.env.E2E_PREFLIGHT_ATTEMPT_TIMEOUT_MS,
-  120000
+  300000
 );
 const devClientUrl = buildDevClientUrl(metroUrl);
 const devMenuPreferencesPath =
@@ -424,8 +424,19 @@ function restoreAppFromLauncherIfVisible(uiXml, currentFocus, restoreAttempts) {
   return true;
 }
 
-function restoreAppFromDevLauncherIfFocused(currentFocus, restoreAttempts) {
-  if (!currentFocus.includes("expo.modules.devlauncher.launcher")) {
+function shouldRestoreFromDevLauncher(uiXml, currentFocus) {
+  return (
+    currentFocus.includes("expo.modules.devlauncher.launcher") &&
+    visibleTextShowsWrongShell(uiXml)
+  );
+}
+
+function restoreAppFromDevLauncherIfFocused(
+  uiXml,
+  currentFocus,
+  restoreAttempts
+) {
+  if (!shouldRestoreFromDevLauncher(uiXml, currentFocus)) {
     return false;
   }
 
@@ -496,7 +507,11 @@ function waitForProductUi(timeoutMs = 240000) {
     }
 
     if (
-      restoreAppFromDevLauncherIfFocused(lastFocus, devLauncherRestoreAttempts)
+      restoreAppFromDevLauncherIfFocused(
+        lastUiXml,
+        lastFocus,
+        devLauncherRestoreAttempts
+      )
     ) {
       devLauncherRestoreAttempts += 1;
       continue;
@@ -673,6 +688,7 @@ module.exports = {
   isAppReady,
   isNativeRootMounted,
   isReleaseBuild,
+  shouldRestoreFromDevLauncher,
   hostMetroUrl,
   metroUrl,
   resolveMetroUrls,
