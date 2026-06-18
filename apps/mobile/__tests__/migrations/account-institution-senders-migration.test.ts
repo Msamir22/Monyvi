@@ -57,6 +57,9 @@ describe("account institution and sender migration", () => {
     const sql = readMigrationSql();
     const bankDetailsColumns = getColumnNames("bank_details");
 
+    expect(sql).toContain(
+      "regexp_replace(btrim(bank_details.sms_sender_name), '\\s+', ' ', 'g')"
+    );
     expect(sql).toMatch(/DROP COLUMN IF EXISTS bank_name/m);
     expect(sql).toMatch(/DROP COLUMN IF EXISTS sms_sender_name/m);
     expect(bankDetailsColumns).not.toContain("bank_name");
@@ -95,21 +98,18 @@ describe("account institution and sender migration", () => {
     expect(serializedMigrations).toContain("_changed");
     expect(serializedMigrations).toContain("'created'");
     expect(serializedMigrations).toContain("'deleted'");
-    expect(serializedMigrations).toContain("'synced'");
     expect(serializedMigrations).toContain(
       'coalesce(\\"accounts\\".\\"deleted\\", 0) != 1'
     );
     expect(serializedMigrations).toContain(
       '\\"accounts\\".\\"_status\\" = \'created\''
     );
+    expect(serializedMigrations).toContain("replace(replace(replace");
     expect(serializedMigrations).toContain(
+      'group by\\n    \\"legacy_senders\\".\\"account_id\\",\\n    lower(\\"legacy_senders\\".\\"sender_name\\")'
+    );
+    expect(serializedMigrations).not.toContain(
       "coalesce(\\\"bank_details\\\".\\\"_status\\\", 'synced') != 'synced'"
-    );
-    expect(serializedMigrations).toContain(
-      'group by\\n    \\"bank_details\\".\\"account_id\\",\\n    lower(trim(\\"bank_details\\".\\"sms_sender_name\\"))'
-    );
-    expect(serializedMigrations).toContain(
-      "max(case when coalesce(\\\"bank_details\\\".\\\"_status\\\", 'synced') != 'synced' then 1 else 0 end) = 1"
     );
     expect(serializedMigrations).toContain(
       "lower(hex(randomblob(4)) || '-' || hex(randomblob(2))"
