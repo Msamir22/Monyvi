@@ -91,6 +91,7 @@ WHERE account.id = legacy_bank_details.account_id
   );
 
 INSERT INTO public.account_sms_senders (
+  id,
   account_id,
   sender_name,
   normalized_sender_name,
@@ -99,6 +100,7 @@ INSERT INTO public.account_sms_senders (
   deleted
 )
 SELECT DISTINCT ON (legacy_senders.account_id, legacy_senders.normalized_sender_name)
+  legacy_senders.id,
   legacy_senders.account_id,
   legacy_senders.sender_name,
   legacy_senders.normalized_sender_name,
@@ -107,6 +109,7 @@ SELECT DISTINCT ON (legacy_senders.account_id, legacy_senders.normalized_sender_
   false
 FROM (
   SELECT
+    bank_details.id,
     bank_details.account_id,
     regexp_replace(btrim(bank_details.sms_sender_name), '\s+', ' ', 'g') AS sender_name,
     lower(regexp_replace(btrim(bank_details.sms_sender_name), '\s+', ' ', 'g')) AS normalized_sender_name

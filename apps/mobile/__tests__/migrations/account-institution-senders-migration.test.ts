@@ -60,6 +60,7 @@ describe("account institution and sender migration", () => {
     expect(sql).toContain(
       "regexp_replace(btrim(bank_details.sms_sender_name), '\\s+', ' ', 'g')"
     );
+    expect(sql).toContain("bank_details.id");
     expect(sql).toMatch(/DROP COLUMN IF EXISTS bank_name/m);
     expect(sql).toMatch(/DROP COLUMN IF EXISTS sms_sender_name/m);
     expect(bankDetailsColumns).not.toContain("bank_name");
@@ -101,18 +102,23 @@ describe("account institution and sender migration", () => {
     expect(serializedMigrations).toContain(
       'coalesce(\\"accounts\\".\\"deleted\\", 0) != 1'
     );
+    expect(serializedMigrations).not.toContain(
+      'and \\"accounts\\".\\"_status\\" = \'created\''
+    );
     expect(serializedMigrations).toContain(
-      '\\"accounts\\".\\"_status\\" = \'created\''
+      'when \\"accounts\\".\\"_status\\" = \'created\' then 1'
+    );
+    expect(serializedMigrations).toContain(
+      "coalesce(\\\"bank_details\\\".\\\"_status\\\", 'synced') != 'synced'"
     );
     expect(serializedMigrations).toContain("replace(replace(replace");
     expect(serializedMigrations).toContain(
       'group by\\n    \\"legacy_senders\\".\\"account_id\\",\\n    lower(\\"legacy_senders\\".\\"sender_name\\")'
     );
-    expect(serializedMigrations).not.toContain(
-      "coalesce(\\\"bank_details\\\".\\\"_status\\\", 'synced') != 'synced'"
-    );
     expect(serializedMigrations).toContain(
-      "lower(hex(randomblob(4)) || '-' || hex(randomblob(2))"
+      'min(\\"legacy_senders\\".\\"id\\") as \\"id\\"'
     );
+    expect(serializedMigrations).toContain("else 'synced'");
+    expect(serializedMigrations).not.toContain("lower(hex(randomblob(4))");
   });
 });

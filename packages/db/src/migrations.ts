@@ -337,7 +337,7 @@ where ("provider_display_name" is null or trim("provider_display_name") = '')
   "_changed"
 )
 select
-  lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(6))),
+  "deduped_senders"."id",
   "deduped_senders"."account_id",
   "deduped_senders"."sender_name",
   "deduped_senders"."normalized_sender_name",
@@ -348,25 +348,34 @@ select
   ''
 from (
   select
+    min("legacy_senders"."id") as "id",
     "legacy_senders"."account_id",
     min("legacy_senders"."sender_name") as "sender_name",
     lower("legacy_senders"."sender_name") as "normalized_sender_name",
     min("legacy_senders"."created_at") as "created_at",
     max("legacy_senders"."updated_at") as "updated_at",
-    'created' as "sync_status"
+    case
+      when max("legacy_senders"."should_sync") = 1 then 'created'
+      else 'synced'
+    end as "sync_status"
   from (
     select
+      "bank_details"."id",
       "bank_details"."account_id",
       replace(replace(replace(replace(replace(trim(replace(replace(replace("bank_details"."sms_sender_name", char(9), ' '), char(10), ' '), char(13), ' ')), '  ', ' '), '  ', ' '), '  ', ' '), '  ', ' '), '  ', ' ') as "sender_name",
       coalesce("bank_details"."created_at", strftime('%s', 'now') * 1000) as "created_at",
-      coalesce("bank_details"."updated_at", strftime('%s', 'now') * 1000) as "updated_at"
+      coalesce("bank_details"."updated_at", strftime('%s', 'now') * 1000) as "updated_at",
+      case
+        when "accounts"."_status" = 'created' then 1
+        when coalesce("bank_details"."_status", 'synced') != 'synced' then 1
+        else 0
+      end as "should_sync"
     from "bank_details"
     join "accounts" on "accounts"."id" = "bank_details"."account_id"
     where coalesce("bank_details"."deleted", 0) != 1
       and coalesce("accounts"."deleted", 0) != 1
       and "bank_details"."sms_sender_name" is not null
       and trim("bank_details"."sms_sender_name") != ''
-      and "accounts"."_status" = 'created'
   ) as "legacy_senders"
   group by
     "legacy_senders"."account_id",
