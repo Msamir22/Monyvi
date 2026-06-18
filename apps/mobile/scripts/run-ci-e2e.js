@@ -12,7 +12,8 @@ const shouldBootstrapAuth = process.env.E2E_SKIP_AUTH_BOOTSTRAP !== "1";
 const allCiSuites = ["accounts", "transactions", "sms-sync", "live-sms"];
 let hasRunAuthBootstrap = false;
 
-const authBootstrapFlow = "helpers/ci-auth-bootstrap.yaml";
+const uiAuthBootstrapFlow = "helpers/ci-auth-bootstrap.yaml";
+const deeplinkAuthBootstrapFlow = "helpers/ci-auth-deeplink-bootstrap.yaml";
 const accountMaestroFlows = ["accounts/egyptian-institution-presets.yaml"];
 const transactionMaestroFlows = [
   "transactions/create-transaction.yaml",
@@ -292,10 +293,16 @@ async function maybeRunAuthBootstrap() {
   if (shouldBootstrapAuth && !hasRunAuthBootstrap) {
     await runNodeScript("scripts/run-maestro.js", [
       "test",
-      join("e2e", "maestro", authBootstrapFlow),
+      join("e2e", "maestro", getAuthBootstrapFlow()),
     ]);
     hasRunAuthBootstrap = true;
   }
+}
+
+function getAuthBootstrapFlow(env = process.env) {
+  return env.E2E_AUTH_DEEPLINK_BOOTSTRAP === "1"
+    ? deeplinkAuthBootstrapFlow
+    : uiAuthBootstrapFlow;
 }
 
 async function runMaestroFlows(flows) {
@@ -362,6 +369,7 @@ module.exports = {
   getChildTimeoutMs,
   getLiveSmsTimeoutMs,
   getRequestedCiSuites,
+  getAuthBootstrapFlow,
   isDeviceOfflineFailure,
   shouldBootstrapBeforeLiveSms,
 };

@@ -11,6 +11,11 @@ interface RunCiE2eModule {
   getLiveSmsTimeoutMs(
     env?: Readonly<Record<string, string | undefined>>
   ): number;
+  getAuthBootstrapFlow(
+    env?: Readonly<Record<string, string | undefined>>
+  ):
+    | "helpers/ci-auth-bootstrap.yaml"
+    | "helpers/ci-auth-deeplink-bootstrap.yaml";
   isDeviceOfflineFailure(output: string): boolean;
   shouldBootstrapBeforeLiveSms(
     selectedSuites: ReadonlySet<string>,
@@ -60,6 +65,15 @@ describe("run-ci-e2e helpers", () => {
     expect(
       runCiE2e.getLiveSmsTimeoutMs({ E2E_LIVE_SMS_TIMEOUT_MS: "1000" })
     ).toBe(1000);
+  });
+
+  it("uses the guarded deep-link auth bootstrap when CI opts in", () => {
+    expect(runCiE2e.getAuthBootstrapFlow({})).toBe(
+      "helpers/ci-auth-bootstrap.yaml"
+    );
+    expect(
+      runCiE2e.getAuthBootstrapFlow({ E2E_AUTH_DEEPLINK_BOOTSTRAP: "1" })
+    ).toBe("helpers/ci-auth-deeplink-bootstrap.yaml");
   });
 
   it("detects ADB device-offline failures for infrastructure-only retry", () => {

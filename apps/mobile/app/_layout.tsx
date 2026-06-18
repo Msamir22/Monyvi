@@ -51,7 +51,13 @@ import "../global.css";
 
 const SENTRY_DSN = String(process.env.EXPO_PUBLIC_SENTRY_DSN ?? "");
 
-const PUBLIC_ROUTES = new Set(["", "auth", "auth-callback", "pitch"]);
+const PUBLIC_ROUTES = new Set([
+  "",
+  "auth",
+  "auth-callback",
+  "e2e-auth",
+  "pitch",
+]);
 
 Sentry.init({
   dsn: SENTRY_DSN || undefined,
@@ -247,6 +253,7 @@ function RootLayoutNav(): React.ReactNode {
         <Stack.Screen name="pitch" />
         <Stack.Screen name="auth" />
         <Stack.Screen name="auth-callback" />
+        <Stack.Screen name="e2e-auth" />
         <Stack.Screen name="(private)" />
       </Stack>
     </>
