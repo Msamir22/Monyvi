@@ -216,6 +216,8 @@ jobs:
           name: android-e2e-logs
           path: |
             metro.log
+            android-e2e-output.log
+            android-e2e-failure-summary.log
             android-e2e-logcat.log
             ~/.maestro/tests
           retention-days: 7

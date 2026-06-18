@@ -34,7 +34,20 @@ if ! curl --fail --silent --show-error --max-time "$bundle_wait_timeout_seconds"
 fi
 
 set +e
-npm run e2e:ci -w @monyvi/mobile
+e2e_output_log="android-e2e-output.log"
+npm run e2e:ci -w @monyvi/mobile 2>&1 | tee "$e2e_output_log"
 e2e_status=$?
 timeout "${E2E_LOGCAT_TIMEOUT_SECONDS:-30}"s adb logcat -d > android-e2e-logcat.log || true
+if [ "$e2e_status" -ne 0 ]; then
+  {
+    echo "Android E2E failed. Last E2E output lines:"
+    tail -n 80 "$e2e_output_log"
+    echo ""
+    echo "Last Metro output lines:"
+    tail -n 80 metro.log 2>/dev/null || true
+  } > android-e2e-failure-summary.log
+  {
+    echo "::error title=Android E2E failed::$(tr '\n' '%' < android-e2e-failure-summary.log | sed 's/%/%0A/g' | cut -c 1-8000)"
+  } || true
+fi
 exit "$e2e_status"
