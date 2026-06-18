@@ -217,6 +217,40 @@ describe("useEditAccountForm", () => {
     expect(result.current.isCheckingUniqueness).toBe(false);
   });
 
+  it("checks uniqueness with the next manual provider name", async () => {
+    const bankAccount = createAccount({
+      type: "BANK",
+      institutionId: null,
+      providerDisplayName: "Old Provider",
+    });
+    const { result } = renderHook(() =>
+      useEditAccountForm(bankAccount, {
+        bankName: "",
+        cardLast4: "",
+        smsSenderNames: [],
+      })
+    );
+
+    act(() => {
+      result.current.updateField("providerDisplayName", "New Provider");
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(300);
+      await Promise.resolve();
+    });
+
+    expect(mockCheckAccountNameUniqueness).toHaveBeenCalledWith(
+      "user-1",
+      "Cash",
+      "EGP",
+      "acc-1",
+      null,
+      "New Provider"
+    );
+    expect(result.current.isCheckingUniqueness).toBe(false);
+  });
+
   it("keeps account type immutable in the edit form data", () => {
     const bankAccount = createAccount({ type: "BANK" });
     const { result } = renderHook(() => useEditAccountForm(bankAccount, null));

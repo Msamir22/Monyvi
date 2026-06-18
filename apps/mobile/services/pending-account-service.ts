@@ -122,7 +122,7 @@ async function persistPendingAccounts(
     ).fetch();
 
     // Track accounts mapped within this batch to avoid intra-batch duplicates
-    const createdInBatch = new Map<string, string>(); // "name|currency" → realId
+    const createdInBatch = new Map<string, string>(); // "name|currency|type" -> realId
 
     // Collect all DB operations to commit atomically
     const ops: Array<Account | AccountSmsSender | BankDetails> = [];
@@ -135,7 +135,7 @@ async function persistPendingAccounts(
     }> = [];
 
     for (const pending of pendingAccounts) {
-      const dedupKey = `${pending.name.trim().toLowerCase()}|${pending.currency}`;
+      const dedupKey = `${pending.name.trim().toLowerCase()}|${pending.currency}|${pending.type}`;
 
       // Check: already mapped earlier in this batch?
       const batchDuplicate = createdInBatch.get(dedupKey);

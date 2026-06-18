@@ -49,6 +49,11 @@ export function SenderChipsField({
       return;
     }
 
+    if (normalizedVerifiedSenders.has(normalized)) {
+      setError(t("sender_duplicate_error"));
+      return;
+    }
+
     setError(null);
     onChange([...value, trimmed]);
     setInputValue("");

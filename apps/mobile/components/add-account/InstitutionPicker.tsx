@@ -240,6 +240,10 @@ export function InstitutionPicker({
       return (
         <TouchableOpacity
           onPress={() => {
+            if (isSelected) {
+              setIsDropdownOpen(false);
+              return;
+            }
             onSelectInstitution(item.id);
             setIsDropdownOpen(false);
           }}

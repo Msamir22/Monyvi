@@ -66,6 +66,24 @@ describe("SenderChipsField", () => {
     expect(screen.getByText("This sender is already added")).toBeTruthy();
   });
 
+  it("rejects custom senders that duplicate verified registry senders", () => {
+    const onChange = jest.fn();
+
+    render(
+      <SenderChipsField
+        value={[]}
+        verifiedSenders={["CIB"]}
+        onChange={onChange}
+      />
+    );
+
+    fireEvent.changeText(screen.getByPlaceholderText("Add sender"), " cib ");
+    fireEvent.press(screen.getByLabelText("Add sender"));
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByText("This sender is already added")).toBeTruthy();
+  });
+
   it("allows unknown custom senders with an unverified hint", () => {
     const onChange = jest.fn();
 

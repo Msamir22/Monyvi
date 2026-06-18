@@ -112,9 +112,7 @@ export function SmsMatchingSection({
           </Text>
           <SenderChipsField
             value={senderNames}
-            verifiedSenders={
-              hasKnownProvider ? verifiedSenderNames : senderNames
-            }
+            verifiedSenders={hasKnownProvider ? verifiedSenderNames : []}
             onChange={onSenderNamesChange}
             onInputFocus={onFieldFocus}
           />

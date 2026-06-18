@@ -219,7 +219,11 @@ export function useEditAccountForm(
    * Run debounced account name uniqueness check.
    */
   const checkUniqueness = useCallback(
-    (name: string): void => {
+    (
+      name: string,
+      institutionId: string | null,
+      providerDisplayName: string
+    ): void => {
       // Clear any pending timer
       if (uniquenessTimerRef.current) {
         clearTimeout(uniquenessTimerRef.current);
@@ -228,9 +232,6 @@ export function useEditAccountForm(
       activeUniquenessRequestRef.current = requestId;
 
       const trimmedName = name.trim();
-      const institutionId = latestFormDataRef.current.institutionId ?? null;
-      const providerDisplayName =
-        latestFormDataRef.current.providerDisplayName ?? "";
       if (!trimmedName) {
         setHasNameUniquenessError(false);
         setIsCheckingUniqueness(false);
@@ -324,9 +325,17 @@ export function useEditAccountForm(
 
       // Trigger uniqueness check for fields that affect the account identity.
       if (field === "name") {
-        checkUniqueness(value as string);
+        checkUniqueness(
+          value as string,
+          latestFormDataRef.current.institutionId ?? null,
+          latestFormDataRef.current.providerDisplayName ?? ""
+        );
       } else if (field === "providerDisplayName") {
-        checkUniqueness(latestFormDataRef.current.name);
+        checkUniqueness(
+          latestFormDataRef.current.name,
+          latestFormDataRef.current.institutionId ?? null,
+          value as string
+        );
       }
     },
     [account.type, checkUniqueness]
@@ -359,7 +368,11 @@ export function useEditAccountForm(
         setIsSchemaValid(validation.isValid);
         setErrors(validation.errors);
         if (newData.name.trim()) {
-          checkUniqueness(newData.name);
+          checkUniqueness(
+            newData.name,
+            institutionId,
+            newData.providerDisplayName ?? ""
+          );
         }
         return newData;
       });
@@ -382,7 +395,7 @@ export function useEditAccountForm(
       setIsSchemaValid(validation.isValid);
       setErrors(validation.errors);
       if (newData.name.trim()) {
-        checkUniqueness(newData.name);
+        checkUniqueness(newData.name, null, "");
       }
       return newData;
     });

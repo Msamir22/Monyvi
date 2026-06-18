@@ -36,6 +36,15 @@ const translations: Record<string, string> = {
   institution_search_placeholder: "Search",
   sms_matching_help: "Match SMS messages to this account.",
   sms_matching_optional: "Message detection",
+  sms_sender_custom_names: "Extra senders",
+  sms_sender_manual_provider_help: "Add custom senders for this bank.",
+  sms_sender_names: "Sender names",
+  sender_add_accessibility: "Add sender",
+  sender_add_action: "Add",
+  sender_add_placeholder: "Add sender",
+  sender_duplicate_error: "This sender is already added",
+  sender_remove_accessibility: "Remove {{sender}}",
+  sender_unverified: "Unverified sender",
   type_bank: "Bank Account",
   type_cash: "Cash",
   type_digital_wallet: "Digital Wallet",
@@ -43,10 +52,11 @@ const translations: Record<string, string> = {
 
 jest.mock("react-i18next", () => ({
   useTranslation: (): {
-    readonly t: (key: string) => string;
+    readonly t: (key: string, options?: Record<string, string>) => string;
     readonly i18n: { readonly language: string };
   } => ({
-    t: (key: string): string => translations[key] ?? key,
+    t: (key: string, options?: Record<string, string>): string =>
+      (translations[key] ?? key).replace("{{sender}}", options?.sender ?? ""),
     i18n: { language: "en" },
   }),
 }));
@@ -85,6 +95,21 @@ describe("add account dark mode", () => {
       "className",
       expect.stringContaining("dark:text-text-secondary-dark")
     );
+  });
+
+  it("marks manual sender aliases as unverified", () => {
+    render(
+      <SmsMatchingSection
+        accountType="BANK"
+        institutionId={null}
+        senderNames={["ManualBankSMS"]}
+        expanded
+        onToggleExpanded={jest.fn()}
+        onSenderNamesChange={jest.fn()}
+      />
+    );
+
+    expect(screen.getAllByText("Unverified sender").length).toBeGreaterThan(0);
   });
 
   it("keeps the bank picker modal readable in dark mode", () => {

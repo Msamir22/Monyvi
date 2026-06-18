@@ -237,4 +237,30 @@ describe("persistPendingAccounts", () => {
     expect(result.tempToRealIdMap.get("temp-wallet-1")).toBeUndefined();
     expect(mockDatabase.batch).not.toHaveBeenCalled();
   });
+
+  it("does not map intra-batch accounts with the same name and currency but different types", async () => {
+    const result = await persistPendingAccounts([
+      buildPendingAccount({
+        tempId: "temp-bank-1",
+        name: "Main",
+        type: "BANK",
+        senderDisplayName: "BANKSMS",
+      }),
+      buildPendingAccount({
+        tempId: "temp-wallet-1",
+        name: "Main",
+        type: "DIGITAL_WALLET",
+        senderDisplayName: "WALLETSMS",
+      }),
+    ]);
+
+    expect(result.errors).toEqual([]);
+    expect(result.createdCount).toBe(2);
+    expect(result.tempToRealIdMap.get("temp-bank-1")).toBe("new-accounts-1");
+    expect(result.tempToRealIdMap.get("temp-wallet-1")).toBe("new-accounts-4");
+    expect(mockCreatedRecords.accounts?.map((record) => record.type)).toEqual([
+      "BANK",
+      "DIGITAL_WALLET",
+    ]);
+  });
 });
