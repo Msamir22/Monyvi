@@ -2,7 +2,10 @@ import { render, screen } from "@testing-library/react-native";
 import type { Account } from "@monyvi/db";
 import { processColor } from "react-native";
 
-import { AccountsSection } from "../../../components/dashboard/AccountsSection";
+import {
+  AccountsSection,
+  shouldEnableAccountsScroll,
+} from "../../../components/dashboard/AccountsSection";
 import { palette } from "../../../constants/colors";
 import { getEgyptianInstitutionAsset } from "../../../constants/egyptian-institution-assets";
 
@@ -53,6 +56,28 @@ function account(overrides: Partial<Account>): Account {
 describe("AccountsSection", () => {
   beforeEach(() => {
     mockIsDark = false;
+  });
+
+  it("enables horizontal scroll when exactly three cards overflow the available width", () => {
+    expect(
+      shouldEnableAccountsScroll({
+        accountCount: 3,
+        cardWidth: 116,
+        cardGap: 10,
+        availableWidth: 340,
+      })
+    ).toBe(true);
+  });
+
+  it("keeps horizontal scroll disabled when three cards fit", () => {
+    expect(
+      shouldEnableAccountsScroll({
+        accountCount: 3,
+        cardWidth: 100,
+        cardGap: 10,
+        availableWidth: 340,
+      })
+    ).toBe(false);
   });
 
   it("renders known provider logos on dashboard account cards", () => {
