@@ -113,6 +113,10 @@ function buildPendingAccount(
     name: input.name,
     currency: input.currency,
     type: knownSender?.type === "wallet" ? "DIGITAL_WALLET" : "BANK",
+    institutionId: knownSender?.selectable ? knownSender.id : undefined,
+    providerDisplayName: knownSender?.selectable
+      ? knownSender.shortName
+      : undefined,
     senderDisplayName: input.senderDisplayName,
     cardLast4: input.cardLast4,
   };

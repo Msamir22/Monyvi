@@ -4,6 +4,7 @@ interface E2ePreflightModule {
   buildDevMenuPreferencesXml(): string;
   currentFocusShowsDevMenu(currentFocus: string): boolean;
   currentFocusShowsLauncher(currentFocus: string): boolean;
+  didDumpUiHierarchy(dumpOutput: string): boolean;
   getHttpClientNameForUrl(url: string): "http" | "https";
   isAppReady(uiXml: string): boolean;
   isNativeRootMounted(uiXml: string): boolean;
@@ -93,6 +94,15 @@ describe("e2e-preflight", () => {
 
     expect(preflight.isNativeRootMounted(nativeRootOnlyXml)).toBe(true);
     expect(preflight.isAppReady(nativeRootOnlyXml)).toBe(false);
+  });
+
+  it("rejects failed UIAutomator dumps so stale window XML is not reused", () => {
+    expect(
+      preflight.didDumpUiHierarchy("UI hierchary dumped to: /sdcard/window.xml")
+    ).toBe(true);
+    expect(preflight.didDumpUiHierarchy("ERROR: null root node returned")).toBe(
+      false
+    );
   });
 
   it("does not treat stale DevMenuActivity records as the focused dev menu", () => {

@@ -281,13 +281,31 @@ function getCurrentFocus() {
 }
 
 function dumpVisibleText() {
-  adb(["shell", "uiautomator", "dump", "/sdcard/window.xml"], {
-    allowFailure: true,
-  });
-  return adb(["exec-out", "cat", "/sdcard/window.xml"], {
+  const windowDumpPath = "/sdcard/window.xml";
+  adb(["shell", "rm", "-f", windowDumpPath], {
     capture: true,
     allowFailure: true,
   });
+  const dumpOutput = adb(["shell", "uiautomator", "dump", windowDumpPath], {
+    capture: true,
+    allowFailure: true,
+  });
+
+  if (!didDumpUiHierarchy(dumpOutput)) {
+    return "";
+  }
+
+  return adb(["exec-out", "cat", windowDumpPath], {
+    capture: true,
+    allowFailure: true,
+  });
+}
+
+function didDumpUiHierarchy(dumpOutput) {
+  return (
+    dumpOutput.includes("UI hierarchy dumped") ||
+    dumpOutput.includes("UI hierchary dumped")
+  );
 }
 
 function tapByVisibleLabel(uiXml, label) {
@@ -683,6 +701,7 @@ module.exports = {
   currentFocusShowsLauncher,
   buildDevMenuPreferencesXml,
   buildDevClientUrl,
+  didDumpUiHierarchy,
   disableExpoDevMenuFabForE2e,
   getHttpClientNameForUrl,
   isAppReady,

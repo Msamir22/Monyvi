@@ -3,6 +3,8 @@ interface MockAccountRow {
   readonly name: string;
   readonly currency: string;
   readonly type: "BANK" | "CASH" | "DIGITAL_WALLET";
+  readonly institutionId?: string | null;
+  readonly providerDisplayName?: string | null;
 }
 
 interface MockPreparedRecord {
@@ -168,6 +170,8 @@ describe("persistPendingAccounts", () => {
         tempId: "temp-wallet-1",
         name: "Vodafone Cash",
         type: "DIGITAL_WALLET",
+        institutionId: "vodafone-cash",
+        providerDisplayName: "Vodafone Cash",
         senderDisplayName: "VodafoneCash",
       }),
     ]);
@@ -179,6 +183,8 @@ describe("persistPendingAccounts", () => {
       expect.objectContaining({
         name: "Vodafone Cash",
         type: "DIGITAL_WALLET",
+        institutionId: "vodafone-cash",
+        providerDisplayName: "Vodafone Cash",
       })
     );
     expect(mockCreatedRecords.account_sms_senders?.[0]).toEqual(
@@ -238,7 +244,33 @@ describe("persistPendingAccounts", () => {
     expect(mockDatabase.batch).not.toHaveBeenCalled();
   });
 
-  it("does not map intra-batch accounts with the same name and currency but different types", async () => {
+  it("persists same-name pending accounts when known provider identities differ", async () => {
+    const result = await persistPendingAccounts([
+      buildPendingAccount({
+        tempId: "temp-cib-1",
+        name: "Main",
+        type: "BANK",
+        institutionId: "cib",
+        providerDisplayName: "CIB",
+        senderDisplayName: "CIB-EGYPT",
+      }),
+      buildPendingAccount({
+        tempId: "temp-qnb-1",
+        name: "Main",
+        type: "BANK",
+        institutionId: "qnb-egypt",
+        providerDisplayName: "QNB",
+        senderDisplayName: "QNB",
+      }),
+    ]);
+
+    expect(result.errors).toEqual([]);
+    expect(result.createdCount).toBe(2);
+    expect(result.tempToRealIdMap.get("temp-cib-1")).toBe("new-accounts-1");
+    expect(result.tempToRealIdMap.get("temp-qnb-1")).toBe("new-accounts-4");
+  });
+
+  it("rejects intra-batch manual accounts with the same name and currency but different types", async () => {
     const result = await persistPendingAccounts([
       buildPendingAccount({
         tempId: "temp-bank-1",
@@ -254,13 +286,10 @@ describe("persistPendingAccounts", () => {
       }),
     ]);
 
-    expect(result.errors).toEqual([]);
-    expect(result.createdCount).toBe(2);
-    expect(result.tempToRealIdMap.get("temp-bank-1")).toBe("new-accounts-1");
-    expect(result.tempToRealIdMap.get("temp-wallet-1")).toBe("new-accounts-4");
-    expect(mockCreatedRecords.accounts?.map((record) => record.type)).toEqual([
-      "BANK",
-      "DIGITAL_WALLET",
-    ]);
+    expect(result.errors).toEqual([expect.stringContaining("Main")]);
+    expect(result.createdCount).toBe(0);
+    expect(result.tempToRealIdMap.get("temp-bank-1")).toBeUndefined();
+    expect(result.tempToRealIdMap.get("temp-wallet-1")).toBeUndefined();
+    expect(mockDatabase.batch).not.toHaveBeenCalled();
   });
 });

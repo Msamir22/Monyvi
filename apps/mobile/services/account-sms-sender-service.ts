@@ -3,7 +3,11 @@ import { Account, AccountSmsSender, database } from "@monyvi/db";
 import { queryChildrenOfOwnedParent } from "./user-data-access";
 
 export function normalizeAccountSmsSender(senderName: string): string {
-  return senderName.trim().toLowerCase();
+  return collapseAccountSmsSenderWhitespace(senderName).toLowerCase();
+}
+
+function collapseAccountSmsSenderWhitespace(senderName: string): string {
+  return senderName.trim().replace(/\s+/g, " ");
 }
 
 function uniqueTrimmedSenderNames(
@@ -13,14 +17,14 @@ function uniqueTrimmedSenderNames(
   const result: string[] = [];
 
   for (const senderName of senderNames) {
-    const trimmed = senderName.trim();
-    const normalized = normalizeAccountSmsSender(trimmed);
+    const displayName = collapseAccountSmsSenderWhitespace(senderName);
+    const normalized = normalizeAccountSmsSender(displayName);
     if (!normalized || seen.has(normalized)) {
       continue;
     }
 
     seen.add(normalized);
-    result.push(trimmed);
+    result.push(displayName);
   }
 
   return result;

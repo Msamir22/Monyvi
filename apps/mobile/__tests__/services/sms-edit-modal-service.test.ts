@@ -11,6 +11,23 @@ describe("sms-edit-modal-service", () => {
     expect(pendingAccount).toMatchObject({
       tempId: "temp-wallet-1",
       type: "DIGITAL_WALLET",
+      institutionId: "vodafone-cash",
+      providerDisplayName: "Vodafone Cash",
+    });
+  });
+
+  it("carries known bank identity into SMS-created pending accounts", () => {
+    const pendingAccount = buildPendingAccount("temp-bank-1", {
+      name: "CIB Bank",
+      currency: "EGP",
+      senderDisplayName: "CIB-EGYPT",
+    });
+
+    expect(pendingAccount).toMatchObject({
+      tempId: "temp-bank-1",
+      type: "BANK",
+      institutionId: "cib",
+      providerDisplayName: "CIB",
     });
   });
 
@@ -27,5 +44,7 @@ describe("sms-edit-modal-service", () => {
       type: "BANK",
       cardLast4: "1234",
     });
+    expect(pendingAccount.institutionId).toBeUndefined();
+    expect(pendingAccount.providerDisplayName).toBeUndefined();
   });
 });
