@@ -12,8 +12,8 @@
  * @module useAccountById
  */
 
-import { Account, BankDetails, database } from "@monyvi/db";
-import { useEffect, useRef, useState } from "react";
+import { Account, AccountSmsSender, BankDetails, database } from "@monyvi/db";
+import { useEffect, useState } from "react";
 import { observeOwnedById } from "@/services/user-data-access";
 import { useCurrentUser } from "./useCurrentUser";
 import { logger } from "../utils/logger";
@@ -22,10 +22,65 @@ import { logger } from "../utils/logger";
 // Types
 // ---------------------------------------------------------------------------
 
-type BankDetailsData = Pick<
-  BankDetails,
-  "bankName" | "cardLast4" | "smsSenderName"
->;
+interface BankDetailsData {
+  readonly bankName?: string;
+  readonly cardLast4?: string;
+  readonly smsSenderName?: string;
+  readonly smsSenderNames?: readonly string[];
+}
+
+interface RelationSubscription {
+  unsubscribe: () => void;
+}
+
+interface ObservableRelation<TRecord> {
+  observe?: () => {
+    subscribe: (handlers: {
+      readonly next: (rows: readonly TRecord[]) => void;
+      readonly error: (error: unknown) => void;
+    }) => RelationSubscription;
+  };
+  fetch?: () => Promise<readonly TRecord[]>;
+}
+
+function subscribeToRelationRows<TRecord>(
+  relation: ObservableRelation<TRecord>,
+  onNext: (rows: readonly TRecord[]) => void,
+  onError: (error: unknown) => void
+): RelationSubscription {
+  if (typeof relation.observe === "function") {
+    return relation.observe().subscribe({ next: onNext, error: onError });
+  }
+
+  let isSubscribed = true;
+  if (typeof relation.fetch !== "function") {
+    onNext([]);
+    return {
+      unsubscribe: () => {
+        isSubscribed = false;
+      },
+    };
+  }
+
+  void relation
+    .fetch()
+    .then((rows) => {
+      if (isSubscribed) {
+        onNext(rows);
+      }
+    })
+    .catch((error: unknown) => {
+      if (isSubscribed) {
+        onError(error);
+      }
+    });
+
+  return {
+    unsubscribe: () => {
+      isSubscribed = false;
+    },
+  };
+}
 
 export interface UseAccountByIdResult {
   /** The observed Account model or null when not found / loading */
@@ -53,8 +108,6 @@ export function useAccountById(id: string | null): UseAccountByIdResult {
   const [account, setAccount] = useState<Account | null>(null);
   const [bankDetails, setBankDetails] = useState<BankDetailsData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const bankDetailsRequestIdRef = useRef(0);
-  const bankDetailsKeyRef = useRef<string | null>(null);
   const { userId, isResolvingUser } = useCurrentUser();
 
   useEffect(() => {
@@ -62,7 +115,6 @@ export function useAccountById(id: string | null): UseAccountByIdResult {
       setAccount(null);
       setBankDetails(null);
       setIsLoading(false);
-      bankDetailsKeyRef.current = null;
       return undefined;
     }
 
@@ -75,7 +127,6 @@ export function useAccountById(id: string | null): UseAccountByIdResult {
       setAccount(null);
       setBankDetails(null);
       setIsLoading(false);
-      bankDetailsKeyRef.current = null;
       return undefined;
     }
 
@@ -110,57 +161,73 @@ export function useAccountById(id: string | null): UseAccountByIdResult {
   }, [id, userId, isResolvingUser]);
 
   useEffect(() => {
-    let isActive = true;
-
     if (!account) {
-      bankDetailsKeyRef.current = null;
       return undefined;
     }
 
-    const detailsKey = `${account.id}:${account.isBank ? "BANK" : "NON_BANK"}`;
-    if (bankDetailsKeyRef.current === detailsKey) {
+    if (!account.isBank && !account.isDigitalWallet) {
+      setBankDetails(null);
+      setIsLoading(false);
       return undefined;
     }
-    bankDetailsKeyRef.current = detailsKey;
 
-    const loadBankDetails = async (): Promise<void> => {
-      const requestId = ++bankDetailsRequestIdRef.current;
-      if (!account.isBank) {
-        if (!isActive || requestId !== bankDetailsRequestIdRef.current) return;
-        setBankDetails(null);
-        setIsLoading(false);
+    let latestDetails: readonly BankDetails[] = [];
+    let latestSenders: readonly AccountSmsSender[] = [];
+    let hasDetailsEmission = !account.isBank;
+    let hasSenderEmission = false;
+
+    const emitDetails = (): void => {
+      if (!hasDetailsEmission || !hasSenderEmission) {
         return;
       }
 
-      try {
-        const details = (await account.bankDetails.fetch()) as BankDetails[];
-        if (!isActive || requestId !== bankDetailsRequestIdRef.current) return;
+      const smsSenderNames = latestSenders
+        .filter((row) => !row.deleted)
+        .map((row) => row.senderName);
+      const [details] = latestDetails;
 
-        if (details.length > 0) {
-          const bd = details[0];
-          setBankDetails({
-            bankName: bd.bankName,
-            cardLast4: bd.cardLast4,
-            smsSenderName: bd.smsSenderName,
-          });
-        } else {
-          setBankDetails(null);
-        }
-      } catch (err: unknown) {
-        if (!isActive || requestId !== bankDetailsRequestIdRef.current) return;
-        logger.error("useAccountById_bank_details_fetch_failed", err);
-        setBankDetails(null);
-      } finally {
-        if (isActive && requestId === bankDetailsRequestIdRef.current) {
-          setIsLoading(false);
-        }
-      }
+      setBankDetails({
+        bankName: account.providerDisplayName,
+        cardLast4: details?.cardLast4,
+        smsSenderName: smsSenderNames.join(", "),
+        smsSenderNames,
+      });
+      setIsLoading(false);
     };
 
-    void loadBankDetails();
+    const senderSubscription = subscribeToRelationRows<AccountSmsSender>(
+      account.accountSmsSenders as unknown as ObservableRelation<AccountSmsSender>,
+      (senderRows) => {
+        latestSenders = senderRows;
+        hasSenderEmission = true;
+        emitDetails();
+      },
+      (err: unknown) => {
+        logger.error("useAccountById_sender_rows_observe_failed", err);
+        setBankDetails(null);
+        setIsLoading(false);
+      }
+    );
+
+    const bankDetailsSubscription = account.isBank
+      ? subscribeToRelationRows<BankDetails>(
+          account.bankDetails as unknown as ObservableRelation<BankDetails>,
+          (detailsRows) => {
+            latestDetails = detailsRows;
+            hasDetailsEmission = true;
+            emitDetails();
+          },
+          (err: unknown) => {
+            logger.error("useAccountById_bank_details_observe_failed", err);
+            setBankDetails(null);
+            setIsLoading(false);
+          }
+        )
+      : null;
 
     return (): void => {
-      isActive = false;
+      senderSubscription.unsubscribe();
+      bankDetailsSubscription?.unsubscribe();
     };
   }, [account]);
 

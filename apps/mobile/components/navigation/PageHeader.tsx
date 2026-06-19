@@ -28,6 +28,7 @@ interface PageHeaderProps {
     disabled?: boolean;
     loading?: boolean;
     transparent?: boolean;
+    testID?: string;
   };
   /** Optional secondary icon action rendered before the primary rightAction. */
   secondaryAction?: {
@@ -126,19 +127,15 @@ function RightAction({
   rightAction,
   isDark,
 }: {
-  rightAction: {
-    icon?: keyof typeof Ionicons.glyphMap;
-    label?: string;
-    onPress: () => void;
-    disabled?: boolean;
-    loading?: boolean;
-    transparent?: boolean;
-  };
+  rightAction: NonNullable<PageHeaderProps["rightAction"]>;
   isDark: boolean;
 }): React.ReactElement {
   return (
     <TouchableOpacity
-      testID={rightAction.label ? "header-save" : "header-right-action"}
+      testID={
+        rightAction.testID ??
+        (rightAction.label ? "header-save" : "header-right-action")
+      }
       onPress={rightAction.onPress}
       activeOpacity={0.7}
       disabled={rightAction.disabled || rightAction.loading}

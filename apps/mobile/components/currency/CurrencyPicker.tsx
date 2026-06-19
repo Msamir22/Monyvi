@@ -9,10 +9,11 @@
  */
 
 import { palette } from "@/constants/colors";
-import type { CurrencyType } from "@monyvi/db";
-import { SUPPORTED_CURRENCIES, type CurrencyInfo } from "@monyvi/logic";
 import { Ionicons } from "@expo/vector-icons";
+import type { CurrencyType } from "@monyvi/db";
+import { SORTED_SUPPORTED_CURRENCIES, type CurrencyInfo } from "@monyvi/logic";
 import React, { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   FlatList,
   Modal,
@@ -23,7 +24,6 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useTranslation } from "react-i18next";
 
 interface CurrencyPickerProps {
   readonly visible: boolean;
@@ -69,17 +69,17 @@ function CurrencyRow({
             {item.name}
           </Text>
         </View>
+        <View className="w-6 items-center">
+          <Ionicons
+            name="checkmark-circle"
+            size={22}
+            color={isSelected ? palette.nileGreen[500] : "transparent"}
+          />
+        </View>
         <Text className="text-sm text-slate-400 dark:text-slate-500 me-2">
           {item.symbol}
         </Text>
       </View>
-      {isSelected && (
-        <Ionicons
-          name="checkmark-circle"
-          size={22}
-          color={palette.nileGreen[500]}
-        />
-      )}
     </TouchableOpacity>
   );
 }
@@ -113,9 +113,9 @@ export function CurrencyPicker({
   const { t } = useTranslation("common");
 
   const filteredCurrencies = useMemo(() => {
-    if (!searchQuery.trim()) return [...SUPPORTED_CURRENCIES];
+    if (!searchQuery.trim()) return [...SORTED_SUPPORTED_CURRENCIES];
     const query = searchQuery.toLowerCase();
-    return SUPPORTED_CURRENCIES.filter(
+    return SORTED_SUPPORTED_CURRENCIES.filter(
       (c) =>
         c.code.toLowerCase().includes(query) ||
         c.name.toLowerCase().includes(query)

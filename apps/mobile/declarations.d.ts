@@ -8,6 +8,11 @@ declare module "*.jpg" {
   export default value;
 }
 
+declare module "*.webp" {
+  const value: number;
+  export default value;
+}
+
 declare module "*.svg" {
   import React from "react";
   import { SvgProps } from "react-native-svg";

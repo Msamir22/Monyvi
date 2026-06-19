@@ -26,8 +26,29 @@ until curl --fail --silent --show-error --max-time 10 "$status_url" >/dev/null; 
   sleep 2
 done
 
+bundle_url="${metro_url%/}/index.bundle?platform=android&dev=true&minify=false"
+bundle_wait_timeout_seconds="${E2E_METRO_BUNDLE_TIMEOUT_SECONDS:-240}"
+echo "Prewarming Metro Android bundle at ${bundle_url}"
+if ! curl --fail --silent --show-error --max-time "$bundle_wait_timeout_seconds" "$bundle_url" >/dev/null; then
+  echo "Metro Android bundle prewarm did not finish within ${bundle_wait_timeout_seconds}s; continuing with app-driven bundling." >&2
+fi
+
 set +e
-npm run e2e:ci -w @monyvi/mobile
+e2e_output_log="android-e2e-output.log"
+npm run e2e:ci -w @monyvi/mobile 2>&1 | tee "$e2e_output_log"
 e2e_status=$?
 timeout "${E2E_LOGCAT_TIMEOUT_SECONDS:-30}"s adb logcat -d > android-e2e-logcat.log || true
+if [ "$e2e_status" -ne 0 ]; then
+  {
+    echo "Android E2E failed. Last E2E output lines:"
+    tail -n 80 "$e2e_output_log"
+    echo ""
+    echo "Last Metro output lines:"
+    tail -n 80 metro.log 2>/dev/null || true
+  } > android-e2e-failure-summary.log
+  {
+    annotation_message="$(sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e ':a;N;$!ba;s/\n/%0A/g' android-e2e-failure-summary.log | cut -c 1-8000)"
+    echo "::error title=Android E2E failed::${annotation_message}"
+  } || true
+fi
 exit "$e2e_status"

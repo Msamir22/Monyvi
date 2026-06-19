@@ -4,6 +4,8 @@ import { formatCurrency } from "@monyvi/logic";
 interface AccountBalanceInput {
   readonly balance: number;
   readonly currency: CurrencyType;
+  readonly minimumFractionDigits?: number;
+  readonly maximumFractionDigits?: number;
 }
 
 interface TransactionAmountInput {
@@ -16,6 +18,8 @@ export function formatAccountBalance(account: AccountBalanceInput): string {
   return formatCurrency({
     amount: account.balance,
     currency: account.currency,
+    minimumFractionDigits: account.minimumFractionDigits,
+    maximumFractionDigits: account.maximumFractionDigits,
   });
 }
 

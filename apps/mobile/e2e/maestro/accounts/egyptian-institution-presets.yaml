@@ -1,0 +1,228 @@
+appId: com.monyvi.app
+---
+# Issue 389: Egyptian institution presets account journey.
+# Preconditions:
+# - Run through the local E2E wrapper after seed/bootstrap.
+# - Preferred currency is EGP, so bank/wallet preset pickers are eligible.
+# - The seeded account data is reset before CI-style runs.
+
+- runFlow: ../helpers/setup.yaml
+
+# Navigate from Transactions to Accounts.
+- tapOn: "Accounts"
+- extendedWaitUntil:
+    visible: "Accounts"
+    timeout: 30000
+
+# Known bank: selecting a preset should save with registry sender matching handled internally.
+- tapOn:
+    id: "accounts-add-button"
+- extendedWaitUntil:
+    visible: "Add Account"
+    timeout: 30000
+- tapOn: "Bank Account"
+- assertVisible: "Bank"
+- assertVisible: "Message detection (Optional)"
+- tapOn:
+    id: "institution-picker-trigger-bank"
+- tapOn:
+    id: "institution-picker-search-bank"
+- inputText: "CIB"
+- waitForAnimationToEnd
+- tapOn: "CIB \\(Commercial International Bank\\)"
+- waitForAnimationToEnd
+- tapOn:
+    id: "account-name-input"
+- inputText: "E2E CIB Preset"
+- tapOn:
+    id: "header-save"
+- scrollUntilVisible:
+    element: "E2E CIB Preset"
+    direction: DOWN
+    timeout: 60000
+    visibilityPercentage: 50
+- waitForAnimationToEnd:
+    timeout: 5000
+
+# Edit known bank: provider and message-detection sections remain available.
+- tapOn: "E2E CIB Preset, .*"
+- extendedWaitUntil:
+    visible: "Edit Account"
+    timeout: 30000
+- assertVisible: "Bank"
+- assertVisible: "Message detection (Optional)"
+- tapOn:
+    id: "header-back"
+- extendedWaitUntil:
+    visible: "Accounts"
+    timeout: 30000
+
+# Known wallet: separate wallet picker should show wallet providers and save in <= 90s.
+- tapOn:
+    id: "accounts-add-button"
+- extendedWaitUntil:
+    visible: "Add Account"
+    timeout: 30000
+- tapOn: "Digital Wallet"
+- assertVisible: "Wallet"
+- assertVisible: "Message detection (Optional)"
+- tapOn:
+    id: "institution-picker-trigger-wallet"
+- tapOn:
+    id: "institution-picker-search-wallet"
+- inputText: "Vodafone"
+- waitForAnimationToEnd
+- tapOn: "Vodafone Cash"
+- waitForAnimationToEnd
+- tapOn:
+    id: "account-name-input"
+- inputText: "E2E Vodafone Preset"
+- tapOn:
+    id: "header-save"
+- scrollUntilVisible:
+    element: "E2E Vodafone Preset"
+    direction: DOWN
+    timeout: 60000
+    visibilityPercentage: 50
+- waitForAnimationToEnd:
+    timeout: 5000
+
+# Edit known wallet: provider and message-detection sections remain available too.
+- tapOn: "E2E Vodafone Preset, .*"
+- extendedWaitUntil:
+    visible: "Edit Account"
+    timeout: 30000
+- assertVisible: "Wallet"
+- assertVisible: "Message detection (Optional)"
+- tapOn:
+    id: "header-back"
+- extendedWaitUntil:
+    visible: "Accounts"
+    timeout: 30000
+
+# Other bank: user can bypass presets and enter free-text provider/sender values.
+- tapOn:
+    id: "accounts-add-button"
+- extendedWaitUntil:
+    visible: "Add Account"
+    timeout: 30000
+- tapOn: "Bank Account"
+- tapOn:
+    id: "institution-picker-trigger-bank"
+- tapOn:
+    id: "institution-picker-search-bank"
+- inputText: "ZZZ"
+- waitForAnimationToEnd
+- tapOn: "Other"
+- tapOn:
+    id: "account-name-input"
+- inputText: "E2E Other Bank"
+- pressKey: Enter
+- waitForAnimationToEnd
+- tapOn:
+    id: "manual-provider-name-bank"
+- inputText: "E2E Manual Bank"
+- pressKey: Enter
+- waitForAnimationToEnd
+- tapOn: "Message detection (Optional)"
+- tapOn:
+    id: "sms-sender-input"
+- inputText: "E2EBANK"
+- pressKey: Enter
+- waitForAnimationToEnd
+- tapOn:
+    id: "sms-sender-add"
+- assertVisible: "E2EBANK"
+- waitForAnimationToEnd
+- tapOn:
+    id: "header-save"
+- scrollUntilVisible:
+    element: "E2E Other Bank"
+    direction: DOWN
+    timeout: 60000
+    visibilityPercentage: 50
+- waitForAnimationToEnd:
+    timeout: 5000
+
+# Other wallet: user can bypass wallet presets and enter free-text provider/sender values.
+- tapOn:
+    id: "accounts-add-button"
+- extendedWaitUntil:
+    visible: "Add Account"
+    timeout: 30000
+- tapOn: "Digital Wallet"
+- tapOn:
+    id: "institution-picker-trigger-wallet"
+- tapOn:
+    id: "institution-picker-search-wallet"
+- inputText: "ZZZ"
+- waitForAnimationToEnd
+- tapOn: "Other"
+- tapOn:
+    id: "account-name-input"
+- inputText: "E2E Other Wallet"
+- pressKey: Enter
+- waitForAnimationToEnd
+- tapOn:
+    id: "manual-provider-name-wallet"
+- inputText: "E2E Manual Wallet"
+- pressKey: Enter
+- waitForAnimationToEnd
+- tapOn: "Message detection (Optional)"
+- tapOn:
+    id: "sms-sender-input"
+- inputText: "E2EWALLET"
+- pressKey: Enter
+- waitForAnimationToEnd
+- tapOn:
+    id: "sms-sender-add"
+- assertVisible: "E2EWALLET"
+- waitForAnimationToEnd
+- tapOn:
+    id: "header-save"
+- scrollUntilVisible:
+    element: "E2E Other Wallet"
+    direction: DOWN
+    timeout: 60000
+    visibilityPercentage: 50
+- waitForAnimationToEnd:
+    timeout: 5000
+
+# Account-type switch during create: Bank picker changes to wallet picker and clears provider choice.
+- tapOn:
+    id: "accounts-add-button"
+- extendedWaitUntil:
+    visible: "Add Account"
+    timeout: 30000
+- tapOn: "Bank Account"
+- tapOn:
+    id: "institution-picker-trigger-bank"
+- tapOn:
+    id: "institution-picker-search-bank"
+- inputText: "CIB"
+- waitForAnimationToEnd
+- assertVisible: "CIB \\(Commercial International Bank\\)"
+- tapOn: "Close bank list"
+- tapOn: "Digital Wallet"
+- tapOn:
+    id: "institution-picker-trigger-wallet"
+- tapOn:
+    id: "institution-picker-search-wallet"
+- inputText: "Vodafone"
+- waitForAnimationToEnd
+- assertVisible: "Vodafone Cash"
+- assertNotVisible: "CIB \\(Commercial International Bank\\)"
+- tapOn: "Vodafone Cash"
+- waitForAnimationToEnd
+- tapOn:
+    id: "account-name-input"
+- inputText: "E2E Switch Wallet"
+- tapOn:
+    id: "header-save"
+- scrollUntilVisible:
+    element: "E2E Switch Wallet"
+    direction: DOWN
+    timeout: 60000
+    visibilityPercentage: 50
+- waitForAnimationToEnd:
+    timeout: 5000

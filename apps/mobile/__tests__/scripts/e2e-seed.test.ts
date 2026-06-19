@@ -58,14 +58,37 @@ describe("e2e-seed script helpers", () => {
   it("uses explicit local Supabase keys without requiring the local JWT secret", () => {
     const config = getE2eSeedConfig({
       E2E_SUPABASE_MODE: "local",
-      EXPO_PUBLIC_SUPABASE_ANON_KEY: "anon-key",
-      SUPABASE_SERVICE_ROLE_KEY: "service-role-key",
+      E2E_LOCAL_SUPABASE_ANON_KEY: "anon-key",
+      E2E_LOCAL_SUPABASE_SERVICE_ROLE_KEY: "service-role-key",
       MAESTRO_E2E_EMAIL: "e2e@monyvi.test",
       MAESTRO_E2E_PASSWORD: "Password123!",
     });
 
     expect(config.anonKey).toBe("anon-key");
     expect(config.serviceRoleKey).toBe("service-role-key");
+  });
+
+  it("ignores remote Supabase env vars when local mode reads local status", () => {
+    const config = getE2eSeedConfig(
+      {
+        E2E_SUPABASE_MODE: "local",
+        EXPO_PUBLIC_SUPABASE_URL: "https://remote-project.supabase.co",
+        EXPO_PUBLIC_SUPABASE_ANON_KEY: "remote-anon-key",
+        SUPABASE_SERVICE_ROLE_KEY: "remote-service-role-key",
+      },
+      {
+        readLocalSupabaseStatusEnv: () =>
+          [
+            'ANON_KEY="local-anon-key"',
+            'SERVICE_ROLE_KEY="local-service-role-key"',
+          ].join("\n"),
+      }
+    );
+
+    expect(config.supabaseUrl).toBe("http://127.0.0.1:54321");
+    expect(config.appSupabaseUrl).toBe("http://10.0.2.2:54321");
+    expect(config.anonKey).toBe("local-anon-key");
+    expect(config.serviceRoleKey).toBe("local-service-role-key");
   });
 
   it("requires explicit service role and credentials for remote Supabase mode", () => {
@@ -82,6 +105,9 @@ describe("e2e-seed script helpers", () => {
       E2E_TABLE_DELETE_ORDER.indexOf("accounts")
     );
     expect(E2E_TABLE_DELETE_ORDER.indexOf("transfers")).toBeLessThan(
+      E2E_TABLE_DELETE_ORDER.indexOf("accounts")
+    );
+    expect(E2E_TABLE_DELETE_ORDER.indexOf("account_sms_senders")).toBeLessThan(
       E2E_TABLE_DELETE_ORDER.indexOf("accounts")
     );
     expect(E2E_TABLE_DELETE_ORDER.at(-1)).toBe("profiles");
@@ -108,8 +134,14 @@ describe("e2e-seed script helpers", () => {
         operation.startsWith("delete:bank_details:account_id:")
       )
     ).toHaveLength(2);
+    expect(
+      operations.filter((operation) =>
+        operation.startsWith("delete:account_sms_senders:account_id:")
+      )
+    ).toHaveLength(4);
     expect(operations).toContain("upsert:profiles:user-e2e");
     expect(operations).toContain("upsert:accounts:4");
+    expect(operations).toContain("upsert:account_sms_senders:3");
     expect(operations).toContain("upsert:transactions:2");
     expect(operations).toContain("upsert:transfers:1");
     expect(operations).toContain(
@@ -198,6 +230,44 @@ describe("e2e-seed script helpers", () => {
     });
 
     expect(operations).toContain("update-user:user-e2e");
+    expect(operations).toContain("update-user-password:user-e2e");
+  });
+
+  it("preserves an existing auth user's password when configured", async () => {
+    const operations: string[] = [];
+    const client = createMockClient(operations);
+
+    await seedE2eData(client, {
+      ...getE2eSeedConfig({
+        E2E_SUPABASE_MODE: "local",
+        E2E_LOCAL_JWT_SECRET: "local-test-jwt-secret-with-enough-length",
+        E2E_PRESERVE_EXISTING_PASSWORD: "1",
+        MAESTRO_E2E_EMAIL: "e2e@monyvi.test",
+      }),
+    });
+
+    expect(operations).toContain("update-user:user-e2e");
+    expect(operations).toContain("update-user-without-password:user-e2e");
+    expect(operations).not.toContain("update-user-password:user-e2e");
+  });
+
+  it("guides missing-password recovery with the supported E2E env vars", async () => {
+    const operations: string[] = [];
+    const client = createMockClient(operations, { authPages: [[]] });
+
+    await expect(
+      seedE2eData(client, {
+        ...getE2eSeedConfig({
+          E2E_SUPABASE_MODE: "local",
+          E2E_LOCAL_JWT_SECRET: "local-test-jwt-secret-with-enough-length",
+          E2E_PRESERVE_EXISTING_PASSWORD: "1",
+          MAESTRO_E2E_EMAIL: "e2e@monyvi.test",
+        }),
+      })
+    ).rejects.toThrow(
+      "Set MAESTRO_E2E_PASSWORD once, then rerun with E2E_PRESERVE_EXISTING_PASSWORD=1"
+    );
+    expect(operations).not.toContain("create-user:e2e@monyvi.test");
   });
 
   it("resets scoped rows without reseeding fixture data", async () => {
@@ -315,8 +385,13 @@ function createMockClient(
             error: null,
           });
         },
-        updateUserById: (userId: string) => {
+        updateUserById: (userId: string, attributes: { password?: string }) => {
           operations.push(`update-user:${userId}`);
+          operations.push(
+            attributes.password
+              ? `update-user-password:${userId}`
+              : `update-user-without-password:${userId}`
+          );
           return Promise.resolve({ error: null });
         },
         createUser: ({ email }: { readonly email: string }) => {

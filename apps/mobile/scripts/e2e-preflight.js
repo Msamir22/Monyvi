@@ -10,15 +10,13 @@ const { hostMetroUrl, metroUrl } = resolveMetroUrls(process.env);
 const isReleaseBuild = process.env.E2E_RELEASE_BUILD === "1";
 const preflightLaunchAttempts = parsePositiveInt(
   process.env.E2E_PREFLIGHT_LAUNCH_ATTEMPTS,
-  3
+  2
 );
 const preflightAttemptTimeoutMs = parsePositiveInt(
   process.env.E2E_PREFLIGHT_ATTEMPT_TIMEOUT_MS,
-  120000
+  300000
 );
-const devClientUrl = `exp+monyvi://expo-development-client/?url=${encodeURIComponent(
-  metroUrl
-)}`;
+const devClientUrl = buildDevClientUrl(metroUrl);
 const devMenuPreferencesPath =
   "shared_prefs/expo.modules.devmenu.sharedpreferences.xml";
 const privateShellMarkers = [
@@ -71,6 +69,10 @@ function appendAndroidPlatform(url) {
   const parsedUrl = new URL(url);
   parsedUrl.searchParams.set("platform", "android");
   return parsedUrl.toString();
+}
+
+function buildDevClientUrl(url) {
+  return `monyvi://expo-development-client/?url=${encodeURIComponent(url)}`;
 }
 
 function resolveMetroUrls(env = process.env) {
@@ -279,13 +281,31 @@ function getCurrentFocus() {
 }
 
 function dumpVisibleText() {
-  adb(["shell", "uiautomator", "dump", "/sdcard/window.xml"], {
-    allowFailure: true,
-  });
-  return adb(["exec-out", "cat", "/sdcard/window.xml"], {
+  const windowDumpPath = "/sdcard/window.xml";
+  adb(["shell", "rm", "-f", windowDumpPath], {
     capture: true,
     allowFailure: true,
   });
+  const dumpOutput = adb(["shell", "uiautomator", "dump", windowDumpPath], {
+    capture: true,
+    allowFailure: true,
+  });
+
+  if (!didDumpUiHierarchy(dumpOutput)) {
+    return "";
+  }
+
+  return adb(["exec-out", "cat", windowDumpPath], {
+    capture: true,
+    allowFailure: true,
+  });
+}
+
+function didDumpUiHierarchy(dumpOutput) {
+  return (
+    dumpOutput.includes("UI hierarchy dumped") ||
+    dumpOutput.includes("UI hierchary dumped")
+  );
 }
 
 function tapByVisibleLabel(uiXml, label) {
@@ -422,8 +442,19 @@ function restoreAppFromLauncherIfVisible(uiXml, currentFocus, restoreAttempts) {
   return true;
 }
 
-function restoreAppFromDevLauncherIfFocused(currentFocus, restoreAttempts) {
-  if (!currentFocus.includes("expo.modules.devlauncher.launcher")) {
+function shouldRestoreFromDevLauncher(uiXml, currentFocus) {
+  return (
+    currentFocus.includes("expo.modules.devlauncher.launcher") &&
+    visibleTextShowsWrongShell(uiXml)
+  );
+}
+
+function restoreAppFromDevLauncherIfFocused(
+  uiXml,
+  currentFocus,
+  restoreAttempts
+) {
+  if (!shouldRestoreFromDevLauncher(uiXml, currentFocus)) {
     return false;
   }
 
@@ -456,6 +487,14 @@ function isAppReady(uiXml) {
   return isSettingsReady || isPrivateShellReady || isAuthReady;
 }
 
+function isNativeRootMounted(uiXml) {
+  return (
+    uiXml.includes('package="com.monyvi.app"') &&
+    (uiXml.includes("androidx.compose.ui.platform.ComposeView") ||
+      uiXml.includes("android.view.View"))
+  );
+}
+
 function assertNotWrongShell(currentFocus) {
   if (currentFocus.includes("host.exp.exponent")) {
     throw new Error(
@@ -468,6 +507,7 @@ function waitForProductUi(timeoutMs = 240000) {
   const startedAt = Date.now();
   let lastUiXml = "";
   let lastFocus = "";
+  let hasSeenNativeRoot = false;
   let anrWaitAttempts = 0;
   let launcherRestoreAttempts = 0;
   let devLauncherRestoreAttempts = 0;
@@ -485,7 +525,11 @@ function waitForProductUi(timeoutMs = 240000) {
     }
 
     if (
-      restoreAppFromDevLauncherIfFocused(lastFocus, devLauncherRestoreAttempts)
+      restoreAppFromDevLauncherIfFocused(
+        lastUiXml,
+        lastFocus,
+        devLauncherRestoreAttempts
+      )
     ) {
       devLauncherRestoreAttempts += 1;
       continue;
@@ -530,6 +574,10 @@ function waitForProductUi(timeoutMs = 240000) {
       }
     }
 
+    if (lastFocus.includes(appId) && isNativeRootMounted(lastUiXml)) {
+      hasSeenNativeRoot = true;
+    }
+
     wait(2000);
   }
 
@@ -541,7 +589,9 @@ function waitForProductUi(timeoutMs = 240000) {
     ? `The app stayed in the Expo Dev Launcher. Metro URL: ${metroUrl}`
     : isAccountLoading
       ? "The app stayed on Loading your account. Check auth/profile startup state and Metro logs."
-      : "The app did not reach a recognized Monyvi screen.";
+      : hasSeenNativeRoot
+        ? "The native app root mounted, but no recognized Monyvi screen became visible. Check Metro and React logs for bundle or render errors."
+        : "The app did not reach a recognized Monyvi screen.";
 
   throw new Error(`E2E preflight failed. ${hint}\n${lastFocus}`);
 }
@@ -650,10 +700,14 @@ module.exports = {
   currentFocusShowsDevMenu,
   currentFocusShowsLauncher,
   buildDevMenuPreferencesXml,
+  buildDevClientUrl,
+  didDumpUiHierarchy,
   disableExpoDevMenuFabForE2e,
   getHttpClientNameForUrl,
   isAppReady,
+  isNativeRootMounted,
   isReleaseBuild,
+  shouldRestoreFromDevLauncher,
   hostMetroUrl,
   metroUrl,
   resolveMetroUrls,

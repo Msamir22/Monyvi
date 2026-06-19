@@ -24,11 +24,9 @@ export abstract class BaseBankDetails extends Model {
 
   @field("account_id") accountId!: string;
   @field("account_number") accountNumber?: string;
-  @field("bank_name") bankName?: string;
   @field("card_last_4") cardLast4?: string;
   @readonly @date("created_at") createdAt!: Date;
   @field("deleted") deleted!: boolean;
-  @field("sms_sender_name") smsSenderName?: string;
   @date("updated_at") updatedAt!: Date;
 
   @relation("accounts", "account_id") account!: Relation<BaseAccount>;

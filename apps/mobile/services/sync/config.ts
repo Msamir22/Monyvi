@@ -47,6 +47,7 @@ function defineChildTableMap<
 }
 
 export const CHILD_TABLES_MAP = defineChildTableMap({
+  account_sms_senders: { parentTable: "accounts", foreignKey: "account_id" },
   asset_metals: { parentTable: "assets", foreignKey: "asset_id" },
   bank_details: { parentTable: "accounts", foreignKey: "account_id" },
 });

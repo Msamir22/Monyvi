@@ -193,6 +193,16 @@ describe("formatCurrency", () => {
         })
       ).toBe("$10");
     });
+
+    it("does not auto-select more minimum digits than an overridden maximum", () => {
+      expect(
+        formatCurrency({
+          amount: 1234.56,
+          currency: "EGP",
+          maximumFractionDigits: 0,
+        })
+      ).toBe("1,235 EGP");
+    });
   });
 
   describe("negative zero normalization", () => {

@@ -139,8 +139,6 @@ export default function AuthScreen(): React.JSX.Element {
             setEmailError(result.error.message);
             return;
           }
-
-          showToast({ type: "success", title: t("signed_in_success") });
         }
       } catch {
         setEmailError(tCommon("error_generic"));

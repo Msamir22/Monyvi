@@ -28,6 +28,7 @@ const E2E_TABLE_DELETE_ORDER = [
   "daily_snapshot_assets",
   "daily_snapshot_balance",
   "daily_snapshot_net_worth",
+  "account_sms_senders",
   "bank_details",
   "accounts",
   "user_category_settings",
@@ -65,6 +66,11 @@ function buildSeedIds(userId) {
     bankDetails: {
       nbe: deterministicUuid(userId, "bank-detail:nbe"),
       qnb: deterministicUuid(userId, "bank-detail:qnb"),
+    },
+    accountSmsSenders: {
+      nbe: deterministicUuid(userId, "account-sms-sender:nbe"),
+      qnb: deterministicUuid(userId, "account-sms-sender:qnb"),
+      wallet: deterministicUuid(userId, "account-sms-sender:wallet"),
     },
     transactions: {
       expense: deterministicUuid(userId, "transaction:expense"),
@@ -161,9 +167,9 @@ function readLocalSupabaseStatusEnv() {
 
 function resolveLocalSupabaseKeys(env, readStatusEnv) {
   const explicitAnonKey =
-    env.EXPO_PUBLIC_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY || env.ANON_KEY;
+    env.E2E_LOCAL_SUPABASE_ANON_KEY || env.E2E_LOCAL_ANON_KEY;
   const explicitServiceRoleKey =
-    env.SUPABASE_SERVICE_ROLE_KEY || env.SERVICE_ROLE_KEY;
+    env.E2E_LOCAL_SUPABASE_SERVICE_ROLE_KEY || env.E2E_LOCAL_SERVICE_ROLE_KEY;
 
   if (explicitAnonKey && explicitServiceRoleKey) {
     return { anonKey: explicitAnonKey, serviceRoleKey: explicitServiceRoleKey };
@@ -200,9 +206,20 @@ function resolveLocalSupabaseKeys(env, readStatusEnv) {
   return { anonKey, serviceRoleKey };
 }
 
+function getLocalSeedSupabaseUrl(env) {
+  return env.E2E_LOCAL_SUPABASE_URL || LOCAL_SUPABASE_URL;
+}
+
+function getLocalSeedAppSupabaseUrl(env) {
+  return env.E2E_LOCAL_APP_SUPABASE_URL || LOCAL_ANDROID_SUPABASE_URL;
+}
+
 function getE2eSeedConfig(env = process.env, options = {}) {
   const mode = env.E2E_SUPABASE_MODE === "remote" ? "remote" : "local";
   const isLocal = mode === "local";
+  const hasExplicitPassword = Boolean(env.MAESTRO_E2E_PASSWORD);
+  const preserveExistingPassword =
+    env.E2E_PRESERVE_EXISTING_PASSWORD === "1" && !hasExplicitPassword;
   const readStatusEnv =
     options.readLocalSupabaseStatusEnv ?? readLocalSupabaseStatusEnv;
   const localKeys = isLocal
@@ -211,25 +228,23 @@ function getE2eSeedConfig(env = process.env, options = {}) {
 
   return {
     mode,
-    supabaseUrl:
-      env.E2E_SUPABASE_URL ??
-      env.SUPABASE_URL ??
-      (isLocal
-        ? LOCAL_SUPABASE_URL
-        : requiredRemoteEnv(env, "EXPO_PUBLIC_SUPABASE_URL")),
+    supabaseUrl: isLocal
+      ? getLocalSeedSupabaseUrl(env)
+      : env.E2E_SUPABASE_URL ??
+        env.SUPABASE_URL ??
+        requiredRemoteEnv(env, "EXPO_PUBLIC_SUPABASE_URL"),
     appSupabaseUrl:
-      env.EXPO_PUBLIC_SUPABASE_URL ??
-      (isLocal ? LOCAL_ANDROID_SUPABASE_URL : env.E2E_SUPABASE_URL),
-    serviceRoleKey:
-      env.SUPABASE_SERVICE_ROLE_KEY ??
-      (isLocal
-        ? localKeys.serviceRoleKey
-        : requiredRemoteEnv(env, "SUPABASE_SERVICE_ROLE_KEY")),
-    anonKey:
-      env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??
-      (isLocal
-        ? localKeys.anonKey
-        : requiredRemoteEnv(env, "EXPO_PUBLIC_SUPABASE_ANON_KEY")),
+      isLocal
+        ? getLocalSeedAppSupabaseUrl(env)
+        : env.EXPO_PUBLIC_SUPABASE_URL ?? env.E2E_SUPABASE_URL,
+    serviceRoleKey: isLocal
+      ? localKeys.serviceRoleKey
+      : env.SUPABASE_SERVICE_ROLE_KEY ??
+        requiredRemoteEnv(env, "SUPABASE_SERVICE_ROLE_KEY"),
+    anonKey: isLocal
+      ? localKeys.anonKey
+      : env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??
+        requiredRemoteEnv(env, "EXPO_PUBLIC_SUPABASE_ANON_KEY"),
     email:
       env.MAESTRO_E2E_EMAIL ??
       (isLocal
@@ -237,9 +252,12 @@ function getE2eSeedConfig(env = process.env, options = {}) {
         : requiredRemoteEnv(env, "MAESTRO_E2E_EMAIL")),
     password:
       env.MAESTRO_E2E_PASSWORD ??
-      (isLocal
-        ? createLocalE2ePassword(localKeys.serviceRoleKey)
-        : requiredRemoteEnv(env, "MAESTRO_E2E_PASSWORD")),
+      (preserveExistingPassword
+        ? null
+        : isLocal
+          ? createLocalE2ePassword(localKeys.serviceRoleKey)
+          : requiredRemoteEnv(env, "MAESTRO_E2E_PASSWORD")),
+    preserveExistingPassword,
   };
 }
 
@@ -253,15 +271,27 @@ async function assertNoError(result, label) {
 async function ensureE2eUser(client, config) {
   const existingUser = await findE2eUser(client, config.email);
   if (existingUser) {
+    const updates = {
+      email_confirm: true,
+      user_metadata: { full_name: E2E_USER_FULL_NAME },
+    };
+
     await assertNoError(
-      await client.auth.admin.updateUserById(existingUser.id, {
-        password: config.password,
-        email_confirm: true,
-        user_metadata: { full_name: E2E_USER_FULL_NAME },
-      }),
+      await client.auth.admin.updateUserById(
+        existingUser.id,
+        config.preserveExistingPassword
+          ? updates
+          : { ...updates, password: config.password }
+      ),
       "sync E2E user credentials"
     );
     return existingUser.id;
+  }
+
+  if (!config.password) {
+    throw new Error(
+      `Cannot create ${config.email} without a password. Set MAESTRO_E2E_PASSWORD once, then rerun with E2E_PRESERVE_EXISTING_PASSWORD=1 to preserve the current password.`
+    );
   }
 
   const createResult = await assertNoError(
@@ -308,6 +338,29 @@ async function deleteScopedRows(client, table, userId, seedIds) {
     if (typeof deleteBuilder.in !== "function") {
       const fallbackDeleteResults = await Promise.all(
         [seedIds.accounts.bank, seedIds.accounts.qnbBank].map((accountId) =>
+          client.from(table).delete().eq("account_id", accountId)
+        )
+      );
+
+      await Promise.all(
+        fallbackDeleteResults.map((result) =>
+          assertNoError(result, `delete ${table}`)
+        )
+      );
+      return;
+    }
+
+    return assertNoError(
+      await deleteBuilder.in("account_id", Object.values(seedIds.accounts)),
+      `delete ${table}`
+    );
+  }
+
+  if (table === "account_sms_senders") {
+    const deleteBuilder = client.from(table).delete();
+    if (typeof deleteBuilder.in !== "function") {
+      const fallbackDeleteResults = await Promise.all(
+        Object.values(seedIds.accounts).map((accountId) =>
           client.from(table).delete().eq("account_id", accountId)
         )
       );
@@ -429,6 +482,8 @@ function buildSeedRows(userId) {
         type: "BANK",
         balance: 12430.55,
         currency: "EGP",
+        institution_id: "nbe",
+        provider_display_name: "NBE",
         is_default: false,
         deleted: false,
         created_at: FIXED_NOW,
@@ -441,6 +496,8 @@ function buildSeedRows(userId) {
         type: "BANK",
         balance: 3200,
         currency: "EGP",
+        institution_id: "qnb-egypt",
+        provider_display_name: "QNB",
         is_default: false,
         deleted: false,
         created_at: FIXED_NOW,
@@ -453,6 +510,8 @@ function buildSeedRows(userId) {
         type: "DIGITAL_WALLET",
         balance: 950,
         currency: "EGP",
+        institution_id: "vodafone-cash",
+        provider_display_name: "Vodafone Cash",
         is_default: false,
         deleted: false,
         created_at: FIXED_NOW,
@@ -463,9 +522,7 @@ function buildSeedRows(userId) {
       {
         id: seedIds.bankDetails.nbe,
         account_id: seedIds.accounts.bank,
-        bank_name: "NBE",
         card_last_4: "4321",
-        sms_sender_name: "NBE",
         account_number: "00004321",
         deleted: false,
         created_at: FIXED_NOW,
@@ -474,10 +531,37 @@ function buildSeedRows(userId) {
       {
         id: seedIds.bankDetails.qnb,
         account_id: seedIds.accounts.qnbBank,
-        bank_name: "QNB",
         card_last_4: "5566",
-        sms_sender_name: "QNB",
         account_number: "00005566",
+        deleted: false,
+        created_at: FIXED_NOW,
+        updated_at: FIXED_NOW,
+      },
+    ],
+    accountSmsSenders: [
+      {
+        id: seedIds.accountSmsSenders.nbe,
+        account_id: seedIds.accounts.bank,
+        sender_name: "NBE",
+        normalized_sender_name: "nbe",
+        deleted: false,
+        created_at: FIXED_NOW,
+        updated_at: FIXED_NOW,
+      },
+      {
+        id: seedIds.accountSmsSenders.qnb,
+        account_id: seedIds.accounts.qnbBank,
+        sender_name: "QNB",
+        normalized_sender_name: "qnb",
+        deleted: false,
+        created_at: FIXED_NOW,
+        updated_at: FIXED_NOW,
+      },
+      {
+        id: seedIds.accountSmsSenders.wallet,
+        account_id: seedIds.accounts.wallet,
+        sender_name: "VodafoneCash",
+        normalized_sender_name: "vodafonecash",
         deleted: false,
         created_at: FIXED_NOW,
         updated_at: FIXED_NOW,
@@ -553,6 +637,9 @@ async function seedE2eData(client, config) {
   });
   await upsertRows(client, "accounts", rows.accounts, { onConflict: "id" });
   await upsertRows(client, "bank_details", rows.bankDetails, {
+    onConflict: "id",
+  });
+  await upsertRows(client, "account_sms_senders", rows.accountSmsSenders, {
     onConflict: "id",
   });
   await upsertRows(client, "transactions", rows.transactions, {

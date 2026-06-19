@@ -191,8 +191,8 @@ export function useTransactionEditState({
     return txType === "EXPENSE" ? expenseCategories : incomeCategories;
   }, [txType, expenseCategories, incomeCategories]);
 
-  // Merge real accounts + pending accounts for the dropdown
-  // Voice: all account types | SMS: BANK only
+  // Merge real accounts + pending accounts for the dropdown.
+  // Voice: all account types | SMS: accounts supported by SMS matching.
   const isVoiceSource = transaction.source === "VOICE";
 
   const accountOptions = useMemo<readonly AccountOption[]>(() => {
@@ -208,11 +208,14 @@ export function useTransactionEditState({
       name: pa.name,
       currency: pa.currency,
       isPending: true,
-      type: "BANK",
+      type: pa.type,
     }));
     const all = [...real, ...pending];
-    // Voice flow: show all account types | SMS flow: BANK only
-    return isVoiceSource ? all : all.filter((o) => o.type === "BANK");
+    return isVoiceSource
+      ? all
+      : all.filter(
+          (option) => option.type === "BANK" || option.type === "DIGITAL_WALLET"
+        );
   }, [accounts, pendingAccounts, isVoiceSource]);
 
   // Currency-grouped sorting for AccountSelector section headers
@@ -415,20 +418,6 @@ export function useTransactionEditState({
         return;
       }
 
-      if (
-        isDuplicateAccount(
-          trimmedName,
-          newAccountCurrency,
-          accounts,
-          pendingAccounts
-        )
-      ) {
-        setNewAccountError(
-          `An account named "${trimmedName}" in ${newAccountCurrency} already exists`
-        );
-        return;
-      }
-
       const tempId = generatePendingTempId();
       pendingAccountToCreate = buildPendingAccount(tempId, {
         name: trimmedName,
@@ -439,6 +428,21 @@ export function useTransactionEditState({
             ? ((transaction as { cardLast4?: string }).cardLast4 ?? undefined)
             : undefined,
       });
+
+      if (
+        isDuplicateAccount(
+          trimmedName,
+          newAccountCurrency,
+          accounts,
+          pendingAccounts,
+          pendingAccountToCreate
+        )
+      ) {
+        setNewAccountError(
+          `An account named "${trimmedName}" in ${newAccountCurrency} already exists`
+        );
+        return;
+      }
 
       resolvedAccountId = tempId;
       resolvedAccountName = trimmedName;

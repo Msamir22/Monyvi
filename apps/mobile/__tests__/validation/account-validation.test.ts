@@ -92,6 +92,102 @@ describe("accountFormSchema (create)", () => {
       validateAccountForm({ ...baseCreate, balance: "0.50" }).isValid
     ).toBe(true);
   });
+
+  it("does not validate the hidden legacy SMS sender aggregate", () => {
+    const result = validateAccountForm({
+      ...baseCreate,
+      smsSenderName: "x".repeat(150),
+    });
+
+    expect(result.isValid).toBe(true);
+  });
+
+  it("rejects empty string institution ids", () => {
+    const result = validateAccountForm({
+      ...baseCreate,
+      accountType: "BANK",
+      institutionId: "",
+      providerDisplayName: "CIB",
+    });
+
+    expect(result.isValid).toBe(false);
+    expect(result.errors.institutionId).toBeDefined();
+  });
+
+  it("rejects institution ids on cash accounts", () => {
+    const result = validateAccountForm({
+      ...baseCreate,
+      accountType: "CASH",
+      institutionId: "cib",
+      providerDisplayName: "CIB",
+    });
+
+    expect(result.isValid).toBe(false);
+    expect(result.errors.institutionId).toBe(
+      "translated:accounts:validation_institution_invalid_for_type"
+    );
+  });
+
+  it("rejects wallet institution ids on bank accounts", () => {
+    const result = validateAccountForm({
+      ...baseCreate,
+      accountType: "BANK",
+      institutionId: "vodafone-cash",
+      providerDisplayName: "Vodafone Cash",
+    });
+
+    expect(result.isValid).toBe(false);
+    expect(result.errors.institutionId).toBe(
+      "translated:accounts:validation_institution_invalid_for_type"
+    );
+  });
+
+  it("rejects unknown institution ids", () => {
+    const result = validateAccountForm({
+      ...baseCreate,
+      accountType: "BANK",
+      institutionId: "not-a-provider",
+      providerDisplayName: "Unknown",
+    });
+
+    expect(result.isValid).toBe(false);
+    expect(result.errors.institutionId).toBe(
+      "translated:accounts:validation_institution_invalid_for_type"
+    );
+  });
+
+  it("accepts matching known bank and wallet institution ids", () => {
+    expect(
+      validateAccountForm({
+        ...baseCreate,
+        accountType: "BANK",
+        institutionId: "cib",
+        providerDisplayName: "CIB",
+      }).isValid
+    ).toBe(true);
+    expect(
+      validateAccountForm({
+        ...baseCreate,
+        accountType: "DIGITAL_WALLET",
+        institutionId: "vodafone-cash",
+        providerDisplayName: "Vodafone Cash",
+      }).isValid
+    ).toBe(true);
+  });
+
+  it("allows bank edits without institution or provider details", () => {
+    const result = validateEditAccountForm(
+      {
+        ...baseEdit,
+        institutionId: null,
+        providerDisplayName: "",
+      },
+      "BANK"
+    );
+
+    expect(result.isValid).toBe(true);
+    expect(result.errors.providerDisplayName).toBeUndefined();
+  });
 });
 
 describe("editAccountFormSchema", () => {
@@ -149,11 +245,47 @@ describe("editAccountFormSchema", () => {
     ).toBe(true);
   });
 
+  it("does not validate the hidden legacy SMS sender aggregate on edit", () => {
+    const result = validateEditAccountForm({
+      ...baseEdit,
+      smsSenderName: "x".repeat(150),
+    });
+
+    expect(result.isValid).toBe(true);
+  });
+
   it("rejects a leading minus with no digits", () => {
     const result = validateEditAccountForm({ ...baseEdit, balance: "-" });
     expect(result.isValid).toBe(false);
     expect(result.errors.balance).toBe(
       "translated:accounts:validation_balance_edit_invalid"
+    );
+  });
+
+  it("rejects empty string institution ids", () => {
+    const result = validateEditAccountForm({
+      ...baseEdit,
+      institutionId: "",
+      providerDisplayName: "CIB",
+    });
+
+    expect(result.isValid).toBe(false);
+    expect(result.errors.institutionId).toBeDefined();
+  });
+
+  it("rejects institution ids that do not match the edited account type", () => {
+    const result = validateEditAccountForm(
+      {
+        ...baseEdit,
+        institutionId: "vodafone-cash",
+        providerDisplayName: "Vodafone Cash",
+      },
+      "BANK"
+    );
+
+    expect(result.isValid).toBe(false);
+    expect(result.errors.institutionId).toBe(
+      "translated:accounts:validation_institution_invalid_for_type"
     );
   });
 });

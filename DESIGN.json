@@ -1,0 +1,252 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-26T22:12:55.3419422+03:00",
+  "title": "Design System: Monyvi",
+  "extensions": {
+    "colorMeta": {
+      "nile-green-700": {
+        "role": "primary",
+        "displayName": "Deep Nile Green",
+        "canonical": "#065F46",
+        "tonalRamp": [
+          "#022C22",
+          "#064E3B",
+          "#065F46",
+          "#059669",
+          "#10B981",
+          "#34D399",
+          "#D1FAE5",
+          "#ECFDF5"
+        ]
+      },
+      "nile-green-500": {
+        "role": "primary",
+        "displayName": "Action Nile Green",
+        "canonical": "#10B981",
+        "tonalRamp": [
+          "#022C22",
+          "#064E3B",
+          "#065F46",
+          "#059669",
+          "#10B981",
+          "#34D399",
+          "#D1FAE5",
+          "#ECFDF5"
+        ]
+      },
+      "gold-600": {
+        "role": "secondary",
+        "displayName": "Measured Gold",
+        "canonical": "#D97706",
+        "tonalRamp": [
+          "#92400E",
+          "#D97706",
+          "#F59E0B",
+          "#FBBF24",
+          "#FEF3C7",
+          "#F5E6C8"
+        ]
+      },
+      "blue-600": {
+        "role": "secondary",
+        "displayName": "Bank Blue",
+        "canonical": "#2563EB",
+        "tonalRamp": [
+          "#172554",
+          "#1E3A8A",
+          "#2563EB",
+          "#3B82F6",
+          "#DBEAFE",
+          "#EFF6FF"
+        ]
+      },
+      "red-500": {
+        "role": "tertiary",
+        "displayName": "Expense Red",
+        "canonical": "#EF4444",
+        "tonalRamp": ["#DC2626", "#EF4444", "#F87171", "#FEE2E2"]
+      },
+      "slate-900": {
+        "role": "neutral",
+        "displayName": "Slate Ink",
+        "canonical": "#0F172A",
+        "tonalRamp": [
+          "#020617",
+          "#0F172A",
+          "#1E293B",
+          "#334155",
+          "#475569",
+          "#64748B",
+          "#94A3B8",
+          "#CBD5E1",
+          "#E2E8F0",
+          "#F1F5F9",
+          "#F8FAFC",
+          "#FFFFFF"
+        ]
+      },
+      "slate-50": {
+        "role": "neutral",
+        "displayName": "Slate Paper",
+        "canonical": "#F8FAFC",
+        "tonalRamp": [
+          "#020617",
+          "#0F172A",
+          "#1E293B",
+          "#334155",
+          "#475569",
+          "#64748B",
+          "#94A3B8",
+          "#CBD5E1",
+          "#E2E8F0",
+          "#F1F5F9",
+          "#F8FAFC",
+          "#FFFFFF"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Large financial totals and rare major emphasis."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Primary screen titles and focused hero moments."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Section titles, grouped form regions, and card titles."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Standard explanatory copy, list content, and supporting text."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Field labels, metadata, and compact affordances."
+      }
+    },
+    "shadows": [
+      {
+        "name": "action-lift",
+        "value": "elevation: 2; shadow-color: #020617; shadow-offset: 0 2px; shadow-opacity: 0.1; shadow-radius: 4px",
+        "purpose": "Subtle lift for primary actions when touchable shadow classes cannot be used safely."
+      },
+      {
+        "name": "sheet-lift",
+        "value": "overlay plus surface contrast, no heavy shadow token",
+        "purpose": "Bottom-sheet hierarchy through dimming, rounded top corners, and tonal contrast."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state-transition",
+        "value": "150ms to 250ms ease-out",
+        "purpose": "Pressed states, field focus, picker reveal, and validation feedback."
+      },
+      {
+        "name": "sheet-reveal",
+        "value": "platform slide with ease-out timing",
+        "purpose": "Bottom-sheet entry and dismissal without page-load choreography."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "mobile",
+        "value": "default React Native handset layout"
+      },
+      {
+        "name": "tablet",
+        "value": "future constrained-width adaptation"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The main form completion action.",
+      "html": "<button class=\"ds-btn-primary\">Save Account</button>",
+      "css": ".ds-btn-primary { background: #059669; color: #FFFFFF; border: 0; border-radius: 9999px; padding: 14px 32px; font-family: Inter, system-ui, sans-serif; font-size: 16px; font-weight: 700; line-height: 20px; transition: opacity 180ms ease-out, transform 180ms ease-out; } .ds-btn-primary:hover { opacity: 0.92; } .ds-btn-primary:focus-visible { outline: 3px solid #D1FAE5; outline-offset: 2px; } .ds-btn-primary:active { transform: translateY(1px); }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "The default labeled form input.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Account name</span><input class=\"ds-input\" value=\"CIB Daily\" /></label>",
+      "css": ".ds-field { display: grid; gap: 8px; font-family: Inter, system-ui, sans-serif; } .ds-field-label { color: #64748B; font-size: 12px; font-weight: 800; line-height: 16px; letter-spacing: 0.08em; text-transform: uppercase; } .ds-input { background: #FFFFFF; color: #0F172A; border: 1px solid #E2E8F0; border-radius: 16px; padding: 16px; font-size: 16px; font-weight: 600; line-height: 22px; } .ds-input:focus { outline: 3px solid #D1FAE5; border-color: #10B981; }"
+    },
+    {
+      "name": "Dropdown Trigger",
+      "kind": "input",
+      "refersTo": "dropdown-trigger",
+      "description": "A searchable provider picker trigger.",
+      "html": "<button class=\"ds-dropdown\"><span class=\"ds-logo\">CIB</span><span class=\"ds-dropdown-copy\"><strong>CIB</strong><small>Commercial International Bank</small></span><span class=\"ds-chevron\">⌄</span></button>",
+      "css": ".ds-dropdown { width: 100%; display: flex; align-items: center; gap: 12px; background: #FFFFFF; color: #0F172A; border: 1px solid #E2E8F0; border-radius: 16px; padding: 14px 16px; font-family: Inter, system-ui, sans-serif; text-align: left; transition: border-color 180ms ease-out, background 180ms ease-out; } .ds-dropdown:hover { border-color: #CBD5E1; } .ds-dropdown:focus-visible { outline: 3px solid #D1FAE5; border-color: #10B981; } .ds-logo { display: grid; place-items: center; min-width: 40px; height: 40px; border-radius: 12px; background: #EFF6FF; color: #1E3A8A; font-size: 12px; font-weight: 800; } .ds-dropdown-copy { display: grid; gap: 2px; flex: 1; min-width: 0; } .ds-dropdown-copy strong { font-size: 15px; line-height: 20px; } .ds-dropdown-copy small { color: #64748B; font-size: 12px; line-height: 16px; } .ds-chevron { color: #64748B; font-size: 18px; }"
+    },
+    {
+      "name": "Sender Chip",
+      "kind": "chip",
+      "refersTo": "chip-sender",
+      "description": "A removable SMS sender value.",
+      "html": "<span class=\"ds-chip\">CIB <button aria-label=\"Remove CIB sender\">×</button></span>",
+      "css": ".ds-chip { display: inline-flex; align-items: center; gap: 8px; background: #ECFDF5; color: #064E3B; border: 1px solid #D1FAE5; border-radius: 9999px; padding: 8px 12px; font-family: Inter, system-ui, sans-serif; font-size: 13px; font-weight: 700; line-height: 16px; } .ds-chip button { border: 0; background: transparent; color: #065F46; font: inherit; padding: 0; cursor: pointer; } .ds-chip button:focus-visible { outline: 2px solid #10B981; outline-offset: 2px; border-radius: 9999px; }"
+    },
+    {
+      "name": "Form Surface",
+      "kind": "card",
+      "refersTo": "card-rest",
+      "description": "A flat grouped surface for related form fields.",
+      "html": "<section class=\"ds-form-surface\"><h3>Bank</h3><p>Used to match SMS transaction alerts.</p></section>",
+      "css": ".ds-form-surface { background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 24px; padding: 24px; font-family: Inter, system-ui, sans-serif; } .ds-form-surface h3 { margin: 0 0 4px; color: #1E293B; font-size: 20px; line-height: 26px; font-weight: 700; } .ds-form-surface p { margin: 0; color: #64748B; font-size: 14px; line-height: 20px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Trusted Ledger",
+    "overview": "Monyvi should feel like a personal financial ledger that became fast, local, and conversational. The system is calm and practical first: a user should know what account they are editing, what data will help automation, and how to save without hunting through the screen. The design language is restrained product UI with Egyptian financial context.",
+    "keyCharacteristics": [
+      "Calm financial hierarchy with clear save paths.",
+      "Familiar mobile controls with premium spacing and state feedback.",
+      "Arabic and English parity across labels, search, layout, and typography.",
+      "Local-first confidence through skeletons, persistent state, and recoverable errors.",
+      "Brand presence through Nile green restraint, not decoration."
+    ],
+    "rules": [
+      {
+        "name": "The One Accent Rule",
+        "body": "Nile green is the action voice. Do not add a competing primary accent to forms, nav, or account setup.",
+        "section": "colors"
+      },
+      {
+        "name": "The Gold Has Meaning Rule",
+        "body": "Gold appears for wealth, metals, warnings, or market context only. Do not use gold simply because this is a finance app.",
+        "section": "colors"
+      },
+      {
+        "name": "The Locale Leads Rule",
+        "body": "Arabic screens use Noto Sans Arabic and RTL-aware layout. English screens use Inter and LTR spacing. Do not force one font system onto both languages.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat At Rest Rule",
+        "body": "A normal form field, card, or list row should not need a visible shadow. Add lift only when the element floats, overlays, or responds to interaction.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do use semantic NativeWind theme tokens before reaching for raw palette classes.",
+      "Do use shared UI primitives before creating a local variant.",
+      "Do show bank and wallet provider identity with both text and logo when the provider is known.",
+      "Do preserve Arabic and English parity."
+    ],
+    "donts": [
+      "Don't use generic fintech navy-and-gold cliches, crypto intensity, or banking-institution coldness.",
+      "Don't use glassmorphism, gradient orbs, bokeh blobs, heavy purple-blue gradients, or decoration that does not serve the user's task.",
+      "Don't hardcode hex colors in JSX.",
+      "Don't ask for full card numbers, PINs, passwords, or credentials in account setup copy or UI."
+    ]
+  }
+}

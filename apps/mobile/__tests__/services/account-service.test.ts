@@ -397,9 +397,10 @@ describe("createAccountForUser", () => {
     );
   });
 
-  it("creates one account with optional bank details", async () => {
+  it("creates one account with provider metadata, sender rows, and optional bank details", async () => {
     const accountCreateCalls: Array<Record<string, unknown>> = [];
     const bankDetailsCreateCalls: Array<Record<string, unknown>> = [];
+    const senderCreateCalls: Array<Record<string, unknown>> = [];
     const accountsCollection = {
       query: jest.fn().mockReturnValue({
         fetch: jest.fn().mockResolvedValue([]),
@@ -424,9 +425,21 @@ describe("createAccountForUser", () => {
         }
       ),
     };
+    const accountSmsSendersCollection = {
+      create: jest.fn(
+        async (writer: (sender: Record<string, unknown>) => void) => {
+          const sender: Record<string, unknown> = {};
+          writer(sender);
+          senderCreateCalls.push({ ...sender });
+          return { id: `sender-${senderCreateCalls.length}`, ...sender };
+        }
+      ),
+    };
     mockDatabaseGet.mockImplementation((collectionName: string) => {
       if (collectionName === "accounts") return accountsCollection;
       if (collectionName === "bank_details") return bankDetailsCollection;
+      if (collectionName === "account_sms_senders")
+        return accountSmsSendersCollection;
       throw new Error(`Unexpected collection: ${collectionName}`);
     });
 
@@ -435,6 +448,9 @@ describe("createAccountForUser", () => {
       accountType: "BANK",
       currency: "EGP",
       balance: "100",
+      institutionId: "cib",
+      providerDisplayName: "CIB",
+      senderNames: [" CIB ", "CIBEGYPT"],
       bankName: " CIB ",
       cardLast4: "1234",
       smsSenderName: " CIBSMS ",
@@ -452,15 +468,29 @@ describe("createAccountForUser", () => {
         type: "BANK",
         balance: 100,
         currency: "EGP",
+        institutionId: "cib",
+        providerDisplayName: "CIB",
         deleted: false,
       }),
     ]);
     expect(bankDetailsCreateCalls).toEqual([
       expect.objectContaining({
         accountId: "account-1",
-        bankName: "CIB",
         cardLast4: "1234",
-        smsSenderName: "CIBSMS",
+        deleted: false,
+      }),
+    ]);
+    expect(senderCreateCalls).toEqual([
+      expect.objectContaining({
+        accountId: "account-1",
+        senderName: "CIB",
+        normalizedSenderName: "cib",
+        deleted: false,
+      }),
+      expect.objectContaining({
+        accountId: "account-1",
+        senderName: "CIBEGYPT",
+        normalizedSenderName: "cibegypt",
         deleted: false,
       }),
     ]);
@@ -483,6 +513,7 @@ describe("createAccountForUser", () => {
           {
             id: "existing-account",
             name: "Cash",
+            type: "CASH",
             userId: "user-1",
             currency: "EGP",
             deleted: false,
@@ -511,6 +542,68 @@ describe("createAccountForUser", () => {
     expect(accountsCollection.create).not.toHaveBeenCalled();
   });
 
+  it("allows the same account name and currency when the known provider differs", async () => {
+    const accountsCollection = {
+      query: jest.fn().mockReturnValue({
+        fetch: jest.fn().mockResolvedValue([
+          {
+            id: "cash-1",
+            name: "Main",
+            type: "CASH",
+            userId: "user-1",
+            currency: "EGP",
+            deleted: false,
+            institutionId: undefined,
+          },
+        ]),
+        fetchCount: jest.fn().mockResolvedValue(1),
+      }),
+      create: jest.fn(
+        async (writer: (acc: Record<string, unknown>) => void) => {
+          const acc: Record<string, unknown> = {};
+          writer(acc);
+          return { id: "bank-1", ...acc };
+        }
+      ),
+    };
+    const accountSmsSendersCollection = {
+      create: jest.fn(),
+    };
+    const bankDetailsCollection = {
+      create: jest.fn(
+        async (writer: (details: Record<string, unknown>) => void) => {
+          const details: Record<string, unknown> = {};
+          writer(details);
+          return { id: "bank-details-1", ...details };
+        }
+      ),
+    };
+    mockDatabaseGet.mockImplementation((collectionName: string) => {
+      if (collectionName === "accounts") return accountsCollection;
+      if (collectionName === "account_sms_senders")
+        return accountSmsSendersCollection;
+      if (collectionName === "bank_details") return bankDetailsCollection;
+      throw new Error(`Unexpected collection: ${collectionName}`);
+    });
+
+    const result = await createAccountForUser("user-1", {
+      name: "Main",
+      accountType: "BANK",
+      currency: "EGP",
+      balance: "0",
+      institutionId: "cib",
+      providerDisplayName: "CIB",
+      senderNames: [],
+    });
+
+    expect(result).toEqual({
+      success: true,
+      accountId: "bank-1",
+      created: true,
+    });
+    expect(accountsCollection.create).toHaveBeenCalledTimes(1);
+  });
+
   it("fails closed without writing when the balance format is invalid", async () => {
     const accountsCollection = {
       query: jest.fn(),
@@ -534,6 +627,142 @@ describe("createAccountForUser", () => {
     });
     expect(mockDatabaseWrite).not.toHaveBeenCalled();
     expect(accountsCollection.create).not.toHaveBeenCalled();
+  });
+
+  it("saves manual wallet provider display with a null institution id and sender rows", async () => {
+    const accountCreateCalls: Array<Record<string, unknown>> = [];
+    const senderCreateCalls: Array<Record<string, unknown>> = [];
+    const accountsCollection = {
+      query: jest.fn().mockReturnValue({
+        fetch: jest.fn().mockResolvedValue([]),
+        fetchCount: jest.fn().mockResolvedValue(0),
+      }),
+      create: jest.fn(
+        async (writer: (acc: Record<string, unknown>) => void) => {
+          const acc: Record<string, unknown> = {};
+          writer(acc);
+          accountCreateCalls.push({ ...acc });
+          return { id: "wallet-1", ...acc };
+        }
+      ),
+    };
+    const accountSmsSendersCollection = {
+      create: jest.fn(
+        async (writer: (sender: Record<string, unknown>) => void) => {
+          const sender: Record<string, unknown> = {};
+          writer(sender);
+          senderCreateCalls.push({ ...sender });
+          return { id: `sender-${senderCreateCalls.length}`, ...sender };
+        }
+      ),
+    };
+    mockDatabaseGet.mockImplementation((collectionName: string) => {
+      if (collectionName === "accounts") return accountsCollection;
+      if (collectionName === "account_sms_senders")
+        return accountSmsSendersCollection;
+      throw new Error(`Unexpected collection: ${collectionName}`);
+    });
+
+    const result = await createAccountForUser("user-1", {
+      name: "Family Wallet",
+      accountType: "DIGITAL_WALLET",
+      currency: "EGP",
+      balance: "0",
+      institutionId: null,
+      providerDisplayName: "Family Wallet Provider",
+      senderNames: ["FamilySMS"],
+    });
+
+    expect(result).toEqual({
+      success: true,
+      accountId: "wallet-1",
+      created: true,
+    });
+    expect(accountCreateCalls[0]).toEqual(
+      expect.objectContaining({
+        type: "DIGITAL_WALLET",
+        institutionId: undefined,
+        providerDisplayName: "Family Wallet Provider",
+      })
+    );
+    expect(senderCreateCalls).toEqual([
+      expect.objectContaining({
+        accountId: "wallet-1",
+        senderName: "FamilySMS",
+        normalizedSenderName: "familysms",
+      }),
+    ]);
+  });
+
+  it("allows the same account name and currency for a different known provider", async () => {
+    const accountCreateCalls: Array<Record<string, unknown>> = [];
+    const accountsCollection = {
+      query: jest.fn().mockReturnValue({
+        fetch: jest.fn().mockResolvedValue([
+          {
+            id: "existing-account",
+            name: "Savings",
+            userId: "user-1",
+            currency: "EGP",
+            deleted: false,
+            institutionId: "nbe",
+          },
+        ]),
+        fetchCount: jest.fn().mockResolvedValue(1),
+      }),
+      create: jest.fn(
+        async (writer: (acc: Record<string, unknown>) => void) => {
+          const acc: Record<string, unknown> = {};
+          writer(acc);
+          accountCreateCalls.push({ ...acc });
+          return { id: "account-1", ...acc };
+        }
+      ),
+    };
+    const bankDetailsCollection = {
+      create: jest.fn(
+        async (writer: (details: Record<string, unknown>) => void) => {
+          const details: Record<string, unknown> = {};
+          writer(details);
+          return { id: "bank-details-1", ...details };
+        }
+      ),
+    };
+    const accountSmsSendersCollection = {
+      create: jest.fn(
+        async (writer: (sender: Record<string, unknown>) => void) => {
+          const sender: Record<string, unknown> = {};
+          writer(sender);
+          return { id: "sender-1", ...sender };
+        }
+      ),
+    };
+    mockDatabaseGet.mockImplementation((collectionName: string) => {
+      if (collectionName === "accounts") return accountsCollection;
+      if (collectionName === "bank_details") return bankDetailsCollection;
+      if (collectionName === "account_sms_senders")
+        return accountSmsSendersCollection;
+      throw new Error(`Unexpected collection: ${collectionName}`);
+    });
+
+    const result = await createAccountForUser("user-1", {
+      name: "Savings",
+      accountType: "BANK",
+      currency: "EGP",
+      balance: "0",
+      institutionId: "cib",
+      providerDisplayName: "CIB",
+      senderNames: ["CIB"],
+    });
+
+    expect(result).toEqual({
+      success: true,
+      accountId: "account-1",
+      created: true,
+    });
+    expect(accountCreateCalls[0]).toEqual(
+      expect.objectContaining({ institutionId: "cib" })
+    );
   });
 
   it("fails closed without writing when a create balance has multiple decimal points", async () => {

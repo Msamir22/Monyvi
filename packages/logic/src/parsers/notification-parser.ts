@@ -1,63 +1,11 @@
 /**
  * Bank Notification Parser for Monyvi
- * Parses Egyptian bank notifications (InstaPay, Debit Cards)
+ * Parses Egyptian bank notifications for debit card activity.
  * Based on specification in notification_parser_spec.md
  */
 
 import type { CurrencyType } from "@monyvi/db";
 import type { ParsedNotification } from "../types";
-
-/**
- * Parse InstaPay (IPN) transfer sent notification
- * Example: "IPN transfer sent with amount of EGP 1235.00 from 7660 on 03/12 at 08:43 PM. Ref# 2b7c9e0e."
- */
-function parseInstPaySent(text: string): ParsedNotification | null {
-  const pattern =
-    /IPN transfer sent with amount of (EGP|USD) ([\d,]+\.\d{2}) from (\d+) on ([\d/]+) at ([\d:]+\s*[AP]M)\. Ref# ([a-f0-9]+)/i;
-  const match = text.match(pattern);
-
-  if (!match) return null;
-
-  const [, currency, amountStr, accountNumber, , , reference] = match;
-  const amount = parseFloat(amountStr.replace(/,/g, ""));
-
-  return {
-    type: "EXPENSE",
-    amount,
-    currency: currency as CurrencyType,
-    description: "InstaPay Transfer",
-    counterparty: "InstaPay",
-    accountNumber,
-    reference,
-    detectedCategory: "Transfer",
-  };
-}
-
-/**
- * Parse InstaPay (IPN) transfer received notification
- * Example: "IPN transfer received with amount of EGP 500.00 on 7660 on 24/11 at 09:41 AM. Ref# 70ca617b."
- */
-function parseInstPayReceived(text: string): ParsedNotification | null {
-  const pattern =
-    /IPN transfer received with amount of (EGP|USD) ([\d,]+\.\d{2}) on (\d+) on ([\d/]+) at ([\d:]+\s*[AP]M)\. Ref# ([a-f0-9]+)/i;
-  const match = text.match(pattern);
-
-  if (!match) return null;
-
-  const [, currency, amountStr, accountNumber, , , reference] = match;
-  const amount = parseFloat(amountStr.replace(/,/g, ""));
-
-  return {
-    type: "INCOME",
-    amount,
-    currency: currency as CurrencyType,
-    description: "InstaPay Received",
-    counterparty: "InstaPay",
-    accountNumber,
-    reference,
-    detectedCategory: "Income",
-  };
-}
 
 /**
  * Parse Debit Card successful transaction notification
@@ -176,12 +124,6 @@ export function parseNotification(
   // Try each parser in order
   let result: ParsedNotification | null;
 
-  result = parseInstPaySent(notificationText);
-  if (result) return result;
-
-  result = parseInstPayReceived(notificationText);
-  if (result) return result;
-
   result = parseDebitCardTransaction(notificationText);
   if (result) return result;
 
@@ -194,6 +136,6 @@ export function parseNotification(
 
 /**
  * Example usage:
- * parseNotification("IPN transfer sent with amount of EGP 1235.00 from 7660...")
+ * parseNotification("Your Debit Card **2132 had a Successful transaction...")
  *   → { type: 'EXPENSE', amount: 1235, currency: 'EGP', accountNumber: '7660', ... }
  */

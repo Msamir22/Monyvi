@@ -1,4 +1,6 @@
 import { palette } from "@/constants/colors";
+import type { InstitutionLogo } from "@/constants/egyptian-institution-assets";
+import { InstitutionLogoMark } from "@/components/institutions/InstitutionLogoMark";
 import { formatAccountBalance } from "@/utils/financial-display";
 import { Account, MarketRate } from "@monyvi/db";
 import { convertCurrency, formatCurrency } from "@monyvi/logic";
@@ -6,6 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { memo, useCallback, useMemo } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { useTranslation } from "react-i18next";
+import { useTheme } from "@/context/ThemeContext";
 
 interface AccountCardProps {
   account: Account;
@@ -23,6 +26,8 @@ interface AccountCardProps {
    * Falls back to the raw `account.name` when omitted.
    */
   displayName?: string;
+  providerLabel?: string | null;
+  institutionLogo?: InstitutionLogo | null;
 }
 
 /**
@@ -40,8 +45,11 @@ function AccountCardImpl({
   latestRates,
   onPress,
   displayName,
+  providerLabel = null,
+  institutionLogo = null,
 }: AccountCardProps): React.JSX.Element {
   const { t } = useTranslation("accounts");
+  const { isDark } = useTheme();
   const handlePress = useCallback(() => {
     onPress?.(account.id);
   }, [onPress, account.id]);
@@ -59,7 +67,15 @@ function AccountCardImpl({
           return { icon: "wallet", color: palette.nileGreen[500] };
       }
     }, [account.type]);
-
+  const accentColor =
+    institutionLogo?.presentation?.cardLabelColorByMode?.[
+      isDark ? "dark" : "light"
+    ] ??
+    institutionLogo?.presentation?.cardAccentColorByMode?.[
+      isDark ? "dark" : "light"
+    ] ??
+    institutionLogo?.presentation?.cardAccentColor ??
+    config.color;
   const subtitle = useMemo(() => {
     if (account.currency !== "USD" && latestRates) {
       const usdValue = convertCurrency(
@@ -76,15 +92,22 @@ function AccountCardImpl({
 
     switch (account.type) {
       case "BANK":
-        return t("type_bank");
+        return providerLabel ?? t("type_bank");
       case "DIGITAL_WALLET":
-        return t("type_digital_wallet");
+        return providerLabel ?? t("type_digital_wallet");
       case "CASH":
         return t("type_cash");
       default:
         return "";
     }
-  }, [account.currency, account.balance, account.type, latestRates, t]);
+  }, [
+    account.currency,
+    account.balance,
+    account.type,
+    latestRates,
+    providerLabel,
+    t,
+  ]);
 
   return (
     <TouchableOpacity
@@ -94,8 +117,8 @@ function AccountCardImpl({
       // shadow-* classes moved to inline style to avoid NativeWind v4
       // race condition with React Navigation context (known bug)
       style={{
-        borderLeftColor: config.color,
-        shadowColor: "#000",
+        borderLeftColor: accentColor,
+        shadowColor: palette.slate[900],
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.05,
         shadowRadius: 2,
@@ -104,11 +127,19 @@ function AccountCardImpl({
     >
       <View className="flex-row items-center p-4">
         {/* Icon Container with subtle background */}
-        <View
-          className="w-12 h-12 rounded-2xl items-center justify-center me-4"
-          style={{ backgroundColor: `${config.color}15` }}
-        >
-          <Ionicons name={config.icon} size={24} color={config.color} />
+        <View className="me-4">
+          <InstitutionLogoMark
+            logo={institutionLogo}
+            size="account-list"
+            testID={
+              institutionLogo
+                ? `account-provider-logo-${account.id}`
+                : undefined
+            }
+            fallback={
+              <Ionicons name={config.icon} size={24} color={accentColor} />
+            }
+          />
         </View>
 
         {/* Content */}

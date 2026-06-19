@@ -5,6 +5,7 @@ const {
   ensureE2eAppReady,
   resolveMaestroBin,
 } = require("./e2e-preflight");
+const { applyE2eAuthDeepLink } = require("./e2e-auth-deeplink");
 const { getE2eSeedConfig } = require("./e2e-seed");
 
 const defaultMaestroTimeoutMs = 15 * 60 * 1000;
@@ -54,6 +55,7 @@ function applyLocalE2eDefaults() {
   process.env.EXPO_PUBLIC_AI_SMS_PARSER_MODE ??= "fixture";
   process.env.MAESTRO_E2E_EMAIL ??= config.email;
   process.env.MAESTRO_E2E_PASSWORD ??= config.password;
+  applyE2eAuthDeepLink();
 }
 
 async function main() {

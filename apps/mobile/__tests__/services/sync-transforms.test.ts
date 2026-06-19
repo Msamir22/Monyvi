@@ -84,4 +84,31 @@ describe("sync transforms", () => {
     );
     expect(transformed).not.toHaveProperty("user_id");
   });
+
+  it("removes legacy bank details columns that no longer exist remotely", () => {
+    const transformed = transformToSupabase(
+      "bank_details",
+      {
+        id: "bank-detail-1",
+        account_id: "account-1",
+        card_last_4: "1234",
+        bank_name: "Legacy Bank",
+        sms_sender_name: "LEGACY",
+        created_at: Date.UTC(2026, 0, 15, 10),
+        updated_at: Date.UTC(2026, 0, 15, 11),
+      },
+      "current-user",
+      true
+    );
+
+    expect(transformed).toEqual(
+      expect.objectContaining({
+        id: "bank-detail-1",
+        account_id: "account-1",
+        card_last_4: "1234",
+      })
+    );
+    expect(transformed).not.toHaveProperty("bank_name");
+    expect(transformed).not.toHaveProperty("sms_sender_name");
+  });
 });

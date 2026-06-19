@@ -9,6 +9,11 @@ interface RunLiveSmsJourneysModule {
   getMaestroFlowTimeoutMs(
     env?: Readonly<Record<string, string | undefined>>
   ): number;
+  getAuthBootstrapFlow(
+    env?: Readonly<Record<string, string | undefined>>
+  ):
+    | "../helpers/ci-auth-bootstrap.yaml"
+    | "../helpers/ci-auth-deeplink-bootstrap.yaml";
   isRetryableMaestroTransportFailure(output: string): boolean;
 }
 
@@ -61,6 +66,17 @@ describe("run-live-sms-journeys helpers", () => {
         E2E_MAESTRO_FLOW_TIMEOUT_MS: "1000",
       })
     ).toBe(1000);
+  });
+
+  it("uses the guarded deep-link auth bootstrap when CI opts in", () => {
+    expect(liveSmsJourneys.getAuthBootstrapFlow({})).toBe(
+      "../helpers/ci-auth-bootstrap.yaml"
+    );
+    expect(
+      liveSmsJourneys.getAuthBootstrapFlow({
+        E2E_AUTH_DEEPLINK_BOOTSTRAP: "1",
+      })
+    ).toBe("../helpers/ci-auth-deeplink-bootstrap.yaml");
   });
 
   it("detects retryable Maestro Android transport disconnects", () => {

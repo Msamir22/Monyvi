@@ -6,7 +6,7 @@
 **Worktree type:** linked worktree (the main checkout at
 `E:/Work/My Projects/Monyvi` is on an unrelated branch
 `refactor/dashboard-polish-round1`) **GitHub issue:**
-[#226 — Skip onboarding flow (language, currency, wallet creation) for returning users](https://github.com/Msamir22/Astik/issues/226)
+[#226 — Skip onboarding flow (language, currency, wallet creation) for returning users](https://github.com/Msamir22/Monyvi/issues/226)
 
 > The incoming agent MUST operate from the **Worktree path** above. If your
 > session is not already there, `cd` into it before doing anything else. Do not

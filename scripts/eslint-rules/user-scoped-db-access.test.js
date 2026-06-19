@@ -51,6 +51,13 @@ ruleTester.run("user-scoped-db-access", rule, {
     },
     {
       code: `
+        const account = await findOwnedById(database.get("accounts"), accountId, userId);
+        const senders = await queryChildrenOfOwnedParent(database.get("account_sms_senders"), account, userId, "account_id").fetch();
+      `,
+      filename: "apps/mobile/services/account-sms-sender-service.ts",
+    },
+    {
+      code: `
         const rates = database.get("market_rates").query(Q.take(1));
       `,
       filename: "apps/mobile/hooks/useMarketRates.ts",
@@ -112,6 +119,13 @@ ruleTester.run("user-scoped-db-access", rule, {
       `,
       filename: "apps/mobile/hooks/useAccounts.ts",
       errors: [{ message: /child-owned table 'bank_details'/ }],
+    },
+    {
+      code: `
+        const senders = await database.get("account_sms_senders").query(Q.where("deleted", false)).fetch();
+      `,
+      filename: "apps/mobile/hooks/useAccountSmsSenders.ts",
+      errors: [{ message: /child-owned table 'account_sms_senders'/ }],
     },
     {
       code: `

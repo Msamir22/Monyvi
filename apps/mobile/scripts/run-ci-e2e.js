@@ -1,18 +1,22 @@
 const { join } = require("node:path");
 const { spawn, spawnSync } = require("node:child_process");
 const { createClient } = require("@supabase/supabase-js");
+const { applyE2eAuthDeepLink } = require("./e2e-auth-deeplink");
 const { getE2eSeedConfig, seedE2eData } = require("./e2e-seed");
 
 const mobileRoot = join(__dirname, "..");
 const maxCapturedOutputLength = 256 * 1024;
 const defaultChildTimeoutMs = 20 * 60 * 1000;
 const defaultLiveSmsTimeoutMs = 45 * 60 * 1000;
+const defaultDeviceOfflineRetryCount = 5;
 
 const shouldBootstrapAuth = process.env.E2E_SKIP_AUTH_BOOTSTRAP !== "1";
-const allCiSuites = ["transactions", "sms-sync", "live-sms"];
+const allCiSuites = ["accounts", "transactions", "sms-sync", "live-sms"];
 let hasRunAuthBootstrap = false;
 
-const authBootstrapFlow = "helpers/ci-auth-bootstrap.yaml";
+const uiAuthBootstrapFlow = "helpers/ci-auth-bootstrap.yaml";
+const deeplinkAuthBootstrapFlow = "helpers/ci-auth-deeplink-bootstrap.yaml";
+const accountMaestroFlows = ["accounts/egyptian-institution-presets.yaml"];
 const transactionMaestroFlows = [
   "transactions/create-transaction.yaml",
   "transactions/edit-transaction.yaml",
@@ -57,6 +61,7 @@ function applyLocalE2eDefaults() {
   process.env.EXPO_PUBLIC_AI_SMS_PARSER_MODE ??= "fixture";
   if (process.env.E2E_SKIP_SEED === "1") {
     process.env.EXPO_PUBLIC_SUPABASE_URL ??= "http://10.0.2.2:54321";
+    applyE2eAuthDeepLink();
     return;
   }
 
@@ -70,6 +75,7 @@ function applyLocalE2eDefaults() {
   process.env.MAESTRO_E2E_EMAIL ??= config.email;
   process.env.MAESTRO_E2E_PASSWORD ??= config.password;
   process.env.SUPABASE_SERVICE_ROLE_KEY ??= config.serviceRoleKey;
+  applyE2eAuthDeepLink();
 }
 
 function assertRequiredEnv() {
@@ -131,6 +137,13 @@ function getLiveSmsTimeoutMs(env = process.env) {
     : defaultLiveSmsTimeoutMs;
 }
 
+function getDeviceOfflineRetryCount(env = process.env) {
+  const parsed = Number(env.E2E_DEVICE_OFFLINE_RETRY_COUNT);
+  return Number.isInteger(parsed) && parsed > 0
+    ? parsed
+    : defaultDeviceOfflineRetryCount;
+}
+
 function getRequestedCiSuites(env = process.env) {
   const value = env.E2E_CI_SUITES;
   if (!value || value === "full") {
@@ -164,8 +177,10 @@ function runAdb(args, options = {}) {
   });
 }
 
-function reconnectAdb() {
-  console.warn("ADB device went offline. Reconnecting before one retry.");
+function reconnectAdb(attempt, maxAttempts) {
+  console.warn(
+    `ADB device went offline. Reconnecting before retry ${attempt + 1} of ${maxAttempts}.`
+  );
   runAdb(["kill-server"], { timeout: 30_000 });
   runAdb(["start-server"], { timeout: 30_000 });
   const waitResult = runAdb(["wait-for-device"], { timeout: 60_000 });
@@ -225,15 +240,17 @@ function runNodeScriptOnce(script, args, options = {}) {
 }
 
 async function runNodeScript(script, args, options = {}) {
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
+  const maxAttempts = getDeviceOfflineRetryCount();
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const result = await runNodeScriptOnce(script, args, options);
 
     if (result.status === 0) {
       return;
     }
 
-    if (attempt === 1 && isDeviceOfflineFailure(result.output)) {
-      reconnectAdb();
+    if (attempt < maxAttempts && isDeviceOfflineFailure(result.output)) {
+      reconnectAdb(attempt, maxAttempts);
       continue;
     }
 
@@ -291,10 +308,16 @@ async function maybeRunAuthBootstrap() {
   if (shouldBootstrapAuth && !hasRunAuthBootstrap) {
     await runNodeScript("scripts/run-maestro.js", [
       "test",
-      join("e2e", "maestro", authBootstrapFlow),
+      join("e2e", "maestro", getAuthBootstrapFlow()),
     ]);
     hasRunAuthBootstrap = true;
   }
+}
+
+function getAuthBootstrapFlow(env = process.env) {
+  return env.E2E_AUTH_DEEPLINK_BOOTSTRAP === "1"
+    ? deeplinkAuthBootstrapFlow
+    : uiAuthBootstrapFlow;
 }
 
 async function runMaestroFlows(flows) {
@@ -322,6 +345,10 @@ async function main() {
   applyLocalE2eDefaults();
   assertRequiredEnv();
   await maybeSeedE2eData();
+
+  if (selectedSuites.has("accounts")) {
+    await runMaestroFlows(accountMaestroFlows);
+  }
 
   if (selectedSuites.has("transactions")) {
     await runMaestroFlows(transactionMaestroFlows);
@@ -355,8 +382,10 @@ if (require.main === module) {
 module.exports = {
   appendOutputTail,
   getChildTimeoutMs,
+  getDeviceOfflineRetryCount,
   getLiveSmsTimeoutMs,
   getRequestedCiSuites,
+  getAuthBootstrapFlow,
   isDeviceOfflineFailure,
   shouldBootstrapBeforeLiveSms,
 };

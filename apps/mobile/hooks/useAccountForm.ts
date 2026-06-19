@@ -1,5 +1,9 @@
 import { t } from "i18next";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  getInstitutionById,
+  type SelectableEgyptianInstitutionId,
+} from "@monyvi/logic";
 import { checkAccountNameUniqueness } from "../services/edit-account-service";
 import { logger } from "../utils/logger";
 import {
@@ -29,6 +33,11 @@ interface UseAccountFormResult {
     field: K,
     value: AccountFormData[K]
   ) => void;
+  selectKnownInstitution: (
+    institutionId: SelectableEgyptianInstitutionId
+  ) => void;
+  selectOtherInstitution: () => void;
+  updateSenderNames: (senderNames: readonly string[]) => void;
   validate: () => boolean;
   isValid: boolean;
   isTouched: Partial<Record<keyof AccountFormData, boolean>>;
@@ -65,6 +74,9 @@ export function useAccountForm(
     currency: preferredCurrency,
     balance: DEFAULT_INITIAL_BALANCE,
     bankName: "",
+    institutionId: null,
+    providerDisplayName: "",
+    senderNames: [],
     cardLast4: "",
     smsSenderName: "",
   });
@@ -92,7 +104,12 @@ export function useAccountForm(
 
   /** Run a debounced uniqueness check for the given (name, currency) pair. */
   const checkUniqueness = useCallback(
-    (name: string, currency: AccountFormData["currency"]): void => {
+    (
+      name: string,
+      currency: AccountFormData["currency"],
+      institutionId: string | null,
+      providerDisplayName: string
+    ): void => {
       if (uniquenessTimerRef.current) {
         clearTimeout(uniquenessTimerRef.current);
       }
@@ -122,14 +139,19 @@ export function useAccountForm(
             const result = await checkAccountNameUniqueness(
               userId,
               trimmedName,
-              currency
+              currency,
+              undefined,
+              institutionId,
+              providerDisplayName
             );
 
             const latestFormData = latestFormDataRef.current;
             if (
               requestId !== activeUniquenessRequestRef.current ||
               latestFormData.name.trim() !== trimmedName ||
-              latestFormData.currency !== currency
+              latestFormData.currency !== currency ||
+              (latestFormData.institutionId ?? null) !== institutionId ||
+              latestFormData.providerDisplayName !== providerDisplayName
             ) {
               return;
             }
@@ -164,7 +186,9 @@ export function useAccountForm(
             if (
               requestId === activeUniquenessRequestRef.current &&
               latestFormData.name.trim() === trimmedName &&
-              latestFormData.currency === currency
+              latestFormData.currency === currency &&
+              (latestFormData.institutionId ?? null) === institutionId &&
+              latestFormData.providerDisplayName === providerDisplayName
             ) {
               setHasNameUniquenessError(false);
             }
@@ -173,7 +197,9 @@ export function useAccountForm(
             if (
               requestId === activeUniquenessRequestRef.current &&
               latestFormData.name.trim() === trimmedName &&
-              latestFormData.currency === currency
+              latestFormData.currency === currency &&
+              (latestFormData.institutionId ?? null) === institutionId &&
+              latestFormData.providerDisplayName === providerDisplayName
             ) {
               setIsCheckingUniqueness(false);
             }
@@ -196,7 +222,12 @@ export function useAccountForm(
       setFormData(next);
 
       if (next.name.trim()) {
-        checkUniqueness(next.name, next.currency);
+        checkUniqueness(
+          next.name,
+          next.currency,
+          next.institutionId ?? null,
+          next.providerDisplayName ?? ""
+        );
       }
     }
   }, [preferredCurrency, isTouched.currency, checkUniqueness]);
@@ -210,20 +241,69 @@ export function useAccountForm(
       value: AccountFormData[K]
     ): void => {
       setFormData((prev) => {
-        const newData = { ...prev, [field]: value };
+        const nextData = { ...prev, [field]: value };
+        const shouldResetProviderFields =
+          field === "accountType" && prev.accountType !== value;
+        const newData = shouldResetProviderFields
+          ? {
+              ...nextData,
+              institutionId: null,
+              providerDisplayName: "",
+              senderNames: [],
+              bankName: "",
+              smsSenderName: "",
+              cardLast4: "",
+            }
+          : nextData;
         latestFormDataRef.current = newData;
 
         // Real-time validation for specific field if it has been touched
         const { errors: newErrors } = validateAccountForm(newData);
-        setErrors((prevErrors) => ({
-          ...prevErrors,
-          [field]: newErrors[field],
-        }));
+        setErrors((prevErrors) => {
+          const nextErrors: ValidationErrors = {
+            ...prevErrors,
+            [field]: newErrors[field],
+          };
+
+          if (field === "accountType") {
+            delete nextErrors.institutionId;
+            delete nextErrors.providerDisplayName;
+            delete nextErrors.senderNames;
+            delete nextErrors.bankName;
+            delete nextErrors.smsSenderName;
+            delete nextErrors.cardLast4;
+          }
+
+          return nextErrors;
+        });
 
         if (field === "name") {
-          checkUniqueness(value as string, newData.currency);
+          checkUniqueness(
+            value as string,
+            newData.currency,
+            newData.institutionId ?? null,
+            newData.providerDisplayName ?? ""
+          );
         } else if (field === "currency") {
-          checkUniqueness(newData.name, value as AccountFormData["currency"]);
+          checkUniqueness(
+            newData.name,
+            value as AccountFormData["currency"],
+            newData.institutionId ?? null,
+            newData.providerDisplayName ?? ""
+          );
+        } else if (field === "providerDisplayName") {
+          checkUniqueness(
+            newData.name,
+            newData.currency,
+            newData.institutionId ?? null,
+            value as string
+          );
+        } else if (
+          field === "accountType" &&
+          shouldResetProviderFields &&
+          newData.name.trim()
+        ) {
+          checkUniqueness(newData.name, newData.currency, null, "");
         }
 
         return newData;
@@ -232,6 +312,73 @@ export function useAccountForm(
       setIsTouched((prev) => ({ ...prev, [field]: true }));
     },
     [checkUniqueness]
+  );
+
+  const selectKnownInstitution = useCallback(
+    (institutionId: SelectableEgyptianInstitutionId): void => {
+      const institution = getInstitutionById(institutionId);
+      if (!institution || !institution.selectable) {
+        return;
+      }
+
+      setFormData((prev) => {
+        if (prev.institutionId === institutionId) {
+          return prev;
+        }
+        const newData = {
+          ...prev,
+          institutionId,
+          providerDisplayName: institution.shortName,
+          bankName: institution.shortName,
+          senderNames: [],
+          smsSenderName: "",
+        };
+        latestFormDataRef.current = newData;
+        if (newData.name.trim()) {
+          checkUniqueness(
+            newData.name,
+            newData.currency,
+            institutionId,
+            newData.providerDisplayName ?? ""
+          );
+        }
+        return newData;
+      });
+    },
+    [checkUniqueness]
+  );
+
+  const selectOtherInstitution = useCallback((): void => {
+    setFormData((prev) => {
+      const newData = {
+        ...prev,
+        institutionId: null,
+        providerDisplayName: "",
+        bankName: "",
+        senderNames: [],
+        smsSenderName: "",
+      };
+      latestFormDataRef.current = newData;
+      if (newData.name.trim()) {
+        checkUniqueness(newData.name, newData.currency, null, "");
+      }
+      return newData;
+    });
+  }, [checkUniqueness]);
+
+  const updateSenderNames = useCallback(
+    (senderNames: readonly string[]): void => {
+      setFormData((prev) => {
+        const newData = {
+          ...prev,
+          senderNames: [...senderNames],
+          smsSenderName: senderNames.join(", "),
+        };
+        latestFormDataRef.current = newData;
+        return newData;
+      });
+    },
+    []
   );
 
   /**
@@ -252,6 +399,9 @@ export function useAccountForm(
     formData,
     errors,
     updateField,
+    selectKnownInstitution,
+    selectOtherInstitution,
+    updateSenderNames,
     validate,
     isValid,
     isTouched,

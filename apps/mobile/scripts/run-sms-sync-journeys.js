@@ -9,10 +9,13 @@ const {
   resolveMaestroBin,
   run,
 } = require("./e2e-preflight");
+const { applyE2eAuthDeepLink } = require("./e2e-auth-deeplink");
 const { getE2eSeedConfig, seedE2eData } = require("./e2e-seed");
 
 const mobileRoot = join(__dirname, "..");
 const flowDir = join("e2e", "maestro", "sms-sync");
+const uiAuthBootstrapFlow = "../helpers/ci-auth-bootstrap.yaml";
+const deeplinkAuthBootstrapFlow = "../helpers/ci-auth-deeplink-bootstrap.yaml";
 
 const readSmsPermission = "android.permission.READ_SMS";
 
@@ -59,6 +62,12 @@ function runFlow(flow) {
   run(maestroBin, ["test", join(flowDir, flow)], { cwd: mobileRoot });
 }
 
+function getAuthBootstrapFlow(env = process.env) {
+  return env.E2E_AUTH_DEEPLINK_BOOTSTRAP === "1"
+    ? deeplinkAuthBootstrapFlow
+    : uiAuthBootstrapFlow;
+}
+
 function applyLocalE2eDefaults() {
   if (process.env.E2E_SUPABASE_MODE !== "local") return;
 
@@ -78,6 +87,7 @@ function applyLocalE2eDefaults() {
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??= config.anonKey;
   process.env.MAESTRO_E2E_EMAIL ??= config.email;
   process.env.MAESTRO_E2E_PASSWORD ??= config.password;
+  applyE2eAuthDeepLink();
 }
 
 async function bootstrapCleanAuthenticatedSession() {
@@ -96,7 +106,7 @@ async function bootstrapCleanAuthenticatedSession() {
   process.env.E2E_USER_ID = result.userId;
   adb(["shell", "pm", "clear", appId]);
   await ensureE2eAppReady();
-  runFlow("../helpers/ci-auth-bootstrap.yaml");
+  runFlow(getAuthBootstrapFlow());
 }
 
 function queryWatermelonScalar(sql) {
@@ -271,6 +281,7 @@ if (require.main === module) {
 module.exports = {
   buildBatchSmsSavedVerificationQueries,
   buildSmsSyncProbeCleanupSql,
+  getAuthBootstrapFlow,
   getActiveUserFilter,
   shouldRelaunchBetweenSmsSyncJourneys,
 };

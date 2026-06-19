@@ -1,10 +1,14 @@
 interface E2ePreflightModule {
   appendAndroidPlatform(url: string): string;
+  buildDevClientUrl(url: string): string;
   buildDevMenuPreferencesXml(): string;
   currentFocusShowsDevMenu(currentFocus: string): boolean;
   currentFocusShowsLauncher(currentFocus: string): boolean;
+  didDumpUiHierarchy(dumpOutput: string): boolean;
   getHttpClientNameForUrl(url: string): "http" | "https";
   isAppReady(uiXml: string): boolean;
+  isNativeRootMounted(uiXml: string): boolean;
+  shouldRestoreFromDevLauncher(uiXml: string, currentFocus: string): boolean;
   resolveMetroUrls(env?: Readonly<Record<string, string | undefined>>): {
     hostMetroUrl: string;
     metroUrl: string;
@@ -47,6 +51,14 @@ describe("e2e-preflight", () => {
     ).toBe("http://custom-device:8081/?platform=android");
   });
 
+  it("builds the Monyvi dev-client URL with the app scheme", () => {
+    expect(
+      preflight.buildDevClientUrl("http://10.0.2.2:8081/?platform=android")
+    ).toBe(
+      "monyvi://expo-development-client/?url=http%3A%2F%2F10.0.2.2%3A8081%2F%3Fplatform%3Dandroid"
+    );
+  });
+
   it("builds dev menu preferences that hide the Expo tools button", () => {
     expect(preflight.buildDevMenuPreferencesXml()).toContain(
       '<boolean name="showFab" value="false" />'
@@ -71,6 +83,28 @@ describe("e2e-preflight", () => {
     ).toBe(false);
   });
 
+  it("detects the mounted native Fabric root when UIAutomator hides React text", () => {
+    const nativeRootOnlyXml = `
+        <hierarchy>
+          <node package="com.monyvi.app" class="androidx.compose.ui.platform.ComposeView">
+            <node package="com.monyvi.app" class="android.view.View" />
+          </node>
+        </hierarchy>
+      `;
+
+    expect(preflight.isNativeRootMounted(nativeRootOnlyXml)).toBe(true);
+    expect(preflight.isAppReady(nativeRootOnlyXml)).toBe(false);
+  });
+
+  it("rejects failed UIAutomator dumps so stale window XML is not reused", () => {
+    expect(
+      preflight.didDumpUiHierarchy("UI hierchary dumped to: /sdcard/window.xml")
+    ).toBe(true);
+    expect(preflight.didDumpUiHierarchy("ERROR: null root node returned")).toBe(
+      false
+    );
+  });
+
   it("does not treat stale DevMenuActivity records as the focused dev menu", () => {
     expect(
       preflight.currentFocusShowsDevMenu(`
@@ -87,6 +121,24 @@ describe("e2e-preflight", () => {
         "mCurrentFocus=Window{b4ae2b7 u0 com.monyvi.app/expo.modules.devmenu.DevMenuActivity}"
       )
     ).toBe(true);
+  });
+
+  it("does not relaunch while the Expo dev launcher activity owns a loading splash", () => {
+    const focus =
+      "mCurrentFocus=Window{4a98ee6 u0 com.monyvi.app/expo.modules.devlauncher.launcher.DevLauncherActivity}";
+    const uiXml =
+      '<hierarchy><node package="com.monyvi.app" text="Monyvi" /></hierarchy>';
+
+    expect(preflight.shouldRestoreFromDevLauncher(uiXml, focus)).toBe(false);
+  });
+
+  it("relaunches when the Expo development server picker is visible", () => {
+    const focus =
+      "mCurrentFocus=Window{4a98ee6 u0 com.monyvi.app/expo.modules.devlauncher.launcher.DevLauncherActivity}";
+    const uiXml =
+      '<hierarchy><node package="com.monyvi.app" text="Development servers" /></hierarchy>';
+
+    expect(preflight.shouldRestoreFromDevLauncher(uiXml, focus)).toBe(true);
   });
 
   it("detects launcher focus even when stale dev menu records are present", () => {

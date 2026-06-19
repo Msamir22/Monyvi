@@ -65,6 +65,10 @@ export const SUPPORTED_CURRENCIES: readonly CurrencyInfo[] = [
   { code: "ZAR", name: "South African Rand", symbol: "ZAR", flag: "🇿🇦" },
 ] as const;
 
+export const SORTED_SUPPORTED_CURRENCIES = [...SUPPORTED_CURRENCIES].sort(
+  (a, b) => a.code.localeCompare(b.code)
+);
+
 /**
  * Lookup map for quick access by currency code.
  */

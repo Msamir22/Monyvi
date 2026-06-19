@@ -6,11 +6,19 @@ interface RunCiE2eModule {
   ): string;
   getRequestedCiSuites(
     env?: Readonly<Record<string, string | undefined>>
-  ): ReadonlySet<"transactions" | "sms-sync" | "live-sms">;
+  ): ReadonlySet<"accounts" | "transactions" | "sms-sync" | "live-sms">;
   getChildTimeoutMs(env?: Readonly<Record<string, string | undefined>>): number;
   getLiveSmsTimeoutMs(
     env?: Readonly<Record<string, string | undefined>>
   ): number;
+  getDeviceOfflineRetryCount(
+    env?: Readonly<Record<string, string | undefined>>
+  ): number;
+  getAuthBootstrapFlow(
+    env?: Readonly<Record<string, string | undefined>>
+  ):
+    | "helpers/ci-auth-bootstrap.yaml"
+    | "helpers/ci-auth-deeplink-bootstrap.yaml";
   isDeviceOfflineFailure(output: string): boolean;
   shouldBootstrapBeforeLiveSms(
     selectedSuites: ReadonlySet<string>,
@@ -25,6 +33,7 @@ const runCiE2e = jest.requireActual(
 describe("run-ci-e2e helpers", () => {
   it("defaults to all E2E suites when no selective suite is requested", () => {
     expect([...runCiE2e.getRequestedCiSuites({})]).toEqual([
+      "accounts",
       "transactions",
       "sms-sync",
       "live-sms",
@@ -34,9 +43,9 @@ describe("run-ci-e2e helpers", () => {
   it("parses selected E2E suites and treats skip as no-op", () => {
     expect([
       ...runCiE2e.getRequestedCiSuites({
-        E2E_CI_SUITES: "sms-sync,live-sms",
+        E2E_CI_SUITES: "accounts,sms-sync,live-sms",
       }),
-    ]).toEqual(["sms-sync", "live-sms"]);
+    ]).toEqual(["accounts", "sms-sync", "live-sms"]);
 
     expect(runCiE2e.getRequestedCiSuites({ E2E_CI_SUITES: "skip" }).size).toBe(
       0
@@ -59,6 +68,24 @@ describe("run-ci-e2e helpers", () => {
     expect(
       runCiE2e.getLiveSmsTimeoutMs({ E2E_LIVE_SMS_TIMEOUT_MS: "1000" })
     ).toBe(1000);
+  });
+
+  it("uses a bounded retry count for repeated ADB device-offline failures", () => {
+    expect(runCiE2e.getDeviceOfflineRetryCount({})).toBe(5);
+    expect(
+      runCiE2e.getDeviceOfflineRetryCount({
+        E2E_DEVICE_OFFLINE_RETRY_COUNT: "5",
+      })
+    ).toBe(5);
+  });
+
+  it("uses the guarded deep-link auth bootstrap when CI opts in", () => {
+    expect(runCiE2e.getAuthBootstrapFlow({})).toBe(
+      "helpers/ci-auth-bootstrap.yaml"
+    );
+    expect(
+      runCiE2e.getAuthBootstrapFlow({ E2E_AUTH_DEEPLINK_BOOTSTRAP: "1" })
+    ).toBe("helpers/ci-auth-deeplink-bootstrap.yaml");
   });
 
   it("detects ADB device-offline failures for infrastructure-only retry", () => {

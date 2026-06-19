@@ -56,7 +56,13 @@ export interface UseAccountResult {
   error: Error | null;
 }
 
-const ACCOUNT_LIST_OBSERVED_COLUMNS = ["balance", "is_default", "name"];
+const ACCOUNT_LIST_OBSERVED_COLUMNS = [
+  "balance",
+  "is_default",
+  "name",
+  "institution_id",
+  "provider_display_name",
+];
 
 /**
  * Subscribes to non-deleted accounts owned by the current user and exposes

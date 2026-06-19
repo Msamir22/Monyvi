@@ -1,6 +1,11 @@
 interface RunSmsSyncJourneysModule {
   buildSmsSyncProbeCleanupSql(): string;
   buildBatchSmsSavedVerificationQueries(): readonly string[];
+  getAuthBootstrapFlow(
+    env?: Readonly<Record<string, string | undefined>>
+  ):
+    | "../helpers/ci-auth-bootstrap.yaml"
+    | "../helpers/ci-auth-deeplink-bootstrap.yaml";
   shouldRelaunchBetweenSmsSyncJourneys(
     env?: Readonly<Record<string, string | undefined>>
   ): boolean;
@@ -49,5 +54,16 @@ describe("run-sms-sync-journeys helpers", () => {
         E2E_SMS_SYNC_RELAUNCH_BETWEEN_JOURNEYS: "1",
       })
     ).toBe(true);
+  });
+
+  it("uses the guarded deep-link auth bootstrap when CI opts in", () => {
+    expect(smsSyncJourneys.getAuthBootstrapFlow({})).toBe(
+      "../helpers/ci-auth-bootstrap.yaml"
+    );
+    expect(
+      smsSyncJourneys.getAuthBootstrapFlow({
+        E2E_AUTH_DEEPLINK_BOOTSTRAP: "1",
+      })
+    ).toBe("../helpers/ci-auth-deeplink-bootstrap.yaml");
   });
 });

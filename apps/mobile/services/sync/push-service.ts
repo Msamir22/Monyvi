@@ -18,6 +18,28 @@ import { getChildTableConfig, isWritableTable } from "./table-predicates";
 import { transformToSupabase } from "./transforms";
 import type { SupabaseWriteTable, WritableSupabaseTablesNames } from "./types";
 
+function comparePushTableOrder(
+  [leftTableName]: readonly [string, unknown],
+  [rightTableName]: readonly [string, unknown]
+): number {
+  const leftChildConfig = getChildTableConfig(leftTableName as SyncableTable);
+  const rightChildConfig = getChildTableConfig(rightTableName as SyncableTable);
+
+  if (leftChildConfig?.parentTable === rightTableName) {
+    return 1;
+  }
+
+  if (rightChildConfig?.parentTable === leftTableName) {
+    return -1;
+  }
+
+  return 0;
+}
+
+function isDeletedRecord(record: unknown): boolean {
+  return (record as Record<string, unknown>).deleted === true;
+}
+
 function getSupabaseWriteTable(
   table: WritableSupabaseTablesNames
 ): SupabaseWriteTable {
@@ -35,7 +57,9 @@ export async function pushChanges(
   }
 
   const { changes } = pushArgs;
-  for (const [tableName, rawTableChanges] of Object.entries(changes)) {
+  for (const [tableName, rawTableChanges] of Object.entries(changes).sort(
+    comparePushTableOrder
+  )) {
     const table = tableName as SyncableTable;
     if (!SYNCABLE_TABLES.includes(tableName as SyncableTable)) {
       continue;
@@ -50,16 +74,19 @@ export async function pushChanges(
     const isChildTable = childConfig !== undefined;
 
     try {
-      const hasChildWrites =
+      const hasActiveChildWrites =
         isChildTable &&
-        (tableChanges.created.length > 0 || tableChanges.updated.length > 0);
+        (tableChanges.created.length > 0 ||
+          tableChanges.updated.some((record) => !isDeletedRecord(record)));
+      const hasDeletedChildUpdates =
+        isChildTable && tableChanges.updated.some(isDeletedRecord);
       const hasChildDeletes = isChildTable && tableChanges.deleted.length > 0;
       const activeParentIds =
-        childConfig && hasChildWrites
+        childConfig && hasActiveChildWrites
           ? await fetchOwnedParentIds(database, childConfig.parentTable, userId)
           : null;
       const deleteParentIds =
-        childConfig && hasChildDeletes
+        childConfig && (hasChildDeletes || hasDeletedChildUpdates)
           ? await fetchOwnedParentIds(
               database,
               childConfig.parentTable,
@@ -70,49 +97,45 @@ export async function pushChanges(
             )
           : null;
 
-      if (tableChanges.created.length > 0) {
-        const records: Array<Record<string, unknown>> =
-          tableChanges.created.map((record) => {
-            assertPushRecordBelongsToCurrentUser(
-              table,
-              record,
-              userId,
-              childConfig,
-              activeParentIds
-            );
-            return transformToSupabase(table, record, userId, isChildTable);
-          });
-
-        const { error } = await getSupabaseWriteTable(table).insert(records);
-        if (error) {
-          throw createSyncTableError("insert", table, error);
+      const upsertRecords = async (
+        records: ReadonlyArray<Record<string, unknown>>
+      ): Promise<void> => {
+        if (records.length === 0) {
+          return;
         }
-      }
 
-      if (tableChanges.updated.length > 0) {
-        for (const record of tableChanges.updated) {
+        const transformedRecords = records.map((record) => {
           assertPushRecordBelongsToCurrentUser(
             table,
             record,
             userId,
             childConfig,
-            activeParentIds
+            isDeletedRecord(record) ? deleteParentIds : activeParentIds
           );
-          const transformed = transformToSupabase(
+          return transformToSupabase(
             table,
             record,
             userId,
             isChildTable
           );
+        });
 
-          const { error } = await getSupabaseWriteTable(table).upsert(
-            transformed,
-            { onConflict: "id" }
-          );
-          if (error) {
-            throw createSyncTableError("upsert", table, error);
-          }
+        const { error } = await getSupabaseWriteTable(table).upsert(
+          transformedRecords,
+          { onConflict: "id" }
+        );
+        if (error) {
+          throw createSyncTableError("upsert", table, error);
         }
+      };
+
+      const softDeletedUpdates = tableChanges.updated.filter(isDeletedRecord);
+      const activeUpdates = tableChanges.updated.filter(
+        (record) => !isDeletedRecord(record)
+      );
+
+      if (softDeletedUpdates.length > 0) {
+        await upsertRecords(softDeletedUpdates);
       }
 
       if (tableChanges.deleted.length > 0) {
@@ -131,6 +154,31 @@ export async function pushChanges(
         if (error) {
           throw createSyncTableError("delete", table, error);
         }
+      }
+
+      if (tableChanges.created.length > 0) {
+        const records: Array<Record<string, unknown>> =
+          tableChanges.created.map((record) => {
+            assertPushRecordBelongsToCurrentUser(
+              table,
+              record,
+              userId,
+              childConfig,
+              activeParentIds
+            );
+            return transformToSupabase(table, record, userId, isChildTable);
+          });
+
+        const { error } = await getSupabaseWriteTable(table).upsert(records, {
+          onConflict: "id",
+        });
+        if (error) {
+          throw createSyncTableError("upsert", table, error);
+        }
+      }
+
+      if (activeUpdates.length > 0) {
+        await upsertRecords(activeUpdates);
       }
     } catch (err) {
       logger.error("sync.push.table.failed", err, { table });

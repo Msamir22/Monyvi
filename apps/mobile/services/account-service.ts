@@ -33,6 +33,7 @@ import { roundForCurrency } from "@monyvi/logic";
 import { Q } from "@nozbe/watermelondb";
 import { readIntroLocaleOverride } from "./intro-flag-service";
 import { queryOwned } from "./user-data-access";
+import { createAccountSmsSendersWithinWriter } from "./account-sms-sender-service";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -81,6 +82,7 @@ export type CreateAccountErrorCode =
   (typeof CREATE_ACCOUNT_ERROR_CODES)[keyof typeof CREATE_ACCOUNT_ERROR_CODES];
 
 const pendingCreateKeys = new Set<string>();
+const NO_PROVIDER_IDENTITY = "none";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -175,12 +177,68 @@ export async function createCashAccountWithinWriter(
 }
 
 function buildCreateAccountKey(userId: string, data: AccountFormData): string {
+  const providerIdentity = buildProviderIdentity(
+    data.institutionId ?? null,
+    getProviderDisplayName(data)
+  );
   return [
     userId.trim(),
     data.name.trim().toLowerCase(),
     data.currency,
-    data.accountType,
+    providerIdentity,
   ].join("|");
+}
+
+function getProviderDisplayName(data: AccountFormData): string | undefined {
+  return data.providerDisplayName?.trim() || data.bankName?.trim() || undefined;
+}
+
+function normalizeProviderDisplayName(value?: string | null): string {
+  return value?.trim().replace(/\s+/g, " ").toLowerCase() ?? "";
+}
+
+function buildProviderIdentity(
+  institutionId?: string | null,
+  providerDisplayName?: string | null
+): string {
+  const normalizedInstitutionId = institutionId?.trim();
+  if (normalizedInstitutionId) {
+    return `institution:${normalizedInstitutionId.toLowerCase()}`;
+  }
+
+  const normalizedProviderDisplayName =
+    normalizeProviderDisplayName(providerDisplayName);
+  if (normalizedProviderDisplayName) {
+    return `manual:${normalizedProviderDisplayName}`;
+  }
+
+  return NO_PROVIDER_IDENTITY;
+}
+
+function hasDuplicateAccountIdentity(
+  existingAccounts: readonly Account[],
+  data: AccountFormData
+): boolean {
+  const trimmedName = data.name.trim().toLowerCase();
+  const providerIdentity = buildProviderIdentity(
+    data.institutionId ?? null,
+    getProviderDisplayName(data)
+  );
+
+  return existingAccounts.some((account) => {
+    const hasSameName =
+      account.name.trim().toLowerCase() === trimmedName.toLowerCase();
+    if (!hasSameName) {
+      return false;
+    }
+
+    return (
+      buildProviderIdentity(
+        account.institutionId ?? null,
+        account.providerDisplayName
+      ) === providerIdentity
+    );
+  });
 }
 
 /**
@@ -228,7 +286,6 @@ export async function createAccountForUser(
 
     await database.write(async () => {
       const accountsCollection = database.get<Account>("accounts");
-      const trimmedName = validatedData.name.trim();
       const existingAccounts = await queryOwned(
         accountsCollection,
         normalizedUserId,
@@ -236,12 +293,7 @@ export async function createAccountForUser(
         Q.where("deleted", Q.notEq(true))
       ).fetch();
 
-      const duplicateAccount = existingAccounts.some(
-        (account) =>
-          account.name.trim().toLowerCase() === trimmedName.toLowerCase()
-      );
-
-      if (duplicateAccount) {
+      if (hasDuplicateAccountIdentity(existingAccounts, validatedData)) {
         throw new Error(CREATE_ACCOUNT_ERROR_CODES.DUPLICATE_ACCOUNT);
       }
 
@@ -254,8 +306,10 @@ export async function createAccountForUser(
 
       const account = await accountsCollection.create((acc) => {
         acc.userId = normalizedUserId;
-        acc.name = trimmedName;
+        acc.name = validatedData.name.trim();
         acc.type = validatedData.accountType;
+        acc.institutionId = validatedData.institutionId ?? undefined;
+        acc.providerDisplayName = getProviderDisplayName(validatedData);
         acc.balance = roundForCurrency(
           parseFloat(validatedData.balance),
           validatedData.currency
@@ -266,12 +320,15 @@ export async function createAccountForUser(
       });
       accountId = account.id;
 
+      await createAccountSmsSendersWithinWriter(
+        account.id,
+        validatedData.senderNames ?? []
+      );
+
       if (validatedData.accountType === "BANK") {
         await database.get<BankDetails>("bank_details").create((details) => {
           details.accountId = account.id;
-          details.bankName = validatedData.bankName?.trim();
           details.cardLast4 = validatedData.cardLast4?.trim();
-          details.smsSenderName = validatedData.smsSenderName?.trim();
           details.deleted = false;
         });
       }

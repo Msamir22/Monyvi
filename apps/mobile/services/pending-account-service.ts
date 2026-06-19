@@ -18,12 +18,16 @@
  */
 
 import {
+  type AccountSmsSender,
   database,
   type Account,
+  type AccountType,
   type BankDetails,
   type CurrencyType,
 } from "@monyvi/db";
 import { Q } from "@nozbe/watermelondb";
+import { t } from "i18next";
+import { normalizeAccountSmsSender } from "./account-sms-sender-service";
 import { getCurrentUserId } from "./supabase";
 import { queryOwned } from "./user-data-access";
 
@@ -42,9 +46,13 @@ interface PendingAccount {
   readonly name: string;
   /** Currency inherited from the transaction */
   readonly currency: CurrencyType;
-  /** Always BANK for SMS-created accounts */
-  readonly type: "BANK";
-  /** SMS sender display name (for bank_details.sms_sender_name) */
+  /** Account type inferred from the SMS sender registry when possible. */
+  readonly type: Extract<AccountType, "BANK" | "DIGITAL_WALLET">;
+  /** Stable provider ID when the sender matches a known bank/wallet. */
+  readonly institutionId?: string | null;
+  /** Manual or known provider display name snapshot. */
+  readonly providerDisplayName?: string | null;
+  /** SMS sender display name saved to account_sms_senders */
   readonly senderDisplayName: string;
   /** Card last 4 digits from SMS body (for bank_details.card_last_4) */
   readonly cardLast4?: string;
@@ -75,8 +83,8 @@ interface PersistResult {
  * so partial success is NOT acceptable.
  *
  * For each `PendingAccount`:
- * 1. Prepares an `Account` record (type=BANK, with user's currency)
- * 2. Prepares a `BankDetails` record (sms_sender_name + card_last_4)
+ * 1. Prepares an `Account` record with the inferred bank/wallet type
+ * 2. Prepares an `AccountSmsSender` record and optional bank card details
  *
  * Only accounts referenced by at least one transaction should be
  * passed here — the caller filters unreferenced accounts first.
@@ -109,19 +117,22 @@ async function persistPendingAccounts(
   let createdCount = 0;
 
   try {
-    // Pre-fetch existing active BANK accounts for dedup (name+currency)
+    // Pre-fetch existing active accounts for the same uniqueness contract used
+    // remotely: name+currency+institution or name+currency+manual provider.
     const existingAccounts = await queryOwned(
       database.get<Account>("accounts"),
       userId,
-      Q.where("deleted", false),
-      Q.where("type", "BANK")
+      Q.where("deleted", false)
     ).fetch();
 
     // Track accounts mapped within this batch to avoid intra-batch duplicates
-    const createdInBatch = new Map<string, string>(); // "name|currency" → realId
+    const createdInBatch = new Map<
+      string,
+      { readonly realId: string; readonly type: AccountType }
+    >();
 
     // Collect all DB operations to commit atomically
-    const ops: Array<Account | BankDetails> = [];
+    const ops: Array<Account | AccountSmsSender | BankDetails> = [];
 
     // Deferred mappings — only applied after successful batch commit
     const pendingMappings: Array<{
@@ -131,28 +142,56 @@ async function persistPendingAccounts(
     }> = [];
 
     for (const pending of pendingAccounts) {
-      const dedupKey = `${pending.name.trim().toLowerCase()}|${pending.currency}`;
+      const dedupKey = buildAccountDedupKey(pending);
 
       // Check: already mapped earlier in this batch?
       const batchDuplicate = createdInBatch.get(dedupKey);
       if (batchDuplicate) {
+        if (batchDuplicate.type !== pending.type) {
+          errors.push(
+            t("accounts:pending_account_type_conflict", {
+              name: pending.name,
+              currency: pending.currency,
+            })
+          );
+          break;
+        }
+
         // Safe to set immediately — references an already-committed or dedup'd ID
-        tempToRealIdMap.set(pending.tempId, batchDuplicate);
+        tempToRealIdMap.set(pending.tempId, batchDuplicate.realId);
         continue;
       }
 
       // Check: already exists in DB?
-      const existingMatch = existingAccounts.find(
-        (acc) =>
-          // TODO: Move trim().toLowerCase() to a util function
-          acc.name.trim().toLowerCase() === pending.name.trim().toLowerCase() &&
-          acc.currency === pending.currency
+      const existingIdentityMatch = existingAccounts.find(
+        (acc) => buildAccountDedupKey(acc) === dedupKey
       );
+
+      if (
+        existingIdentityMatch &&
+        existingIdentityMatch.type !== pending.type
+      ) {
+        errors.push(
+          t("accounts:pending_account_type_conflict", {
+            name: pending.name,
+            currency: pending.currency,
+          })
+        );
+        break;
+      }
+
+      const existingMatch =
+        existingIdentityMatch?.type === pending.type
+          ? existingIdentityMatch
+          : undefined;
 
       if (existingMatch) {
         // Safe to set immediately — references a DB-existing record
         tempToRealIdMap.set(pending.tempId, existingMatch.id);
-        createdInBatch.set(dedupKey, existingMatch.id);
+        createdInBatch.set(dedupKey, {
+          realId: existingMatch.id,
+          type: existingMatch.type,
+        });
         continue;
       }
 
@@ -164,22 +203,39 @@ async function persistPendingAccounts(
           record.name = pending.name;
           record.currency = pending.currency;
           record.type = pending.type;
+          record.institutionId = pending.institutionId?.trim() || undefined;
+          record.providerDisplayName =
+            pending.providerDisplayName?.trim() || undefined;
           record.balance = 0;
           record.isDefault = false;
           record.deleted = false;
         });
       ops.push(account);
 
-      // Prepare BankDetails record
-      const bankDetails = database
-        .get<BankDetails>("bank_details")
-        .prepareCreate((record) => {
-          record.accountId = account.id;
-          record.smsSenderName = pending.senderDisplayName;
-          record.cardLast4 = pending.cardLast4;
-          record.deleted = false;
-        });
-      ops.push(bankDetails);
+      const senderDisplayName = pending.senderDisplayName.trim();
+      const normalizedSender = normalizeAccountSmsSender(senderDisplayName);
+      if (normalizedSender) {
+        const sender = database
+          .get<AccountSmsSender>("account_sms_senders")
+          .prepareCreate((record) => {
+            record.accountId = account.id;
+            record.senderName = senderDisplayName;
+            record.normalizedSenderName = normalizedSender;
+            record.deleted = false;
+          });
+        ops.push(sender);
+      }
+
+      if (pending.type === "BANK") {
+        const bankDetails = database
+          .get<BankDetails>("bank_details")
+          .prepareCreate((record) => {
+            record.accountId = account.id;
+            record.cardLast4 = pending.cardLast4;
+            record.deleted = false;
+          });
+        ops.push(bankDetails);
+      }
 
       // Defer: collect mapping info for post-commit application
       pendingMappings.push({
@@ -189,7 +245,11 @@ async function persistPendingAccounts(
       });
 
       // Track in createdInBatch so subsequent loop iterations can dedup
-      createdInBatch.set(dedupKey, account.id);
+      createdInBatch.set(dedupKey, { realId: account.id, type: pending.type });
+    }
+
+    if (errors.length > 0) {
+      return { tempToRealIdMap, createdCount: 0, errors };
     }
 
     // Commit all prepared records atomically
@@ -210,6 +270,42 @@ async function persistPendingAccounts(
   }
 
   return { tempToRealIdMap, createdCount, errors };
+}
+
+function buildAccountDedupKey(account: {
+  readonly name: string;
+  readonly currency: string;
+  readonly institutionId?: string | null;
+  readonly providerDisplayName?: string | null;
+}): string {
+  return [
+    normalizeAccountName(account.name),
+    account.currency,
+    buildProviderIdentity(account),
+  ].join("|");
+}
+
+function normalizeAccountName(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+function buildProviderIdentity(account: {
+  readonly institutionId?: string | null;
+  readonly providerDisplayName?: string | null;
+}): string {
+  const institutionId = account.institutionId?.trim();
+  if (institutionId) {
+    return `institution:${institutionId}`;
+  }
+
+  const providerDisplayName = account.providerDisplayName
+    ?.trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+
+  return providerDisplayName
+    ? `manual:${providerDisplayName}`
+    : "manual:__monyvi_no_provider__";
 }
 
 export { persistPendingAccounts };

@@ -16,6 +16,7 @@
 
 import {
   Account,
+  AccountSmsSender,
   BankDetails,
   Debt,
   RecurringPayment,
@@ -30,6 +31,7 @@ import { Q, type Model } from "@nozbe/watermelondb";
 import { t } from "i18next";
 import { logger } from "@/utils/logger";
 import { redactIdentifierForLog } from "@/utils/logger-redaction";
+import { isInstitutionAllowedForAccountType } from "@/validation/account-validation";
 import {
   USER_DATA_ACCESS_ERROR_CODES,
   findOwnedById,
@@ -37,6 +39,7 @@ import {
   queryChildrenOfOwnedParent,
   queryOwned,
 } from "./user-data-access";
+import { replaceAccountSmsSendersWithinWriter } from "./account-sms-sender-service";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -66,6 +69,7 @@ const BALANCE_ADJUSTMENT_EXPENSE_CATEGORY_ID =
 
 /** Tolerance for floating-point balance comparison. */
 const BALANCE_EPSILON = 0.001;
+const NO_PROVIDER_IDENTITY = "none";
 
 /**
  * Typed error codes returned via {@link ServiceResult}.error.
@@ -80,6 +84,7 @@ const BALANCE_EPSILON = 0.001;
 export const EDIT_ACCOUNT_ERROR_CODES = {
   OWNERSHIP_FAILED: "OWNERSHIP_FAILED",
   NOT_FOUND: "NOT_FOUND",
+  INVALID_INSTITUTION_FOR_ACCOUNT_TYPE: "INVALID_INSTITUTION_FOR_ACCOUNT_TYPE",
 } as const;
 export type EditAccountErrorCode =
   (typeof EDIT_ACCOUNT_ERROR_CODES)[keyof typeof EDIT_ACCOUNT_ERROR_CODES];
@@ -93,6 +98,9 @@ export interface UpdateAccountData {
   readonly name: string;
   readonly balance: number;
   readonly isDefault: boolean;
+  readonly institutionId?: string | null;
+  readonly providerDisplayName?: string;
+  readonly senderNames?: readonly string[];
   readonly bankName?: string;
   readonly cardLast4?: string;
   readonly smsSenderName?: string;
@@ -139,11 +147,33 @@ function prepareSoftDelete<TRecord extends SoftDeletableRecord>(
 }
 
 function hasBankDetailsData(data: UpdateAccountData): boolean {
-  return (
-    Boolean(data.bankName?.trim()) ||
-    Boolean(data.cardLast4?.trim()) ||
-    Boolean(data.smsSenderName?.trim())
-  );
+  return Boolean(data.cardLast4?.trim());
+}
+
+function normalizeProviderDisplayName(value?: string | null): string {
+  return value?.trim().replace(/\s+/g, " ").toLowerCase() ?? "";
+}
+
+function buildProviderIdentity(
+  institutionId?: string | null,
+  providerDisplayName?: string | null
+): string {
+  const normalizedInstitutionId = institutionId?.trim();
+  if (normalizedInstitutionId) {
+    return `institution:${normalizedInstitutionId.toLowerCase()}`;
+  }
+
+  const normalizedProviderDisplayName =
+    normalizeProviderDisplayName(providerDisplayName);
+  if (normalizedProviderDisplayName) {
+    return `manual:${normalizedProviderDisplayName}`;
+  }
+
+  return NO_PROVIDER_IDENTITY;
+}
+
+function hasOwnDataField<T extends object>(data: T, field: keyof T): boolean {
+  return Object.prototype.hasOwnProperty.call(data, field);
 }
 
 // ---------------------------------------------------------------------------
@@ -151,22 +181,30 @@ function hasBankDetailsData(data: UpdateAccountData): boolean {
 // ---------------------------------------------------------------------------
 
 /**
- * Check whether an account name + currency combination is unique for a user.
+ * Check whether an account identity is unique for a user.
  *
  * Excludes the current account being edited (if provided) from the check.
  * Only checks against non-deleted accounts.
+ * Identity is name + currency + provider:
+ * - known providers use institution_id
+ * - manual providers use normalized provider_display_name when present
+ * - accounts without provider details use name + currency only
  *
  * @param userId - The authenticated user's ID
  * @param name - The account name to check
  * @param currency - The account's currency
  * @param excludeAccountId - The current account ID to exclude from the check
+ * @param institutionId - Optional selected known provider ID
+ * @param providerDisplayName - Optional manual provider display name
  * @returns UniquenessCheckResult with isUnique and optional error
  */
 export async function checkAccountNameUniqueness(
   userId: string,
   name: string,
   currency: CurrencyType,
-  excludeAccountId?: string
+  excludeAccountId?: string,
+  institutionId?: string | null,
+  providerDisplayName?: string | null
 ): Promise<UniquenessCheckResult> {
   try {
     const trimmedName = name.trim().toLowerCase();
@@ -193,9 +231,23 @@ export async function checkAccountNameUniqueness(
 
     // Case-insensitive name comparison — WatermelonDB doesn't support
     // case-insensitive queries, so we filter in JS.
-    const isDuplicate = existingAccounts.some(
-      (account) => account.name.trim().toLowerCase() === trimmedName
+    const providerIdentity = buildProviderIdentity(
+      institutionId ?? null,
+      providerDisplayName
     );
+    const isDuplicate = existingAccounts.some((account) => {
+      const hasSameName = account.name.trim().toLowerCase() === trimmedName;
+      if (!hasSameName) {
+        return false;
+      }
+
+      return (
+        buildProviderIdentity(
+          account.institutionId ?? null,
+          account.providerDisplayName
+        ) === providerIdentity
+      );
+    });
 
     return { isUnique: !isDuplicate };
   } catch (error) {
@@ -338,6 +390,18 @@ export async function updateAccountWithinWriter(
 
   // Snapshot BEFORE mutating — this is the source of truth for any paired
   // balance-adjustment transaction (defends against stale form state).
+  if (
+    hasOwnDataField(data, "institutionId") &&
+    !isInstitutionAllowedForAccountType(
+      data.institutionId ?? null,
+      existingAccount.type
+    )
+  ) {
+    throw new Error(
+      EDIT_ACCOUNT_ERROR_CODES.INVALID_INSTITUTION_FOR_ACCOUNT_TYPE
+    );
+  }
+
   const previousBalance = existingAccount.balance;
 
   // If setting as default, unset any current default for this user
@@ -364,7 +428,24 @@ export async function updateAccountWithinWriter(
     acc.name = data.name.trim();
     acc.balance = roundForCurrency(data.balance, existingAccount.currency);
     acc.isDefault = data.isDefault;
+    if (hasOwnDataField(data, "institutionId")) {
+      acc.institutionId = data.institutionId?.trim() || undefined;
+    }
+
+    if (hasOwnDataField(data, "providerDisplayName")) {
+      acc.providerDisplayName = data.providerDisplayName?.trim() || undefined;
+    } else if (hasOwnDataField(data, "bankName")) {
+      acc.providerDisplayName = data.bankName?.trim() || undefined;
+    }
   });
+
+  if (hasOwnDataField(data, "senderNames")) {
+    await replaceAccountSmsSendersWithinWriter(
+      existingAccount,
+      currentUserId,
+      data.senderNames ?? []
+    );
+  }
 
   // Update bank details if this is a bank account
   if (existingAccount.isBank) {
@@ -378,16 +459,12 @@ export async function updateAccountWithinWriter(
 
     if (activeBankDetail) {
       await activeBankDetail.update((bd) => {
-        bd.bankName = data.bankName;
         bd.cardLast4 = data.cardLast4;
-        bd.smsSenderName = data.smsSenderName;
       });
     } else if (hasBankDetailsData(data)) {
       await database.get<BankDetails>("bank_details").create((bd) => {
         bd.accountId = accountId;
-        bd.bankName = data.bankName;
         bd.cardLast4 = data.cardLast4;
-        bd.smsSenderName = data.smsSenderName;
         bd.deleted = false;
       });
     }
@@ -405,11 +482,12 @@ export async function updateAccountWithinWriter(
  *
  * Deletes in this order within a single write block:
  * 1. bank_details
- * 2. transactions
- * 3. transfers (where account is from_account OR to_account)
- * 4. debts
- * 5. recurring_payments
- * 6. The account itself
+ * 2. account_sms_senders
+ * 3. transactions
+ * 4. transfers (where account is from_account OR to_account)
+ * 5. debts
+ * 6. recurring_payments
+ * 7. The account itself
  *
  * Uses the domain `deleted` column for sync-safe soft deletes.
  *
@@ -455,6 +533,7 @@ export async function deleteAccountWithCascade(
       // Fetch all non-deleted children via explicit filtered queries.
       const [
         bankDetailRecords,
+        accountSmsSenderRecords,
         transactionRecords,
         fromTransfers,
         toTransfers,
@@ -463,6 +542,13 @@ export async function deleteAccountWithCascade(
       ] = await Promise.all([
         queryChildrenOfOwnedParent(
           database.get<BankDetails>("bank_details"),
+          account,
+          currentUserId,
+          "account_id",
+          Q.where("deleted", false)
+        ).fetch(),
+        queryChildrenOfOwnedParent(
+          database.get<AccountSmsSender>("account_sms_senders"),
           account,
           currentUserId,
           "account_id",
@@ -503,6 +589,7 @@ export async function deleteAccountWithCascade(
       // Batch all domain soft-deletes into a single write for performance.
       const batchOps: SoftDeletableRecord[] = [
         ...bankDetailRecords.map((record) => prepareSoftDelete(record)),
+        ...accountSmsSenderRecords.map((record) => prepareSoftDelete(record)),
         ...transactionRecords.map((record) => prepareSoftDelete(record)),
         ...fromTransfers.map((record) => prepareSoftDelete(record)),
         ...toTransfers.map((record) => prepareSoftDelete(record)),

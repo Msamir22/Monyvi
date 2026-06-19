@@ -5,6 +5,7 @@ import {
 } from "@/components/accounts";
 import { AccountListSkeleton } from "@/components/accounts/skeletons/AccountListSkeleton";
 import { buildAccountDisplayNames } from "@/utils/account-display";
+import { resolveAccountInstitutionPresentation } from "@/utils/account-institution-presentation";
 import { PageHeader } from "@/components/navigation/PageHeader";
 import { Button, ButtonVariant } from "@/components/ui/Button";
 import { palette } from "@/constants/colors";
@@ -171,14 +172,19 @@ export default function Accounts(): ReactElement {
 
   const renderItem: ListRenderItem<(typeof filteredAccounts)[number]> =
     useCallback(
-      ({ item }) => (
-        <AccountCard
-          account={item}
-          latestRates={latestRates}
-          displayName={displayNames.get(item.id) ?? item.name}
-          onPress={handleCardPress}
-        />
-      ),
+      ({ item }) => {
+        const presentation = resolveAccountInstitutionPresentation(item);
+        return (
+          <AccountCard
+            account={item}
+            latestRates={latestRates}
+            displayName={displayNames.get(item.id) ?? item.name}
+            providerLabel={presentation?.providerLabel ?? null}
+            institutionLogo={presentation?.asset.logo ?? null}
+            onPress={handleCardPress}
+          />
+        );
+      },
       [latestRates, displayNames, handleCardPress]
     );
 
@@ -204,6 +210,7 @@ export default function Accounts(): ReactElement {
         rightAction={{
           icon: "add",
           onPress: handleAddAccount,
+          testID: "accounts-add-button",
         }}
       />
 

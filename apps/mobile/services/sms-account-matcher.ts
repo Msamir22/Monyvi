@@ -10,7 +10,7 @@
  * 1. Card last 4 + sender match against bank_details
  * 2. Sender match alone against bank_details / account name
  * 3. Name + currency match via bank registry (isKnownFinancialSender)
- * 4. Default bank account (isDefault flag)
+ * 4. Default bank or wallet account (isDefault flag)
  *
  * Architecture & Design Rationale:
  * - Pattern: Strategy (multi-strategy matching with priority ordering)
@@ -25,6 +25,7 @@
 
 import {
   Account,
+  AccountSmsSender,
   AccountType,
   BankDetails,
   database,
@@ -32,6 +33,8 @@ import {
 } from "@monyvi/db";
 import {
   type ReviewableTransaction,
+  getInstitutionById,
+  getSenderPatternsForInstitution,
   isKnownFinancialSender,
 } from "@monyvi/logic";
 import { Q } from "@nozbe/watermelondb";
@@ -65,7 +68,8 @@ interface AccountWithBankDetails {
   readonly isDefault: boolean;
   readonly createdAt: Date;
   readonly type: AccountType;
-  readonly smsSenderName?: string;
+  readonly institutionId?: string;
+  readonly smsSenderNames: readonly string[];
   readonly bankName?: string;
   readonly cardLast4?: string;
 }
@@ -95,10 +99,20 @@ const DEFAULT_BATCH_SIZE = 20;
  * like "CIB" via `includes()`. Direct equality checks are unaffected.
  */
 const MIN_SUBSTRING_MATCH_LENGTH = 3;
+const MIN_LOOSE_SENDER_CHIP_LENGTH = 4;
 
 /** Escape special regex characters in a string to prevent injection / ReDoS. */
 function escapeRegExp(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function isTokenBoundaryMatch(
+  normalizedSender: string,
+  normalizedPattern: string
+): boolean {
+  return new RegExp(
+    `(^|[^a-z0-9])${escapeRegExp(normalizedPattern)}([^a-z0-9]|$)`
+  ).test(normalizedSender);
 }
 
 /**
@@ -192,8 +206,16 @@ function isSenderMatch(
     normalizedBankSmsSenderName.length >= MIN_SUBSTRING_MATCH_LENGTH
   ) {
     if (
-      normalizedSender.includes(normalizedBankSmsSenderName) ||
-      normalizedBankSmsSenderName.includes(normalizedSender)
+      normalizedBankSmsSenderName.length < MIN_LOOSE_SENDER_CHIP_LENGTH &&
+      isTokenBoundaryMatch(normalizedSender, normalizedBankSmsSenderName)
+    ) {
+      return true;
+    }
+
+    if (
+      normalizedBankSmsSenderName.length >= MIN_LOOSE_SENDER_CHIP_LENGTH &&
+      (normalizedSender.includes(normalizedBankSmsSenderName) ||
+        normalizedBankSmsSenderName.includes(normalizedSender))
     ) {
       return true;
     }
@@ -226,6 +248,43 @@ function isSenderMatch(
   }
 
   return false;
+}
+
+function doesAccountMatchSender(
+  senderDisplayName: string,
+  account: AccountWithBankDetails
+): boolean {
+  const registrySenderNames =
+    account.institutionId && getInstitutionById(account.institutionId)
+      ? getSenderPatternsForInstitution(account.institutionId)
+      : [];
+  const senderNames = [...registrySenderNames, ...account.smsSenderNames];
+
+  if (senderNames.length === 0) {
+    return isSenderMatch(senderDisplayName, {
+      bankName: account.bankName,
+      accountName: account.name,
+    });
+  }
+
+  const hasSenderNameMatch = senderNames.some((senderName) =>
+    isSenderMatch(senderDisplayName, {
+      bankSmsSenderName: senderName,
+    })
+  );
+
+  if (hasSenderNameMatch) {
+    return true;
+  }
+
+  if (account.institutionId && getInstitutionById(account.institutionId)) {
+    return false;
+  }
+
+  return isSenderMatch(senderDisplayName, {
+    bankName: account.bankName,
+    accountName: account.name,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -270,10 +329,26 @@ async function fetchAccountsWithDetails(
           "account_id",
           Q.where("deleted", false)
         ).fetch();
+  const allSenderRows =
+    accountIds.length === 0
+      ? []
+      : await queryChildrenOfOwnedParents(
+          database.get<AccountSmsSender>("account_sms_senders"),
+          accounts,
+          userId,
+          "account_id",
+          Q.where("deleted", false)
+        ).fetch();
 
   const bankDetailsByAccountId = new Map<string, BankDetails>();
   for (const row of allBankDetails) {
     bankDetailsByAccountId.set(row.accountId, row);
+  }
+  const senderNamesByAccountId = new Map<string, string[]>();
+  for (const row of allSenderRows) {
+    const senderNames = senderNamesByAccountId.get(row.accountId) ?? [];
+    senderNames.push(row.senderName);
+    senderNamesByAccountId.set(row.accountId, senderNames);
   }
 
   function pushAccountWithDetails(
@@ -287,8 +362,9 @@ async function fetchAccountsWithDetails(
       isDefault: account.isDefault,
       createdAt: account.createdAt,
       type: account.type,
-      smsSenderName: bankDetails?.smsSenderName ?? undefined,
-      bankName: bankDetails?.bankName ?? undefined,
+      institutionId: account.institutionId,
+      smsSenderNames: senderNamesByAccountId.get(account.id) ?? [],
+      bankName: account.providerDisplayName ?? undefined,
       cardLast4: bankDetails?.cardLast4 ?? undefined,
     });
   }
@@ -330,11 +406,7 @@ function matchAccountCore(
     const matchedAccount = accounts.find(
       (acc) =>
         acc.cardLast4 === cardLast4 &&
-        isSenderMatch(senderDisplayName, {
-          bankSmsSenderName: acc.smsSenderName,
-          bankName: acc.bankName,
-          accountName: acc.name,
-        })
+        doesAccountMatchSender(senderDisplayName, acc)
     );
     if (matchedAccount) {
       return {
@@ -347,11 +419,7 @@ function matchAccountCore(
 
   // Step 2: Sender match alone against bank_details / account name
   const matchedAccount = accounts.find((acc) =>
-    isSenderMatch(senderDisplayName, {
-      bankSmsSenderName: acc.smsSenderName,
-      bankName: acc.bankName,
-      accountName: acc.name,
-    })
+    doesAccountMatchSender(senderDisplayName, acc)
   );
   if (matchedAccount) {
     return {
@@ -361,17 +429,30 @@ function matchAccountCore(
     };
   }
 
-  // Step 3: Name + currency match via bank registry
-  if (currency) {
-    // This should always return a bank info for Egyptian banks
-    // since we already filter the sms based on this registry
-    const bankInfo = isKnownFinancialSender(senderDisplayName);
-    if (bankInfo) {
-      const normalizedBankName = bankInfo.shortName.toLowerCase().trim();
+  const senderInstitution = isKnownFinancialSender(senderDisplayName);
 
+  // Step 3: Name + currency match via Egyptian institution registry
+  if (currency) {
+    // This should return institution info for supported Egyptian providers
+    // since we already filter the sms based on this registry
+    if (senderInstitution) {
       for (const acc of accounts) {
         if (acc.currency !== currency) continue;
+        if (!doesAccountMatchInstitutionType(acc, senderInstitution.type)) {
+          continue;
+        }
 
+        if (acc.institutionId === senderInstitution.id) {
+          return {
+            accountId: acc.id,
+            accountName: acc.name,
+            matchReason: "bank_registry",
+          };
+        }
+
+        const normalizedBankName = senderInstitution.shortName
+          .toLowerCase()
+          .trim();
         const existingName = acc.name.toLowerCase().trim();
         if (
           existingName === normalizedBankName ||
@@ -394,7 +475,12 @@ function matchAccountCore(
   }
 
   // Step 4: Default account fallback
-  const defaultAcc = accounts.find((a) => a.isDefault);
+  const defaultAcc = accounts.find(
+    (account) =>
+      account.isDefault &&
+      (!senderInstitution ||
+        doesAccountMatchInstitutionType(account, senderInstitution.type))
+  );
   if (defaultAcc) {
     return {
       accountId: defaultAcc.id,
@@ -405,6 +491,21 @@ function matchAccountCore(
 
   // No match at all
   return { accountId: null, accountName: null, matchReason: "none" };
+}
+
+function doesAccountMatchInstitutionType(
+  account: AccountWithBankDetails,
+  institutionType: string
+): boolean {
+  if (institutionType === "bank") {
+    return account.type === "BANK";
+  }
+
+  if (institutionType === "wallet") {
+    return account.type === "DIGITAL_WALLET";
+  }
+
+  return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -427,7 +528,9 @@ function matchTransaction(
     return matchVoiceTransaction(transaction, accounts);
   }
 
-  const bankAccounts = accounts.filter((acc) => acc.type === "BANK");
+  const smsMatchableAccounts = accounts.filter(
+    (acc) => acc.type === "BANK" || acc.type === "DIGITAL_WALLET"
+  );
   const input: MatchInput = {
     // Use originLabel as the sender identifier (SMS: sender address)
     senderDisplayName: transaction.originLabel ?? "",
@@ -438,7 +541,7 @@ function matchTransaction(
     currency: transaction.currency ?? undefined,
   };
 
-  return matchAccountCore(input, bankAccounts);
+  return matchAccountCore(input, smsMatchableAccounts);
 }
 
 function matchVoiceTransaction(

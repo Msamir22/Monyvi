@@ -439,6 +439,9 @@ chore, perf, ci.
   reachable: run `adb -s emulator-5554 reverse tcp:8081 tcp:8081`, verify the
   app focus with `adb -s emulator-5554 shell dumpsys window`, and inspect Metro
   output/logcat for bundle or React errors.
+- To open the local Expo dev-client after reversing Metro, use the known-good
+  loopback URL:
+  `adb -s emulator-5554 shell am start -a android.intent.action.VIEW -d "monyvi://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8081" com.monyvi.app`.
 - If the Expo dev client shows a blank native root or Development Launcher after
   emulator restart, treat it as a dev-client/Metro connection issue first. Check
   `adb reverse`, launch URL, Metro logs, and logcat before changing product

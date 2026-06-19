@@ -1,6 +1,6 @@
 appId: com.monyvi.app
 ---
-# Helper: Create a default Cash account named "Test Wallet" with 1000 EGP
+# Helper: Create a default Cash account named "Test Wallet"
 # Called conditionally by seed-account.yaml — do not run directly.
 
 # Step 1: Open FAB and tap "Add Account"
@@ -18,19 +18,17 @@ appId: com.monyvi.app
 # Step 3: CASH type is selected by default — no need to tap
 
 # Step 4: Enter account name
-- tapOn: "Account Name"
+- tapOn:
+    id: "account-name-input"
 - inputText: "Test Wallet"
 
 # Step 5: Currency defaults to EGP — skip
 
-# Step 6: Enter initial balance
-- tapOn: "Initial Balance"
-- inputText: "1000"
-
-# Step 7: Save via the header save button
+# Step 6: Save via the header save button
 - tapOn:
     id: "header-save"
 - waitForAnimationToEnd
 
-# Step 8: Wait for navigation back and verify
+# Step 7: Wait for navigation back and verify
 - waitForAnimationToEnd
+- assertVisible: "Test Wallet"

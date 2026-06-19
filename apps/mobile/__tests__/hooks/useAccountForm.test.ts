@@ -11,7 +11,14 @@ let mockCurrentUserId: string | null = "user-1";
 let mockIsResolvingUser = false;
 const mockCheckAccountNameUniqueness = jest.fn<
   Promise<UniquenessResult>,
-  [string, string, TestCurrency]
+  [
+    string,
+    string,
+    TestCurrency,
+    string | undefined,
+    string | null,
+    string | null,
+  ]
 >();
 let mockPreferredCurrency: TestCurrency = "EGP";
 
@@ -37,9 +44,19 @@ jest.mock("../../services/edit-account-service", () => ({
   checkAccountNameUniqueness: (
     userId: string,
     name: string,
-    currency: TestCurrency
+    currency: TestCurrency,
+    excludeAccountId?: string,
+    institutionId?: string | null,
+    providerDisplayName?: string | null
   ): Promise<UniquenessResult> =>
-    mockCheckAccountNameUniqueness(userId, name, currency),
+    mockCheckAccountNameUniqueness(
+      userId,
+      name,
+      currency,
+      excludeAccountId,
+      institutionId ?? null,
+      providerDisplayName ?? null
+    ),
 }));
 
 import { useAccountForm } from "../../hooks/useAccountForm";
@@ -105,7 +122,10 @@ describe("useAccountForm", () => {
     expect(mockCheckAccountNameUniqueness).toHaveBeenCalledWith(
       "user-1",
       "Wallet",
-      "EGP"
+      "EGP",
+      undefined,
+      null,
+      ""
     );
 
     act(() => {
@@ -127,7 +147,10 @@ describe("useAccountForm", () => {
     expect(mockCheckAccountNameUniqueness).toHaveBeenLastCalledWith(
       "user-1",
       "Savings",
-      "EGP"
+      "EGP",
+      undefined,
+      null,
+      ""
     );
 
     await act(async () => {
@@ -157,7 +180,10 @@ describe("useAccountForm", () => {
     expect(mockCheckAccountNameUniqueness).toHaveBeenCalledWith(
       "user-1",
       "Wallet",
-      "EGP"
+      "EGP",
+      undefined,
+      null,
+      ""
     );
 
     mockPreferredCurrency = "USD";
@@ -175,7 +201,240 @@ describe("useAccountForm", () => {
     expect(mockCheckAccountNameUniqueness).toHaveBeenLastCalledWith(
       "user-1",
       "Wallet",
-      "USD"
+      "USD",
+      undefined,
+      null,
+      ""
+    );
+  });
+
+  it("selects a known provider without exposing registry sender presets as editable chips", () => {
+    const { result } = renderHook(() =>
+      useAccountForm({ initialAccountType: "BANK" })
+    );
+
+    act(() => {
+      result.current.selectKnownInstitution("cib");
+    });
+
+    expect(result.current.formData.institutionId).toBe("cib");
+    expect(result.current.formData.providerDisplayName).toBe("CIB");
+    expect(result.current.formData.senderNames).toEqual([]);
+    expect(result.current.formData.smsSenderName).toBe("");
+  });
+
+  it("clears provider identity and senders when create flow switches between bank and wallet", () => {
+    const { result } = renderHook(() =>
+      useAccountForm({ initialAccountType: "BANK" })
+    );
+
+    act(() => {
+      result.current.selectKnownInstitution("cib");
+    });
+
+    act(() => {
+      result.current.updateField("accountType", "DIGITAL_WALLET");
+    });
+
+    expect(result.current.formData.accountType).toBe("DIGITAL_WALLET");
+    expect(result.current.formData.institutionId).toBeNull();
+    expect(result.current.formData.providerDisplayName).toBe("");
+    expect(result.current.formData.senderNames).toEqual([]);
+  });
+
+  it("keeps provider identity and senders when re-tapping the selected account type", () => {
+    const { result } = renderHook(() =>
+      useAccountForm({ initialAccountType: "BANK" })
+    );
+
+    act(() => {
+      result.current.selectKnownInstitution("cib");
+    });
+    act(() => {
+      result.current.updateSenderNames(["CIBCUSTOM"]);
+    });
+    act(() => {
+      result.current.updateField("accountType", "BANK");
+    });
+
+    expect(result.current.formData.accountType).toBe("BANK");
+    expect(result.current.formData.institutionId).toBe("cib");
+    expect(result.current.formData.providerDisplayName).toBe("CIB");
+    expect(result.current.formData.senderNames).toEqual(["CIBCUSTOM"]);
+  });
+
+  it("keeps custom sender names when re-selecting the same known provider", () => {
+    const { result } = renderHook(() =>
+      useAccountForm({ initialAccountType: "BANK" })
+    );
+
+    act(() => {
+      result.current.selectKnownInstitution("cib");
+    });
+    act(() => {
+      result.current.updateSenderNames(["CIBCUSTOM"]);
+    });
+    act(() => {
+      result.current.selectKnownInstitution("cib");
+    });
+
+    expect(result.current.formData.institutionId).toBe("cib");
+    expect(result.current.formData.providerDisplayName).toBe("CIB");
+    expect(result.current.formData.senderNames).toEqual(["CIBCUSTOM"]);
+  });
+
+  it("rechecks uniqueness against manual provider identity after account type changes", async () => {
+    jest.useFakeTimers();
+    const { result } = renderHook(() =>
+      useAccountForm({ initialAccountType: "BANK" })
+    );
+
+    await flushAct();
+
+    act(() => {
+      result.current.updateField("name", "Main");
+    });
+    act(() => {
+      result.current.selectKnownInstitution("cib");
+    });
+    act(() => {
+      jest.advanceTimersByTime(300);
+    });
+    await flushAct();
+
+    act(() => {
+      result.current.updateField("accountType", "DIGITAL_WALLET");
+    });
+    act(() => {
+      jest.advanceTimersByTime(300);
+    });
+    await flushAct();
+
+    expect(mockCheckAccountNameUniqueness).toHaveBeenLastCalledWith(
+      "user-1",
+      "Main",
+      "EGP",
+      undefined,
+      null,
+      ""
+    );
+  });
+
+  it("clears provider identity and senders when create flow switches back to cash", () => {
+    const { result } = renderHook(() =>
+      useAccountForm({ initialAccountType: "BANK" })
+    );
+
+    act(() => {
+      result.current.selectKnownInstitution("cib");
+    });
+
+    act(() => {
+      result.current.updateField("accountType", "CASH");
+    });
+
+    expect(result.current.formData.accountType).toBe("CASH");
+    expect(result.current.formData.institutionId).toBeNull();
+    expect(result.current.formData.providerDisplayName).toBe("");
+    expect(result.current.formData.senderNames).toEqual([]);
+  });
+
+  it("clears hidden card digits when account type changes", () => {
+    const { result } = renderHook(() =>
+      useAccountForm({ initialAccountType: "BANK" })
+    );
+
+    act(() => {
+      result.current.updateField("cardLast4", "12");
+    });
+
+    expect(result.current.isValid).toBe(false);
+
+    act(() => {
+      result.current.updateField("accountType", "DIGITAL_WALLET");
+    });
+
+    expect(result.current.formData.cardLast4).toBe("");
+  });
+
+  it("keeps sender arrays as the canonical value and mirrors the legacy text field", () => {
+    const { result } = renderHook(() =>
+      useAccountForm({ initialAccountType: "DIGITAL_WALLET" })
+    );
+
+    act(() => {
+      result.current.updateSenderNames(["VFCash", "VodafoneCash"]);
+    });
+
+    expect(result.current.formData.senderNames).toEqual([
+      "VFCash",
+      "VodafoneCash",
+    ]);
+    expect(result.current.formData.smsSenderName).toBe("VFCash, VodafoneCash");
+  });
+
+  it("rechecks name uniqueness when the known provider identity changes", async () => {
+    jest.useFakeTimers();
+    const { result } = renderHook(() =>
+      useAccountForm({ initialAccountType: "BANK" })
+    );
+
+    await flushAct();
+
+    act(() => {
+      result.current.updateField("name", "Main");
+    });
+
+    act(() => {
+      jest.advanceTimersByTime(300);
+    });
+    await flushAct();
+
+    act(() => {
+      result.current.selectKnownInstitution("cib");
+    });
+
+    act(() => {
+      jest.advanceTimersByTime(300);
+    });
+    await flushAct();
+
+    expect(mockCheckAccountNameUniqueness).toHaveBeenLastCalledWith(
+      "user-1",
+      "Main",
+      "EGP",
+      undefined,
+      "cib",
+      "CIB"
+    );
+  });
+
+  it("rechecks name uniqueness against manual provider display identity", async () => {
+    jest.useFakeTimers();
+    const { result } = renderHook(() =>
+      useAccountForm({ initialAccountType: "BANK" })
+    );
+
+    await flushAct();
+
+    act(() => {
+      result.current.updateField("name", "Main");
+    });
+    act(() => {
+      result.current.updateField("providerDisplayName", "  QA   Bank  ");
+    });
+    act(() => {
+      jest.advanceTimersByTime(300);
+    });
+    await flushAct();
+
+    expect(mockCheckAccountNameUniqueness).toHaveBeenLastCalledWith(
+      "user-1",
+      "Main",
+      "EGP",
+      undefined,
+      null,
+      "  QA   Bank  "
     );
   });
 });

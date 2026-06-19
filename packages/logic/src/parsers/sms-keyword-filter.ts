@@ -49,7 +49,6 @@ const FINANCIAL_KEYWORDS_EN = [
   "refund",
   "account",
   "card",
-  "instapay",
   "atm",
   "pos",
   "salary",

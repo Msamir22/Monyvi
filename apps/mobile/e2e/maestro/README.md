@@ -180,6 +180,35 @@ To reset seeded local data:
 npm run e2e:reset -w @monyvi/mobile
 ```
 
+## Manual QA App Loop
+
+Use this loop when you want to test the app by hand without touching the E2E
+test account.
+
+```powershell
+# Use a local-only password. Do not commit it.
+$env:MANUAL_QA_PASSWORD="<your-local-password>"
+
+# Recreate the local manual QA user and deterministic starter data
+npm run manual:seed-user -w @monyvi/mobile
+
+# Make the emulator reach Metro on the host
+adb -s emulator-5554 reverse tcp:8081 tcp:8081
+
+# Open the Monyvi dev client against local Metro
+adb -s emulator-5554 shell am start -a android.intent.action.VIEW -d "monyvi://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8081" com.monyvi.app
+```
+
+Manual local credentials:
+
+| Field    | Value                             |
+| -------- | --------------------------------- |
+| Email    | `manual-qa@monyvi.test`           |
+| Password | The value of `MANUAL_QA_PASSWORD` |
+
+After a local Supabase reset, run `npm run manual:seed-user -w @monyvi/mobile`
+again to recover the same manual account.
+
 ## CI
 
 GitHub Actions runs the Android E2E suite with:
