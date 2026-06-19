@@ -71,7 +71,7 @@ describe("run-ci-e2e helpers", () => {
   });
 
   it("uses a bounded retry count for repeated ADB device-offline failures", () => {
-    expect(runCiE2e.getDeviceOfflineRetryCount({})).toBe(3);
+    expect(runCiE2e.getDeviceOfflineRetryCount({})).toBe(5);
     expect(
       runCiE2e.getDeviceOfflineRetryCount({
         E2E_DEVICE_OFFLINE_RETRY_COUNT: "5",

@@ -8,7 +8,7 @@ const mobileRoot = join(__dirname, "..");
 const maxCapturedOutputLength = 256 * 1024;
 const defaultChildTimeoutMs = 20 * 60 * 1000;
 const defaultLiveSmsTimeoutMs = 45 * 60 * 1000;
-const defaultDeviceOfflineRetryCount = 3;
+const defaultDeviceOfflineRetryCount = 5;
 
 const shouldBootstrapAuth = process.env.E2E_SKIP_AUTH_BOOTSTRAP !== "1";
 const allCiSuites = ["accounts", "transactions", "sms-sync", "live-sms"];
