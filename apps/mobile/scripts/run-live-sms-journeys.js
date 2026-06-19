@@ -12,6 +12,7 @@ const {
   run,
   wait,
 } = require("./e2e-preflight");
+const { applyE2eAuthDeepLink } = require("./e2e-auth-deeplink");
 const { getE2eSeedConfig, seedE2eData } = require("./e2e-seed");
 
 const mobileRoot = join(__dirname, "..");
@@ -261,6 +262,7 @@ function applyLocalE2eDefaults() {
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??= config.anonKey;
   process.env.MAESTRO_E2E_EMAIL ??= config.email;
   process.env.MAESTRO_E2E_PASSWORD ??= config.password;
+  applyE2eAuthDeepLink();
 }
 
 async function bootstrapCleanAuthenticatedSession() {

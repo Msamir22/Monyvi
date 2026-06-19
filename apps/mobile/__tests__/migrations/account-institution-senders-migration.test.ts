@@ -69,10 +69,19 @@ describe("account institution and sender migration", () => {
 
   it("enforces provider-aware uniqueness for known and manual providers", () => {
     const sql = readMigrationSql();
+    const providerBackfillIndex = sql.indexOf(
+      "UPDATE public.accounts AS account"
+    );
+    const duplicatePreflightIndex = sql.indexOf(
+      "Cannot create manual account uniqueness index"
+    );
 
     expect(sql).toMatch(
       /RAISE EXCEPTION 'Cannot create manual account uniqueness index while duplicate active manual accounts exist'/m
     );
+    expect(providerBackfillIndex).toBeGreaterThanOrEqual(0);
+    expect(duplicatePreflightIndex).toBeGreaterThanOrEqual(0);
+    expect(providerBackfillIndex).toBeLessThan(duplicatePreflightIndex);
     expect(sql).not.toMatch(/UPDATE public\.accounts[\s\S]*deleted = true/m);
     expect(sql).toMatch(
       /CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_unique_known_provider[\s\S]*ON public\.accounts \(user_id, lower\(btrim\(name\)\), currency, institution_id\)[\s\S]*WHERE deleted = false AND institution_id IS NOT NULL/m

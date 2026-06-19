@@ -1,6 +1,7 @@
 const { join } = require("node:path");
 const { spawn, spawnSync } = require("node:child_process");
 const { createClient } = require("@supabase/supabase-js");
+const { applyE2eAuthDeepLink } = require("./e2e-auth-deeplink");
 const { getE2eSeedConfig, seedE2eData } = require("./e2e-seed");
 
 const mobileRoot = join(__dirname, "..");
@@ -60,6 +61,7 @@ function applyLocalE2eDefaults() {
   process.env.EXPO_PUBLIC_AI_SMS_PARSER_MODE ??= "fixture";
   if (process.env.E2E_SKIP_SEED === "1") {
     process.env.EXPO_PUBLIC_SUPABASE_URL ??= "http://10.0.2.2:54321";
+    applyE2eAuthDeepLink();
     return;
   }
 
@@ -73,6 +75,7 @@ function applyLocalE2eDefaults() {
   process.env.MAESTRO_E2E_EMAIL ??= config.email;
   process.env.MAESTRO_E2E_PASSWORD ??= config.password;
   process.env.SUPABASE_SERVICE_ROLE_KEY ??= config.serviceRoleKey;
+  applyE2eAuthDeepLink();
 }
 
 function assertRequiredEnv() {

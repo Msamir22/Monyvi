@@ -47,7 +47,8 @@ if [ "$e2e_status" -ne 0 ]; then
     tail -n 80 metro.log 2>/dev/null || true
   } > android-e2e-failure-summary.log
   {
-    echo "::error title=Android E2E failed::$(tr '\n' '%' < android-e2e-failure-summary.log | sed 's/%/%0A/g' | cut -c 1-8000)"
+    annotation_message="$(sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e ':a;N;$!ba;s/\n/%0A/g' android-e2e-failure-summary.log | cut -c 1-8000)"
+    echo "::error title=Android E2E failed::${annotation_message}"
   } || true
 fi
 exit "$e2e_status"

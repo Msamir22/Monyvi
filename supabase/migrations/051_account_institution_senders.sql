@@ -10,6 +10,25 @@ DROP INDEX IF EXISTS public.idx_accounts_unique_name_currency;
 DROP INDEX IF EXISTS public.idx_accounts_unique_known_provider;
 DROP INDEX IF EXISTS public.idx_accounts_unique_manual_provider;
 
+UPDATE public.accounts AS account
+SET provider_display_name = legacy_bank_details.bank_name
+FROM (
+  SELECT DISTINCT ON (account_id)
+    account_id,
+    btrim(bank_name) AS bank_name
+  FROM public.bank_details
+  WHERE deleted = false
+    AND bank_name IS NOT NULL
+    AND btrim(bank_name) <> ''
+  ORDER BY account_id, created_at ASC
+) AS legacy_bank_details
+WHERE account.id = legacy_bank_details.account_id
+  AND account.deleted = false
+  AND (
+    account.provider_display_name IS NULL
+    OR btrim(account.provider_display_name) = ''
+  );
+
 DO $$
 BEGIN
   IF EXISTS (
@@ -70,25 +89,6 @@ CREATE INDEX IF NOT EXISTS idx_account_sms_senders_normalized
 CREATE UNIQUE INDEX IF NOT EXISTS idx_account_sms_senders_unique_active_normalized
   ON public.account_sms_senders (account_id, normalized_sender_name)
   WHERE deleted = false;
-
-UPDATE public.accounts AS account
-SET provider_display_name = legacy_bank_details.bank_name
-FROM (
-  SELECT DISTINCT ON (account_id)
-    account_id,
-    btrim(bank_name) AS bank_name
-  FROM public.bank_details
-  WHERE deleted = false
-    AND bank_name IS NOT NULL
-    AND btrim(bank_name) <> ''
-  ORDER BY account_id, created_at ASC
-) AS legacy_bank_details
-WHERE account.id = legacy_bank_details.account_id
-  AND account.deleted = false
-  AND (
-    account.provider_display_name IS NULL
-    OR btrim(account.provider_display_name) = ''
-  );
 
 INSERT INTO public.account_sms_senders (
   id,

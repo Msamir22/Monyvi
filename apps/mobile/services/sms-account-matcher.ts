@@ -277,6 +277,10 @@ function doesAccountMatchSender(
     return true;
   }
 
+  if (account.institutionId && getInstitutionById(account.institutionId)) {
+    return false;
+  }
+
   return isSenderMatch(senderDisplayName, {
     bankName: account.bankName,
     accountName: account.name,

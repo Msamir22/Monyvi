@@ -180,6 +180,30 @@ describe("sms-account-matcher - matchAccountCore", () => {
     });
   });
 
+  it("does not loosely match known-provider display snapshots as senders", () => {
+    const knownProviderAccount: AccountWithBankDetails = {
+      id: "acc_cib",
+      name: "Main",
+      currency: "EGP",
+      isDefault: false,
+      createdAt: baseDate,
+      type: "BANK",
+      institutionId: "cib",
+      smsSenderNames: [],
+      bankName: "CIB",
+    };
+
+    const result = matchAccountCore(
+      { senderDisplayName: "CIBStore", currency: "EGP" },
+      [knownProviderAccount]
+    );
+
+    expect(result).toMatchObject({
+      accountId: null,
+      matchReason: "none",
+    });
+  });
+
   it("falls back to provider name when custom sender rows do not match", () => {
     const accountWithCustomSender: AccountWithBankDetails = {
       id: "acc_cib",

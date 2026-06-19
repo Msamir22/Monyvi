@@ -3,7 +3,7 @@ appId: com.monyvi.app
 # CI helper: authenticate through the guarded E2E deep link to avoid flaky
 # Android keyboard input in the sign-in form.
 
-- openLink: "monyvi://e2e-auth?email=${MAESTRO_E2E_EMAIL}&password=${MAESTRO_E2E_PASSWORD}"
+- openLink: "${MAESTRO_E2E_AUTH_DEEPLINK}"
 
 - extendedWaitUntil:
     visible:
