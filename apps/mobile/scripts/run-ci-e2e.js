@@ -7,6 +7,7 @@ const mobileRoot = join(__dirname, "..");
 const maxCapturedOutputLength = 256 * 1024;
 const defaultChildTimeoutMs = 20 * 60 * 1000;
 const defaultLiveSmsTimeoutMs = 45 * 60 * 1000;
+const defaultDeviceOfflineRetryCount = 3;
 
 const shouldBootstrapAuth = process.env.E2E_SKIP_AUTH_BOOTSTRAP !== "1";
 const allCiSuites = ["accounts", "transactions", "sms-sync", "live-sms"];
@@ -133,6 +134,13 @@ function getLiveSmsTimeoutMs(env = process.env) {
     : defaultLiveSmsTimeoutMs;
 }
 
+function getDeviceOfflineRetryCount(env = process.env) {
+  const parsed = Number(env.E2E_DEVICE_OFFLINE_RETRY_COUNT);
+  return Number.isInteger(parsed) && parsed > 0
+    ? parsed
+    : defaultDeviceOfflineRetryCount;
+}
+
 function getRequestedCiSuites(env = process.env) {
   const value = env.E2E_CI_SUITES;
   if (!value || value === "full") {
@@ -166,8 +174,10 @@ function runAdb(args, options = {}) {
   });
 }
 
-function reconnectAdb() {
-  console.warn("ADB device went offline. Reconnecting before one retry.");
+function reconnectAdb(attempt, maxAttempts) {
+  console.warn(
+    `ADB device went offline. Reconnecting before retry ${attempt + 1} of ${maxAttempts}.`
+  );
   runAdb(["kill-server"], { timeout: 30_000 });
   runAdb(["start-server"], { timeout: 30_000 });
   const waitResult = runAdb(["wait-for-device"], { timeout: 60_000 });
@@ -227,15 +237,17 @@ function runNodeScriptOnce(script, args, options = {}) {
 }
 
 async function runNodeScript(script, args, options = {}) {
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
+  const maxAttempts = getDeviceOfflineRetryCount();
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const result = await runNodeScriptOnce(script, args, options);
 
     if (result.status === 0) {
       return;
     }
 
-    if (attempt === 1 && isDeviceOfflineFailure(result.output)) {
-      reconnectAdb();
+    if (attempt < maxAttempts && isDeviceOfflineFailure(result.output)) {
+      reconnectAdb(attempt, maxAttempts);
       continue;
     }
 
@@ -367,6 +379,7 @@ if (require.main === module) {
 module.exports = {
   appendOutputTail,
   getChildTimeoutMs,
+  getDeviceOfflineRetryCount,
   getLiveSmsTimeoutMs,
   getRequestedCiSuites,
   getAuthBootstrapFlow,
