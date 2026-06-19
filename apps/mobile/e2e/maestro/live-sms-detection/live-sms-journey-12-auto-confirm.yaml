@@ -41,13 +41,3 @@ appId: com.monyvi.app
 - extendedWaitUntil:
     visible: "Latest detected: 75 EGP from NBE"
     timeout: 60000
-
-# Pull down the notification shade to verify the auto-confirm notification.
-- swipe:
-    start: 50%, 0%
-    end: 50%, 90%
-    duration: 500
-
-- extendedWaitUntil:
-    visible: "Transaction created"
-    timeout: 30000

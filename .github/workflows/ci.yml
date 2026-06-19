@@ -92,7 +92,7 @@ jobs:
   android-e2e:
     name: Android E2E Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 180
     needs: android-build
     env:
       CI: "true"
@@ -103,6 +103,7 @@ jobs:
       EXPO_PUBLIC_MONYVI_TEST_MODE: e2e
       EXPO_PUBLIC_AI_SMS_PARSER_MODE: fixture
       E2E_PREFLIGHT_ATTEMPT_TIMEOUT_MS: 600000
+      E2E_LIVE_SMS_TIMEOUT_MS: 5400000
       ANDROID_SERIAL: emulator-5554
     steps:
       - name: Checkout code

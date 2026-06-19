@@ -17,6 +17,8 @@ const { getE2eSeedConfig, seedE2eData } = require("./e2e-seed");
 const mobileRoot = join(__dirname, "..");
 const flowDir = join("e2e", "maestro", "live-sms-detection");
 const defaultMaestroFlowTimeoutMs = 10 * 60 * 1000;
+const uiAuthBootstrapFlow = "../helpers/ci-auth-bootstrap.yaml";
+const deeplinkAuthBootstrapFlow = "../helpers/ci-auth-deeplink-bootstrap.yaml";
 
 const smsPermissions = [
   "android.permission.READ_SMS",
@@ -168,6 +170,12 @@ function getMaestroFlowTimeoutMs(env = process.env) {
     : defaultMaestroFlowTimeoutMs;
 }
 
+function getAuthBootstrapFlow(env = process.env) {
+  return env.E2E_AUTH_DEEPLINK_BOOTSTRAP === "1"
+    ? deeplinkAuthBootstrapFlow
+    : uiAuthBootstrapFlow;
+}
+
 function reconnectMaestroTransport() {
   run("adb", ["kill-server"], { allowFailure: true, timeout: 30000 });
   run("adb", ["start-server"], { timeout: 30000 });
@@ -271,7 +279,7 @@ async function bootstrapCleanAuthenticatedSession() {
   process.env.E2E_USER_ID = result.userId;
   adb(["shell", "pm", "clear", appId]);
   await ensureE2eAppReady();
-  runFlow("../helpers/ci-auth-bootstrap.yaml");
+  runFlow(getAuthBootstrapFlow());
 }
 
 function getXmlAttribute(nodeText, attribute) {
@@ -882,6 +890,10 @@ const journeys = {
       grantNotificationPermission();
       collapseSystemUi();
     },
+    after: () => {
+      waitForNotificationText(["Transaction created", "NBE", "75"]);
+      collapseSystemUi();
+    },
   },
   13: {
     flow: "live-sms-journey-13-enable-before-revoke.yaml",
@@ -998,6 +1010,7 @@ if (require.main === module) {
 module.exports = {
   buildLiveSmsActionProbeCleanupSql,
   createKilledAppConfirmMarker,
+  getAuthBootstrapFlow,
   getMaestroFlowTimeoutMs,
   getActiveUserFilter,
   isRetryableMaestroTransportFailure,
