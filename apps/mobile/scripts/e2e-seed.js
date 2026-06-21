@@ -230,21 +230,20 @@ function getE2eSeedConfig(env = process.env, options = {}) {
     mode,
     supabaseUrl: isLocal
       ? getLocalSeedSupabaseUrl(env)
-      : env.E2E_SUPABASE_URL ??
+      : (env.E2E_SUPABASE_URL ??
         env.SUPABASE_URL ??
-        requiredRemoteEnv(env, "EXPO_PUBLIC_SUPABASE_URL"),
-    appSupabaseUrl:
-      isLocal
-        ? getLocalSeedAppSupabaseUrl(env)
-        : env.EXPO_PUBLIC_SUPABASE_URL ?? env.E2E_SUPABASE_URL,
+        requiredRemoteEnv(env, "EXPO_PUBLIC_SUPABASE_URL")),
+    appSupabaseUrl: isLocal
+      ? getLocalSeedAppSupabaseUrl(env)
+      : (env.EXPO_PUBLIC_SUPABASE_URL ?? env.E2E_SUPABASE_URL),
     serviceRoleKey: isLocal
       ? localKeys.serviceRoleKey
-      : env.SUPABASE_SERVICE_ROLE_KEY ??
-        requiredRemoteEnv(env, "SUPABASE_SERVICE_ROLE_KEY"),
+      : (env.SUPABASE_SERVICE_ROLE_KEY ??
+        requiredRemoteEnv(env, "SUPABASE_SERVICE_ROLE_KEY")),
     anonKey: isLocal
       ? localKeys.anonKey
-      : env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??
-        requiredRemoteEnv(env, "EXPO_PUBLIC_SUPABASE_ANON_KEY"),
+      : (env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??
+        requiredRemoteEnv(env, "EXPO_PUBLIC_SUPABASE_ANON_KEY")),
     email:
       env.MAESTRO_E2E_EMAIL ??
       (isLocal
@@ -522,7 +521,7 @@ function buildSeedRows(userId) {
       {
         id: seedIds.bankDetails.nbe,
         account_id: seedIds.accounts.bank,
-        card_last_4: "4321",
+        card_last_4: 4321,
         account_number: "00004321",
         deleted: false,
         created_at: FIXED_NOW,
@@ -531,7 +530,7 @@ function buildSeedRows(userId) {
       {
         id: seedIds.bankDetails.qnb,
         account_id: seedIds.accounts.qnbBank,
-        card_last_4: "5566",
+        card_last_4: 5566,
         account_number: "00005566",
         deleted: false,
         created_at: FIXED_NOW,

@@ -159,6 +159,10 @@ Business rules:
 - The first active account created for a user is marked default.
 - At most one active account per user should be default.
 - Account type and currency are read-only after creation.
+- Default cash accounts are seeded with the user's current preferred UI
+  language: English stores `Cash`, Arabic stores `كاش`. The stored account name
+  remains user-editable and syncs as normal account data; UI type labels are
+  still localized independently from the saved nickname.
 - Editing a balance may be silent or may create an internal balance-adjustment
   transaction.
 - Deleting an account soft-deletes related local financial records, including
@@ -171,7 +175,7 @@ Business rules:
 Bank details are child rows owned through an account. They store only bank-
 specific metadata used by SMS account resolution:
 
-- Card last four digits.
+- Nullable card last four digits, stored as an integer in `card_last_4`.
 - Optional account number.
 
 Provider display names belong on the account so both bank and digital-wallet

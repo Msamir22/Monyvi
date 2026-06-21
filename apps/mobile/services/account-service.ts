@@ -34,6 +34,7 @@ import { Q } from "@nozbe/watermelondb";
 import { readIntroLocaleOverride } from "./intro-flag-service";
 import { queryOwned } from "./user-data-access";
 import { createAccountSmsSendersWithinWriter } from "./account-sms-sender-service";
+import { normalizeCardLast4ForStorage } from "./card-last4-normalizer";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -328,7 +329,9 @@ export async function createAccountForUser(
       if (validatedData.accountType === "BANK") {
         await database.get<BankDetails>("bank_details").create((details) => {
           details.accountId = account.id;
-          details.cardLast4 = validatedData.cardLast4?.trim();
+          details.cardLast4 = normalizeCardLast4ForStorage(
+            validatedData.cardLast4
+          );
           details.deleted = false;
         });
       }

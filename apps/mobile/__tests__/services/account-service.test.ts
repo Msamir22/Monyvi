@@ -476,7 +476,7 @@ describe("createAccountForUser", () => {
     expect(bankDetailsCreateCalls).toEqual([
       expect.objectContaining({
         accountId: "account-1",
-        cardLast4: "1234",
+        cardLast4: 1234,
         deleted: false,
       }),
     ]);

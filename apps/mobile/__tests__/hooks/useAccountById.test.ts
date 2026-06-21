@@ -27,7 +27,7 @@ const RTR: ReactTestRendererModule = require("react-test-renderer");
 
 interface MockBankDetails {
   readonly bankName?: string;
-  readonly cardLast4?: string;
+  readonly cardLast4?: number | null;
   readonly smsSenderName?: string;
 }
 
@@ -58,7 +58,7 @@ interface UseAccountByIdResult {
   readonly account: MockAccount | null;
   readonly bankDetails: {
     readonly bankName: string;
-    readonly cardLast4: string;
+    readonly cardLast4?: string;
     readonly smsSenderName: string;
     readonly smsSenderNames: readonly string[];
   } | null;
@@ -164,7 +164,7 @@ describe("useAccountById", () => {
     await RTR.act(async () => {
       deferredDetails.resolve([
         {
-          cardLast4: "1234",
+          cardLast4: 1234,
         },
       ]);
       await deferredDetails.promise;
@@ -190,7 +190,7 @@ describe("useAccountById", () => {
         fetch: jest.fn(() =>
           Promise.resolve([
             {
-              cardLast4: "1234",
+              cardLast4: 1234,
             },
           ])
         ),
@@ -214,6 +214,80 @@ describe("useAccountById", () => {
     });
 
     expect(account.bankDetails.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves undefined form state when nullable card digits load from storage", async () => {
+    const account: MockAccount = {
+      id: "acc-1",
+      userId: "user-1",
+      type: "BANK",
+      isBank: true,
+      providerDisplayName: "CIB",
+      bankDetails: {
+        fetch: jest.fn(() =>
+          Promise.resolve([
+            {
+              cardLast4: null,
+            },
+          ])
+        ),
+      },
+      accountSmsSenders: {
+        fetch: jest.fn(() =>
+          Promise.resolve([{ senderName: "CIBSMS", deleted: false }])
+        ),
+      },
+    };
+    const { result } = renderHook("acc-1");
+
+    await RTR.act(async () => {
+      activeObserver?.next(account);
+      await Promise.resolve();
+    });
+
+    expect(result.current.bankDetails).toEqual({
+      bankName: "CIB",
+      cardLast4: undefined,
+      smsSenderName: "CIBSMS",
+      smsSenderNames: ["CIBSMS"],
+    });
+  });
+
+  it("formats zero-valued stored card digits as four visible digits", async () => {
+    const account: MockAccount = {
+      id: "acc-1",
+      userId: "user-1",
+      type: "BANK",
+      isBank: true,
+      providerDisplayName: "CIB",
+      bankDetails: {
+        fetch: jest.fn(() =>
+          Promise.resolve([
+            {
+              cardLast4: 0,
+            },
+          ])
+        ),
+      },
+      accountSmsSenders: {
+        fetch: jest.fn(() =>
+          Promise.resolve([{ senderName: "CIBSMS", deleted: false }])
+        ),
+      },
+    };
+    const { result } = renderHook("acc-1");
+
+    await RTR.act(async () => {
+      activeObserver?.next(account);
+      await Promise.resolve();
+    });
+
+    expect(result.current.bankDetails).toEqual({
+      bankName: "CIB",
+      cardLast4: "0000",
+      smsSenderName: "CIBSMS",
+      smsSenderNames: ["CIBSMS"],
+    });
   });
 
   it("uses empty relation rows when a fallback relation cannot fetch", async () => {

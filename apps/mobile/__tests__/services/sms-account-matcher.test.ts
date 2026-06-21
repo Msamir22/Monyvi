@@ -53,7 +53,7 @@ describe("sms-account-matcher - matchAccountCore", () => {
     type: "BANK",
     smsSenderNames: ["CIB"],
     bankName: "Commercial International Bank",
-    cardLast4: "1234",
+    cardLast4: 1234,
   };
 
   const accBank2: AccountWithBankDetails = {
@@ -64,7 +64,7 @@ describe("sms-account-matcher - matchAccountCore", () => {
     createdAt: new Date(baseDate.getTime() + 1000), // Created later
     type: "BANK",
     smsSenderNames: ["NBE"],
-    cardLast4: "5678",
+    cardLast4: 5678,
   };
 
   const accBank3: AccountWithBankDetails = {
@@ -86,6 +86,28 @@ describe("sms-account-matcher - matchAccountCore", () => {
     };
     const result = matchAccountCore(input, accounts);
     expect(result.accountId).toBe("acc_bank1");
+    expect(result.matchReason).toBe("card_last4");
+  });
+
+  it("Step 1: Matches parsed card digits with leading zeroes against stored integer digits", () => {
+    const leadingZeroAccount: AccountWithBankDetails = {
+      id: "acc_leading_zero",
+      name: "CIB Zero Card",
+      currency: "EGP",
+      isDefault: false,
+      createdAt: baseDate,
+      type: "BANK",
+      smsSenderNames: ["CIB"],
+      bankName: "Commercial International Bank",
+      cardLast4: 123,
+    };
+
+    const result = matchAccountCore(
+      { senderDisplayName: "CIB", cardLast4: "0123" },
+      [leadingZeroAccount]
+    );
+
+    expect(result.accountId).toBe("acc_leading_zero");
     expect(result.matchReason).toBe("card_last4");
   });
 
@@ -119,7 +141,7 @@ describe("sms-account-matcher - matchAccountCore", () => {
       type: "BANK",
       smsSenderNames: [],
       bankName: "CIB",
-      cardLast4: "1234",
+      cardLast4: 1234,
     };
 
     const result = matchAccountCore(
@@ -142,7 +164,7 @@ describe("sms-account-matcher - matchAccountCore", () => {
       institutionId: "cib",
       smsSenderNames: [],
       bankName: "CIB",
-      cardLast4: "1234",
+      cardLast4: 1234,
     };
 
     const result = matchAccountCore(
@@ -214,7 +236,7 @@ describe("sms-account-matcher - matchAccountCore", () => {
       type: "BANK",
       smsSenderNames: ["CIBCUSTOM"],
       bankName: "CIB",
-      cardLast4: "1234",
+      cardLast4: 1234,
     };
 
     const result = matchAccountCore(
@@ -332,11 +354,11 @@ describe("sms-account-matcher - fetchAccountsWithDetails", () => {
     };
     const nbeDetails = {
       accountId: "acc_nbe",
-      cardLast4: "4321",
+      cardLast4: 4321,
     };
     const qnbDetails = {
       accountId: "acc_qnb",
-      cardLast4: "5566",
+      cardLast4: 5566,
     };
     const nbeSender = {
       accountId: "acc_nbe",
@@ -369,7 +391,7 @@ describe("sms-account-matcher - fetchAccountsWithDetails", () => {
     const accounts = await fetchAccountsWithDetails("user-1", "BANK");
 
     expect(accounts).toHaveLength(2);
-    expect(accounts.map((entry) => entry.cardLast4)).toEqual(["4321", "5566"]);
+    expect(accounts.map((entry) => entry.cardLast4)).toEqual([4321, 5566]);
     expect(
       matchAccountCore(
         { senderDisplayName: "QNB", cardLast4: "5566", currency: "EGP" },
@@ -504,7 +526,7 @@ describe("sms-account-matcher - source-aware transaction matching", () => {
           type: "BANK",
           smsSenderNames: ["NBE"],
           bankName: "NBE",
-          cardLast4: "4321",
+          cardLast4: 4321,
         },
         {
           id: "acc_bank_qnb",
@@ -515,7 +537,7 @@ describe("sms-account-matcher - source-aware transaction matching", () => {
           type: "BANK",
           smsSenderNames: ["QNB"],
           bankName: "QNB",
-          cardLast4: "5566",
+          cardLast4: 5566,
         },
       ]
     );
@@ -603,7 +625,7 @@ describe("sms-account-matcher - source-aware transaction matching", () => {
       type: "BANK",
       smsSenderNames: ["CIB"],
       bankName: "CIB",
-      cardLast4: "1111",
+      cardLast4: 1111,
     };
     const cardMatch: AccountWithBankDetails = {
       id: "bank-card-match",
@@ -614,7 +636,7 @@ describe("sms-account-matcher - source-aware transaction matching", () => {
       type: "BANK",
       smsSenderNames: ["CIB"],
       bankName: "CIB",
-      cardLast4: "2222",
+      cardLast4: 2222,
     };
 
     const result = matchTransaction(

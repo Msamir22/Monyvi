@@ -387,5 +387,21 @@ from (
         ),
       ],
     },
+    {
+      toVersion: 22,
+      steps: [
+        unsafeExecuteSql(
+          `update "bank_details"
+set "card_last_4" = case
+  when "card_last_4" is null then null
+  when trim(cast("card_last_4" as text)) glob '[0-9][0-9][0-9][0-9]' then cast(trim(cast("card_last_4" as text)) as integer)
+  when trim(cast("card_last_4" as text)) glob '[0-9][0-9][0-9]' then cast(trim(cast("card_last_4" as text)) as integer)
+  when trim(cast("card_last_4" as text)) glob '[0-9][0-9]' then cast(trim(cast("card_last_4" as text)) as integer)
+  when trim(cast("card_last_4" as text)) glob '[0-9]' then cast(trim(cast("card_last_4" as text)) as integer)
+  else null
+end;`
+        ),
+      ],
+    },
   ],
 });

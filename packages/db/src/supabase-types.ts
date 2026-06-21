@@ -190,7 +190,7 @@ export type Database = {
         Row: {
           account_id: string;
           account_number: string | null;
-          card_last_4: string | null;
+          card_last_4: number | null;
           created_at: string;
           deleted: boolean;
           id: string;
@@ -199,7 +199,7 @@ export type Database = {
         Insert: {
           account_id: string;
           account_number?: string | null;
-          card_last_4?: string | null;
+          card_last_4?: number | null;
           created_at?: string;
           deleted?: boolean;
           id?: string;
@@ -208,7 +208,7 @@ export type Database = {
         Update: {
           account_id?: string;
           account_number?: string | null;
-          card_last_4?: string | null;
+          card_last_4?: number | null;
           created_at?: string;
           deleted?: boolean;
           id?: string;
