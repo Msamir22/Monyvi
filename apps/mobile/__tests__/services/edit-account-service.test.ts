@@ -1052,7 +1052,7 @@ describe("edit-account-service", () => {
     it("updates account provider metadata, sender rows, and bank card details for bank accounts", async () => {
       const bankDetail = mockModel("bd-1", {
         accountId: "acc-1",
-        cardLast4: "1234",
+        cardLast4: 1234,
         deleted: false,
       });
       const existingSender = mockModel("sender-1", {
@@ -1079,14 +1079,14 @@ describe("edit-account-service", () => {
           isDefault: false,
           bankName: "New Bank",
           providerDisplayName: "New Bank",
-          cardLast4: "5678",
+          cardLast4: " 5678 ",
           senderNames: ["NewSMS"],
         },
         null
       );
 
       expect(account.providerDisplayName).toBe("New Bank");
-      expect(bankDetail.cardLast4).toBe("5678");
+      expect(bankDetail.cardLast4).toBe(5678);
       expect(existingSender.deleted).toBe(true);
       expect(Array.from(mockGetStore("account_sms_senders").values())).toEqual(
         expect.arrayContaining([
@@ -1322,7 +1322,7 @@ describe("edit-account-service", () => {
       expect(createdDetails).toHaveLength(1);
       expect(createdDetails[0]).toMatchObject({
         accountId: "acc-1",
-        cardLast4: "1234",
+        cardLast4: 1234,
         deleted: false,
       });
       expect(Array.from(mockGetStore("account_sms_senders").values())).toEqual(
@@ -1359,6 +1359,34 @@ describe("edit-account-service", () => {
       );
 
       expect(mockGetStore("bank_details").size).toBe(0);
+    });
+
+    it("stores nullish card digits when clearing an existing bank detail row", async () => {
+      const bankDetail = mockModel("bd-1", {
+        accountId: "acc-1",
+        cardLast4: 1234,
+        deleted: false,
+      });
+      seedAccount("acc-1", {
+        name: "Bank Account",
+        type: "BANK",
+        isBank: true,
+      });
+      mockSeed("bank_details", bankDetail);
+
+      await updateAccountWithBalanceAdjustment(
+        "acc-1",
+        "user-1",
+        {
+          name: "Bank Account",
+          balance: 0,
+          isDefault: false,
+          cardLast4: "",
+        },
+        null
+      );
+
+      expect(bankDetail.cardLast4).toBeUndefined();
     });
 
     it("returns success: false when the account is not found", async () => {

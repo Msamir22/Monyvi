@@ -7,7 +7,7 @@
 import { appSchema, tableSchema } from "@nozbe/watermelondb";
 
 export const schema = appSchema({
-  version: 21,
+  version: 22,
   tables: [
     tableSchema({
       name: "account_sms_senders",
@@ -79,7 +79,7 @@ export const schema = appSchema({
       columns: [
         { name: "account_id", type: "string", isIndexed: true },
         { name: "account_number", type: "string", isOptional: true },
-        { name: "card_last_4", type: "string", isOptional: true },
+        { name: "card_last_4", type: "number", isOptional: true },
         { name: "created_at", type: "number" },
         { name: "deleted", type: "boolean" },
         { name: "updated_at", type: "number" },

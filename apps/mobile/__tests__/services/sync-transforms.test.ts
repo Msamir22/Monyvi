@@ -91,7 +91,7 @@ describe("sync transforms", () => {
       {
         id: "bank-detail-1",
         account_id: "account-1",
-        card_last_4: "1234",
+        card_last_4: 1234,
         bank_name: "Legacy Bank",
         sms_sender_name: "LEGACY",
         created_at: Date.UTC(2026, 0, 15, 10),
@@ -105,7 +105,7 @@ describe("sync transforms", () => {
       expect.objectContaining({
         id: "bank-detail-1",
         account_id: "account-1",
-        card_last_4: "1234",
+        card_last_4: 1234,
       })
     );
     expect(transformed).not.toHaveProperty("bank_name");

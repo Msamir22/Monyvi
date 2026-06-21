@@ -40,6 +40,7 @@ import {
   queryOwned,
 } from "./user-data-access";
 import { replaceAccountSmsSendersWithinWriter } from "./account-sms-sender-service";
+import { normalizeCardLast4ForStorage } from "./card-last4-normalizer";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -147,7 +148,7 @@ function prepareSoftDelete<TRecord extends SoftDeletableRecord>(
 }
 
 function hasBankDetailsData(data: UpdateAccountData): boolean {
-  return Boolean(data.cardLast4?.trim());
+  return normalizeCardLast4ForStorage(data.cardLast4) !== undefined;
 }
 
 function normalizeProviderDisplayName(value?: string | null): string {
@@ -459,12 +460,12 @@ export async function updateAccountWithinWriter(
 
     if (activeBankDetail) {
       await activeBankDetail.update((bd) => {
-        bd.cardLast4 = data.cardLast4;
+        bd.cardLast4 = normalizeCardLast4ForStorage(data.cardLast4);
       });
     } else if (hasBankDetailsData(data)) {
       await database.get<BankDetails>("bank_details").create((bd) => {
         bd.accountId = accountId;
-        bd.cardLast4 = data.cardLast4;
+        bd.cardLast4 = normalizeCardLast4ForStorage(data.cardLast4);
         bd.deleted = false;
       });
     }

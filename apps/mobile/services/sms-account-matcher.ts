@@ -39,6 +39,7 @@ import {
 } from "@monyvi/logic";
 import { Q } from "@nozbe/watermelondb";
 import { queryChildrenOfOwnedParents, queryOwned } from "./user-data-access";
+import { normalizeCardLast4ForStorage } from "./card-last4-normalizer";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -71,7 +72,7 @@ interface AccountWithBankDetails {
   readonly institutionId?: string;
   readonly smsSenderNames: readonly string[];
   readonly bankName?: string;
-  readonly cardLast4?: string;
+  readonly cardLast4?: number;
 }
 
 /**
@@ -365,7 +366,7 @@ async function fetchAccountsWithDetails(
       institutionId: account.institutionId,
       smsSenderNames: senderNamesByAccountId.get(account.id) ?? [],
       bankName: account.providerDisplayName ?? undefined,
-      cardLast4: bankDetails?.cardLast4 ?? undefined,
+      cardLast4: normalizeCardLast4ForStorage(bankDetails?.cardLast4),
     });
   }
 
@@ -400,12 +401,13 @@ function matchAccountCore(
   accounts: readonly AccountWithBankDetails[]
 ): AccountMatch {
   const { senderDisplayName, cardLast4, currency } = input;
+  const normalizedCardLast4 = normalizeCardLast4ForStorage(cardLast4);
 
   // Step 1: Card last 4 + sender match (highest confidence)
-  if (cardLast4) {
+  if (normalizedCardLast4 !== undefined) {
     const matchedAccount = accounts.find(
       (acc) =>
-        acc.cardLast4 === cardLast4 &&
+        acc.cardLast4 === normalizedCardLast4 &&
         doesAccountMatchSender(senderDisplayName, acc)
     );
     if (matchedAccount) {

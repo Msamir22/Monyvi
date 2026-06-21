@@ -24,7 +24,7 @@ export abstract class BaseBankDetails extends Model {
 
   @field("account_id") accountId!: string;
   @field("account_number") accountNumber?: string;
-  @field("card_last_4") cardLast4?: string;
+  @field("card_last_4") cardLast4?: number;
   @readonly @date("created_at") createdAt!: Date;
   @field("deleted") deleted!: boolean;
   @date("updated_at") updatedAt!: Date;

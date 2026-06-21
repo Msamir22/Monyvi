@@ -27,7 +27,7 @@ const RTR: ReactTestRendererModule = require("react-test-renderer");
 
 interface MockBankDetails {
   readonly bankName?: string;
-  readonly cardLast4?: string;
+  readonly cardLast4?: number;
   readonly smsSenderName?: string;
 }
 
@@ -164,7 +164,7 @@ describe("useAccountById", () => {
     await RTR.act(async () => {
       deferredDetails.resolve([
         {
-          cardLast4: "1234",
+          cardLast4: 1234,
         },
       ]);
       await deferredDetails.promise;
@@ -190,7 +190,7 @@ describe("useAccountById", () => {
         fetch: jest.fn(() =>
           Promise.resolve([
             {
-              cardLast4: "1234",
+              cardLast4: 1234,
             },
           ])
         ),

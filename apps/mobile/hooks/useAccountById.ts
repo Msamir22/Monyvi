@@ -15,6 +15,7 @@
 import { Account, AccountSmsSender, BankDetails, database } from "@monyvi/db";
 import { useEffect, useState } from "react";
 import { observeOwnedById } from "@/services/user-data-access";
+import { formatCardLast4ForInput } from "@/services/card-last4-normalizer";
 import { useCurrentUser } from "./useCurrentUser";
 import { logger } from "../utils/logger";
 
@@ -188,7 +189,10 @@ export function useAccountById(id: string | null): UseAccountByIdResult {
 
       setBankDetails({
         bankName: account.providerDisplayName,
-        cardLast4: details?.cardLast4,
+        cardLast4:
+          details?.cardLast4 === undefined
+            ? undefined
+            : formatCardLast4ForInput(details.cardLast4),
         smsSenderName: smsSenderNames.join(", "),
         smsSenderNames,
       });

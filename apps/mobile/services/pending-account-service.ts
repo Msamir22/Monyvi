@@ -28,6 +28,7 @@ import {
 import { Q } from "@nozbe/watermelondb";
 import { t } from "i18next";
 import { normalizeAccountSmsSender } from "./account-sms-sender-service";
+import { normalizeCardLast4ForStorage } from "./card-last4-normalizer";
 import { getCurrentUserId } from "./supabase";
 import { queryOwned } from "./user-data-access";
 
@@ -231,7 +232,7 @@ async function persistPendingAccounts(
           .get<BankDetails>("bank_details")
           .prepareCreate((record) => {
             record.accountId = account.id;
-            record.cardLast4 = pending.cardLast4;
+            record.cardLast4 = normalizeCardLast4ForStorage(pending.cardLast4);
             record.deleted = false;
           });
         ops.push(bankDetails);
