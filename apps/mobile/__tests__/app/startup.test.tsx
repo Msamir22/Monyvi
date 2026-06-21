@@ -88,15 +88,15 @@ jest.mock("@/hooks/useIntroSeen", () => ({
   }),
 }));
 
-// RetrySyncScreen pulled in via the gate — stub that forwards the two
+// RetryProfileLoadingScreen pulled in via the gate — stub that forwards the two
 // callbacks onto the node's `onRetry` / `onSignOut` props so tests can
 // invoke them via renderer lookup.
-jest.mock("@/components/ui/RetrySyncScreen", () => {
+jest.mock("@/components/ui/RetryProfileLoadingScreen", () => {
   /* eslint-disable @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return */
   const ReactMod = require("react");
   const RN = require("react-native");
   return {
-    RetrySyncScreen: (props: {
+    RetryProfileLoadingScreen: (props: {
       onRetry: () => void;
       onSignOut: () => void;
     }): React.ReactElement =>
@@ -318,16 +318,15 @@ describe("(private)/startup.tsx routing gate", () => {
   // a loading screen indefinitely when sync reports "success" but the profile
   // observation never produces a row. An authenticated user MUST have a
   // profile (DB trigger creates one on signup), so this state is a data
-  // inconsistency — surface RetrySyncScreen so the user has a path forward
+  // inconsistency — surface RetryProfileLoadingScreen so the user has a path forward
   // (sign out + try again) rather than falling through to /onboarding and
   // overwriting potentially-existing cloud data (user-report 2026-04-27).
   //
-  // NOTE: RetrySyncScreen is a temporary stand-in for this branch — sync
-  // technically succeeded, so "Couldn't load your account" + Retry isn't
-  // a perfect fit. The intended replacement is a dedicated
-  // ContactSupportScreen (see TODO in app/(private)/startup.tsx). When that lands,
-  // update this test's expectation accordingly.
-  it("escapes to retry screen after the grace period elapses when sync=success but profile stays null (data inconsistency — RetrySyncScreen is a temporary stand-in until ContactSupportScreen exists)", () => {
+  // NOTE: RetryProfileLoadingScreen is a temporary stand-in for this branch.
+  // The intended replacement is a dedicated ContactSupportScreen (see TODO in
+  // app/(private)/startup.tsx). When that lands, update this test's expectation
+  // accordingly.
+  it("escapes to retry screen after the grace period elapses when sync=success but profile stays null (data inconsistency)", () => {
     setState({ syncState: "success", profileNull: true });
 
     // Wrap initial render in act() so the useEffect that schedules the

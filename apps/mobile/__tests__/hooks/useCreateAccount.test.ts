@@ -106,7 +106,7 @@ function renderHook(): {
   };
 
   const HookWrapper = (): React.JSX.Element | null => {
-    ref.current = useCreateAccount() as HookResult;
+    ref.current = useCreateAccount();
     return null;
   };
 
@@ -200,7 +200,7 @@ describe("useCreateAccount", () => {
     );
   });
 
-  it("uses localized session-required toast text", async () => {
+  it("routes to the startup recovery path when the current user is missing", async () => {
     mockCurrentUserId = null;
     const { result } = renderHook();
 
@@ -208,13 +208,9 @@ describe("useCreateAccount", () => {
       await result.current.createAccount(accountFormData);
     });
 
-    expect(mockShowToast).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "error",
-        title: "accounts:toast_create_session_required_title",
-        message: "accounts:toast_create_session_required_message",
-      })
-    );
     expect(mockCreateAccountForUser).not.toHaveBeenCalled();
+    expect(mockShowToast).not.toHaveBeenCalled();
+    expect(mockRouterBack).not.toHaveBeenCalled();
+    expect(mockRouterReplace).toHaveBeenCalledWith("/startup");
   });
 });

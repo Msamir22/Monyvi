@@ -41,11 +41,7 @@ export function useCreateAccount(): UseCreateAccountResult {
 
       try {
         if (!userId) {
-          showToast({
-            type: "error",
-            title: t("toast_create_session_required_title"),
-            message: t("toast_create_session_required_message"),
-          });
+          router.replace("/startup");
           return;
         }
 

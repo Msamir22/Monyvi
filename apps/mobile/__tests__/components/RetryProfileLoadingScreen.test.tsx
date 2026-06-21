@@ -1,16 +1,14 @@
 /**
- * Unit tests for RetrySyncScreen.
+ * Unit tests for RetryProfileLoadingScreen.
  *
- * Regression guard (T033) for PR #238 review Finding #3:
- *   "The status chip must use the dedicated `sync_failed_chip` translation
- *    key, not a substring of `sync_failed_title`. The old `.split(' ').slice(-2)`
- *    approach breaks on Arabic (RTL + different word order)."
+ * Regression guard: the status chip must use a dedicated translation key, not
+ * a substring of the title. The old `.split(" ").slice(-2)` approach breaks on
+ * Arabic (RTL + different word order).
  *
  * Tests:
- * - Pressing Retry invokes `onRetry`.
+ * - Pressing Retry loading profile invokes `onRetry`.
  * - Pressing Sign out invokes `onSignOut`.
- * - The chip renders the `sync_failed_chip` translation key (not a derived
- *   slice of the title).
+ * - The chip renders the `profile_loading_failed_chip` translation key.
  */
 
 import React from "react";
@@ -34,10 +32,6 @@ interface ReactTestRendererModule {
 // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
 const RTR: ReactTestRendererModule = require("react-test-renderer");
 
-// =============================================================================
-// Mocks
-// =============================================================================
-
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: (): { top: number; bottom: number } => ({
     top: 0,
@@ -47,20 +41,11 @@ jest.mock("react-native-safe-area-context", () => ({
 
 jest.mock("react-i18next", () => ({
   useTranslation: (): { t: (key: string) => string } => ({
-    // Echo the key so we can assert the exact key being rendered.
     t: (key: string): string => key,
   }),
 }));
 
-// =============================================================================
-// Under test
-// =============================================================================
-
-import { RetrySyncScreen } from "@/components/ui/RetrySyncScreen";
-
-// =============================================================================
-// Helpers
-// =============================================================================
+import { RetryProfileLoadingScreen } from "@/components/ui/RetryProfileLoadingScreen";
 
 function collectText(node: unknown, out: string[]): void {
   if (node === null || node === undefined) return;
@@ -92,20 +77,16 @@ function findButtonByLabel(
   return null;
 }
 
-// =============================================================================
-// Tests
-// =============================================================================
-
-describe("RetrySyncScreen", () => {
-  it("invokes onRetry when the Retry button is pressed", () => {
+describe("RetryProfileLoadingScreen", () => {
+  it("invokes onRetry when the Retry loading profile button is pressed", () => {
     const onRetry = jest.fn();
     const onSignOut = jest.fn();
 
     const renderer = RTR.create(
-      React.createElement(RetrySyncScreen, { onRetry, onSignOut })
+      React.createElement(RetryProfileLoadingScreen, { onRetry, onSignOut })
     );
 
-    const handler = findButtonByLabel(renderer, "retry");
+    const handler = findButtonByLabel(renderer, "retry_loading_profile");
     expect(handler).not.toBeNull();
     handler?.();
 
@@ -118,7 +99,7 @@ describe("RetrySyncScreen", () => {
     const onSignOut = jest.fn();
 
     const renderer = RTR.create(
-      React.createElement(RetrySyncScreen, { onRetry, onSignOut })
+      React.createElement(RetryProfileLoadingScreen, { onRetry, onSignOut })
     );
 
     const handler = findButtonByLabel(renderer, "sign_out");
@@ -129,9 +110,9 @@ describe("RetrySyncScreen", () => {
     expect(onRetry).not.toHaveBeenCalled();
   });
 
-  it("renders the dedicated `sync_failed_chip` key — not a substring derived from `sync_failed_title` (Finding #3)", () => {
+  it("renders the dedicated profile-loading failure copy keys", () => {
     const renderer = RTR.create(
-      React.createElement(RetrySyncScreen, {
+      React.createElement(RetryProfileLoadingScreen, {
         onRetry: jest.fn(),
         onSignOut: jest.fn(),
       })
@@ -140,12 +121,9 @@ describe("RetrySyncScreen", () => {
     const texts: string[] = [];
     collectText(renderer.toJSON(), texts);
 
-    // The dedicated chip key must be present; if a regression reintroduced
-    // the old `sync_failed_title.split(" ").slice(-2)` logic, the string
-    // "sync_failed_chip" would NOT appear anywhere in the output.
-    expect(texts).toContain("sync_failed_chip");
-    // And the title should still render as a separate string — proving
-    // the chip is a distinct key, not a derivation from the title.
-    expect(texts).toContain("sync_failed_title");
+    expect(texts).toContain("profile_loading_failed_chip");
+    expect(texts).toContain("profile_loading_failed_title");
+    expect(texts).toContain("profile_loading_failed_description");
+    expect(texts).toContain("profile_loading_helper_text");
   });
 });
