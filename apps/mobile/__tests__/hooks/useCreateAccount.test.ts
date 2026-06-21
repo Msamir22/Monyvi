@@ -156,7 +156,22 @@ describe("useCreateAccount", () => {
     );
   });
 
-  it("routes to the startup recovery path when the current user is missing", async () => {
+  it("does not submit or navigate while the current user is still resolving", async () => {
+    mockCurrentUserId = null;
+    mockIsResolvingUser = true;
+    const { result } = renderHook(() => useCreateAccount());
+
+    await act(async () => {
+      await result.current.createAccount(accountFormData);
+    });
+
+    expect(mockCreateAccountForUser).not.toHaveBeenCalled();
+    expect(mockShowToast).not.toHaveBeenCalled();
+    expect(mockRouterBack).not.toHaveBeenCalled();
+    expect(mockRouterReplace).not.toHaveBeenCalled();
+  });
+
+  it("routes to auth when the current user is missing after auth resolves", async () => {
     mockCurrentUserId = null;
     const { result } = renderHook(() => useCreateAccount());
 
@@ -167,6 +182,6 @@ describe("useCreateAccount", () => {
     expect(mockCreateAccountForUser).not.toHaveBeenCalled();
     expect(mockShowToast).not.toHaveBeenCalled();
     expect(mockRouterBack).not.toHaveBeenCalled();
-    expect(mockRouterReplace).toHaveBeenCalledWith("/startup");
+    expect(mockRouterReplace).toHaveBeenCalledWith("/auth");
   });
 });

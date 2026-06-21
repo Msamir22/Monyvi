@@ -1,8 +1,8 @@
 /**
- * RetryProfileLoadingScreen — Variant 2 "Status Card" (approved 2026-04-18)
+ * StartupRecoveryScreen — Variant 2 "Status Card" (approved 2026-04-18)
  *
- * Shown when profile loading cannot complete after startup recovery.
- * Two actions only: Retry loading profile and Sign out (clears session).
+ * Shown when authenticated startup recovery cannot complete.
+ * Two actions only: retry the startup operation and Sign out (clears session).
  * No top-app-bar — the retry screen has no valid close destination.
  *
  * Theming: follows the app's standard pattern — semantic tokens
@@ -13,7 +13,7 @@
  *
  * Mockup reference: specs/024-skip-returning-onboarding/mockups/retry-sync-screen.html
  *
- * @module RetryProfileLoadingScreen
+ * @module StartupRecoveryScreen
  */
 
 import { palette } from "@/constants/colors";
@@ -27,8 +27,40 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 // Types
 // ---------------------------------------------------------------------------
 
-interface RetryProfileLoadingScreenProps {
-  /** Re-trigger the startup profile-loading recovery path. */
+type StartupRecoveryReason = "profile-loading" | "startup-loading";
+
+interface StartupRecoveryCopy {
+  readonly chip: string;
+  readonly title: string;
+  readonly description: string;
+  readonly retry: string;
+  readonly helper: string;
+}
+
+const RECOVERY_COPY_BY_REASON: Record<
+  StartupRecoveryReason,
+  StartupRecoveryCopy
+> = {
+  "profile-loading": {
+    chip: "profile_loading_failed_chip",
+    title: "profile_loading_failed_title",
+    description: "profile_loading_failed_description",
+    retry: "retry_loading_profile",
+    helper: "profile_loading_helper_text",
+  },
+  "startup-loading": {
+    chip: "startup_loading_failed_chip",
+    title: "startup_loading_failed_title",
+    description: "startup_loading_failed_description",
+    retry: "retry_startup_loading",
+    helper: "startup_loading_helper_text",
+  },
+};
+
+interface StartupRecoveryScreenProps {
+  /** The startup recovery state that decides the user-facing copy. */
+  readonly reason: StartupRecoveryReason;
+  /** Re-trigger the startup recovery operation. */
   readonly onRetry: () => void;
   /** Clear the session and return to sign-in. */
   readonly onSignOut: () => void;
@@ -38,12 +70,14 @@ interface RetryProfileLoadingScreenProps {
 // Component
 // ---------------------------------------------------------------------------
 
-export function RetryProfileLoadingScreen({
+export function StartupRecoveryScreen({
+  reason,
   onRetry,
   onSignOut,
-}: RetryProfileLoadingScreenProps): React.JSX.Element {
+}: StartupRecoveryScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation("common");
+  const copy = RECOVERY_COPY_BY_REASON[reason];
 
   return (
     <View
@@ -62,18 +96,18 @@ export function RetryProfileLoadingScreen({
             which breaks in Arabic (RTL + different word order). */}
         <View className="px-3 py-1 rounded-full mb-4 bg-red-500/10 dark:bg-red-500/15">
           <Text className="text-xs font-semibold uppercase tracking-wider text-red-600 dark:text-red-400">
-            {t("profile_loading_failed_chip")}
+            {t(copy.chip)}
           </Text>
         </View>
 
         {/* Headline */}
         <Text className="text-[22px] font-bold leading-tight mb-3 text-text-primary dark:text-text-primary-dark text-center max-w-[280px]">
-          {t("profile_loading_failed_title")}
+          {t(copy.title)}
         </Text>
 
         {/* Body */}
         <Text className="text-sm leading-relaxed mb-6 text-text-secondary dark:text-text-secondary-dark text-center max-w-[280px]">
-          {t("profile_loading_failed_description")}
+          {t(copy.description)}
         </Text>
 
         {/* Buttons Side-by-Side */}
@@ -96,7 +130,7 @@ export function RetryProfileLoadingScreen({
             onPress={onRetry}
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel={t("retry_loading_profile")}
+            accessibilityLabel={t(copy.retry)}
             className="flex-1 h-12 items-center justify-center rounded-xl bg-nileGreen-500"
             // NativeWind v4 crash: shadow on TouchableOpacity must use inline style
             // eslint-disable-next-line react-native/no-inline-styles
@@ -109,7 +143,7 @@ export function RetryProfileLoadingScreen({
             }}
           >
             <Text className="text-[15px] font-semibold text-white">
-              {t("retry_loading_profile")}
+              {t(copy.retry)}
             </Text>
           </TouchableOpacity>
         </View>
@@ -117,7 +151,7 @@ export function RetryProfileLoadingScreen({
 
       {/* Helper line */}
       <Text className="mt-6 text-xs text-text-muted dark:text-text-muted-dark text-center max-w-[300px]">
-        {t("profile_loading_helper_text")}
+        {t(copy.helper)}
       </Text>
     </View>
   );

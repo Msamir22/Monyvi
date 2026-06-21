@@ -98,16 +98,21 @@ interface CommonTranslations {
   readonly charts_subtitle: string;
   readonly all_categories: string;
 
-  // Profile-loading recovery screen (feature 024). Declared here — NOT in
-  // SettingsTranslations — because RetryProfileLoadingScreen + profile-service use
+  // Startup recovery screen (feature 024). Declared here — NOT in
+  // SettingsTranslations — because StartupRecoveryScreen + profile-service use
   // `useTranslation("common")` and the keys live in `locales/*/common.json`.
   // Schema namespace must match the JSON namespace; a mismatch would fail
   // the i18n coverage check at build time.
   readonly profile_loading_failed_title: string;
   readonly profile_loading_failed_chip: string;
   readonly profile_loading_failed_description: string;
+  readonly startup_loading_failed_title: string;
+  readonly startup_loading_failed_chip: string;
+  readonly startup_loading_failed_description: string;
   readonly retry_loading_profile: string;
+  readonly retry_startup_loading: string;
   readonly profile_loading_helper_text: string;
+  readonly startup_loading_helper_text: string;
   readonly sign_out: string;
   readonly cash_account_creation_failed: string;
 }

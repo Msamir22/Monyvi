@@ -7,7 +7,7 @@
  */
 
 import { database } from "@monyvi/db";
-import { RetryProfileLoadingScreen } from "@/components/ui/RetryProfileLoadingScreen";
+import { StartupRecoveryScreen } from "@/components/ui/StartupRecoveryScreen";
 import { StartupLoadingView } from "@/components/ui/StartupLoadingView";
 import { useProfile } from "@/hooks/useProfile";
 import { useSync, type InitialSyncState } from "@/providers/SyncProvider";
@@ -86,7 +86,8 @@ export default function Index(): React.ReactNode {
       hasProfileGraceElapsed
     ) {
       return (
-        <RetryProfileLoadingScreen
+        <StartupRecoveryScreen
+          reason="profile-loading"
           onRetry={handleRetry}
           onSignOut={handleSignOut}
         />
@@ -101,7 +102,8 @@ export default function Index(): React.ReactNode {
       return <RedirectWithTransitionFallback href="/(private)/(tabs)" />;
     case "retry":
       return (
-        <RetryProfileLoadingScreen
+        <StartupRecoveryScreen
+          reason="startup-loading"
           onRetry={handleRetry}
           onSignOut={handleSignOut}
         />

@@ -27,7 +27,7 @@ export function useCreateAccount(): UseCreateAccountResult {
   const router = useRouter();
   const { t } = useTranslation("accounts");
   const { t: tCommon } = useTranslation("common");
-  const { userId } = useCurrentUser();
+  const { userId, isResolvingUser } = useCurrentUser();
 
   /**
    * Performs the database write operation to create an account and optional bank details.
@@ -40,8 +40,12 @@ export function useCreateAccount(): UseCreateAccountResult {
       setError(null);
 
       try {
+        if (isResolvingUser) {
+          return;
+        }
+
         if (!userId) {
-          router.replace("/startup");
+          router.replace("/auth");
           return;
         }
 
@@ -90,7 +94,7 @@ export function useCreateAccount(): UseCreateAccountResult {
         setIsSubmitting(false);
       }
     },
-    [showToast, router, t, tCommon, userId]
+    [showToast, router, t, tCommon, userId, isResolvingUser]
   );
 
   return {

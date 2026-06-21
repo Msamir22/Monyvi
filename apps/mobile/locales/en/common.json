@@ -169,8 +169,13 @@
   "profile_loading_failed_title": "Couldn't load your profile",
   "profile_loading_failed_chip": "PROFILE LOADING FAILED",
   "profile_loading_failed_description": "We couldn't load your profile right now.",
+  "startup_loading_failed_title": "Couldn't finish loading",
+  "startup_loading_failed_chip": "LOADING FAILED",
+  "startup_loading_failed_description": "We couldn't finish loading what you need to continue.",
   "sign_out": "Sign out",
   "retry_loading_profile": "Retry loading profile",
+  "retry_startup_loading": "Try again",
   "profile_loading_helper_text": "Still not working? Check your internet connection, then try again.",
+  "startup_loading_helper_text": "Still not working? Check your internet connection, then try again.",
   "cash_account_creation_failed": "Cash account creation failed"
 }
