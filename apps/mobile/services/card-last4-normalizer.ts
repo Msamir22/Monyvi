@@ -15,9 +15,7 @@ export function normalizeCardLast4ForStorage(
   return Number.parseInt(normalized, 10);
 }
 
-export function formatCardLast4ForInput(
-  value?: string | number | null
-): string {
+export function formatCardLast4ForInput(value?: number | null): string {
   if (value === null || value === undefined) {
     return "";
   }
