@@ -186,12 +186,12 @@ export function useAccountById(id: string | null): UseAccountByIdResult {
         .filter((row) => !row.deleted)
         .map((row) => row.senderName);
       const [details] = latestDetails;
-      const cardLast4 = details?.cardLast4;
+      const cardLast4 = details?.cardLast4 ?? undefined;
 
       setBankDetails({
         bankName: account.providerDisplayName,
         cardLast4:
-          cardLast4 === null || cardLast4 === undefined
+          cardLast4 === undefined
             ? undefined
             : formatCardLast4ForInput(cardLast4),
         smsSenderName: smsSenderNames.join(", "),
