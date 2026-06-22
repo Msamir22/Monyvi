@@ -283,7 +283,6 @@ export function CategorySelectorModal({
                     renderItem={renderItem}
                     contentContainerClassName="px-4 pb-10 pt-1"
                     showsVerticalScrollIndicator={false}
-                    removeClippedSubviews
                     maxToRenderPerBatch={15}
                     windowSize={5}
                   />

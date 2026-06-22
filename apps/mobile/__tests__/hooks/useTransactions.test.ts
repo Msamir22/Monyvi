@@ -101,12 +101,12 @@ describe("useRecentTransactions", () => {
     mockObserveWithColumns.mockReturnValue(buildObservable());
   });
 
-  it("observes category_id changes so dashboard recent rows refresh after edit", async () => {
+  it("observes display column changes so dashboard recent rows refresh after edit", async () => {
     const { result } = renderHook(() => useRecentTransactions(3));
 
     await waitFor(() => {
       expect(mockObserveWithColumns).toHaveBeenCalledWith(
-        expect.arrayContaining(["category_id"])
+        expect.arrayContaining(["category_id", "currency"])
       );
     });
 

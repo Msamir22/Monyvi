@@ -646,7 +646,16 @@ function hasCreateTable(content, table) {
  * @returns {boolean}
  */
 function hasTableInCurrentSchema(schemaContent, table) {
-  return new RegExp(`name:\\s*"${escapeRegex(table)}"`).test(schemaContent);
+  return (
+    schemaContent.match(
+      new RegExp(
+        `tableSchema\\(\\s*\\{[\\s\\S]*?name:\\s*"${escapeRegex(
+          table
+        )}"[\\s\\S]*?columns:\\s*\\[`,
+        "m"
+      )
+    ) !== null
+  );
 }
 
 /**

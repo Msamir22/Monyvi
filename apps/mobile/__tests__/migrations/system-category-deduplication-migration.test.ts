@@ -23,8 +23,9 @@ describe("system category deduplication migration", () => {
       /CREATE TEMP TABLE duplicate_system_categories_to_merge/m
     );
     expect(sql).toMatch(
-      /PARTITION BY[\s\S]*parent_id[\s\S]*system_name[\s\S]*level[\s\S]*type/m
+      /PARTITION BY[\s\S]*canonical_parent_id[\s\S]*system_name[\s\S]*level[\s\S]*type/m
     );
+    expect(sql).toMatch(/root_ranked[\s\S]*level2_ranked[\s\S]*level3_ranked/m);
     expect(sql).toMatch(
       /WHERE[\s\S]*user_id IS NULL[\s\S]*is_system = true[\s\S]*deleted = false/m
     );
@@ -58,6 +59,9 @@ describe("system category deduplication migration", () => {
     );
     expect(sql).toMatch(
       /UPDATE public\.user_category_settings[\s\S]*SET[\s\S]*deleted = true[\s\S]*settings_to_merge\.rank_in_logical_category > 1/m
+    );
+    expect(sql).toMatch(
+      /ORDER BY[\s\S]*settings\.updated_at DESC[\s\S]*settings\.created_at DESC[\s\S]*\(settings\.category_id = duplicate_category_lookup\.canonical_id\) DESC/m
     );
     expect(sql).toMatch(
       /UPDATE public\.user_category_settings[\s\S]*SET[\s\S]*category_id = settings_to_merge\.canonical_id[\s\S]*settings_to_merge\.rank_in_logical_category = 1/m

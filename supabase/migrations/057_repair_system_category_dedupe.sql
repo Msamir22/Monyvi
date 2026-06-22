@@ -1,9 +1,5 @@
--- Deduplicate shared system categories that were seeded more than once.
---
--- The original categories uniqueness index used (user_id, parent_id, system_name),
--- but PostgreSQL treats NULL values as distinct in unique indexes. Because shared
--- system categories use user_id = NULL, repeated seed runs could create multiple
--- active rows for the same logical system category.
+-- Re-run the corrected system category dedupe logic for databases that already
+-- applied migration 056 before child categories were grouped by canonical parent.
 
 ALTER TABLE public.user_category_settings
   ADD COLUMN IF NOT EXISTS deleted boolean NOT NULL DEFAULT false;

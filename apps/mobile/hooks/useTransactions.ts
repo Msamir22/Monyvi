@@ -29,6 +29,7 @@ const TRANSACTION_DISPLAY_COLUMNS = [
   "amount",
   "category_id",
   "counterparty",
+  "currency",
   "date",
   "note",
   "type",

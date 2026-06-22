@@ -86,3 +86,30 @@ test("filters CREATE TABLE when the table already exists in schema.ts", () => {
   assert.deepEqual(filtered.createTables, {});
   assert.deepEqual(filtered.skipped, ["categories"]);
 });
+
+test("keeps CREATE TABLE when the name only exists as a column in schema.ts", () => {
+  const sql = `
+    CREATE TABLE IF NOT EXISTS public.currency (
+      id UUID PRIMARY KEY,
+      code TEXT NOT NULL
+    );
+  `;
+  const schema = `
+    tableSchema({
+      name: "accounts",
+      columns: [
+        { name: "currency", type: "string" },
+      ],
+    }),
+  `;
+
+  const parsed = parseSql(sql);
+  const filtered = filterSchemaChangesAlreadyInWatermelon(
+    schema,
+    parsed.addColumns,
+    parsed.createTables
+  );
+
+  assert.deepEqual(Object.keys(filtered.createTables), ["currency"]);
+  assert.deepEqual(filtered.skipped, []);
+});
