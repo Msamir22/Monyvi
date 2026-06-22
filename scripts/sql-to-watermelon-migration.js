@@ -30,6 +30,8 @@ const MIGRATIONS_TS_PATH = path.join(
   "../packages/db/src/migrations.ts"
 );
 
+const SCHEMA_TS_PATH = path.join(__dirname, "../packages/db/src/schema.ts");
+
 const SUPABASE_MIGRATIONS_DIR = path.join(__dirname, "../supabase/migrations");
 
 // Tables excluded from WatermelonDB
@@ -636,6 +638,100 @@ function hasCreateTable(content, table) {
   );
 }
 
+/**
+ * Check whether the current WatermelonDB schema already defines a table.
+ *
+ * @param {string} schemaContent
+ * @param {string} table
+ * @returns {boolean}
+ */
+function hasTableInCurrentSchema(schemaContent, table) {
+  return new RegExp(`name:\\s*"${escapeRegex(table)}"`).test(schemaContent);
+}
+
+/**
+ * Check whether the current WatermelonDB schema already defines a table column.
+ *
+ * @param {string} schemaContent
+ * @param {string} table
+ * @param {string} colName
+ * @returns {boolean}
+ */
+function hasColumnInCurrentSchema(schemaContent, table, colName) {
+  const tableMatch = schemaContent.match(
+    new RegExp(
+      `tableSchema\\(\\s*\\{[\\s\\S]*?name:\\s*"${escapeRegex(
+        table
+      )}"[\\s\\S]*?columns:\\s*\\[([\\s\\S]*?)\\]\\s*,?\\s*\\}\\s*\\)`,
+      "m"
+    )
+  );
+
+  if (!tableMatch) {
+    return false;
+  }
+
+  return new RegExp(`name:\\s*"${escapeRegex(colName)}"`).test(tableMatch[1]);
+}
+
+/**
+ * Remove parsed SQL changes that already exist in the current WatermelonDB schema.
+ * This prevents ADD COLUMN IF NOT EXISTS migrations from generating duplicate local
+ * migrations when the remote database is catching up to a column Watermelon already has.
+ *
+ * @param {string} schemaContent
+ * @param {Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean}>>} addColumnsData
+ * @param {Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean}>>} createTablesData
+ * @returns {{ addColumns: Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean}>>, createTables: Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean}>>, skipped: string[] }}
+ */
+function filterSchemaChangesAlreadyInWatermelon(
+  schemaContent,
+  addColumnsData,
+  createTablesData
+) {
+  /** @type {Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean}>>} */
+  const filteredAddColumns = {};
+  /** @type {Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean}>>} */
+  const filteredCreateTables = {};
+  /** @type {string[]} */
+  const skipped = [];
+
+  for (const [table, columns] of Object.entries(addColumnsData)) {
+    const newColumns = columns.filter((column) => {
+      const alreadyExists = hasColumnInCurrentSchema(
+        schemaContent,
+        table,
+        column.name
+      );
+
+      if (alreadyExists) {
+        skipped.push(`${table}.${column.name}`);
+      }
+
+      return !alreadyExists;
+    });
+
+    if (newColumns.length > 0) {
+      filteredAddColumns[table] = newColumns;
+    }
+  }
+
+  for (const [table, columns] of Object.entries(createTablesData)) {
+    if (hasTableInCurrentSchema(schemaContent, table)) {
+      skipped.push(table);
+      continue;
+    }
+
+    filteredCreateTables[table] = columns;
+  }
+
+  return {
+    addColumns: filteredAddColumns,
+    createTables: filteredCreateTables,
+    skipped,
+  };
+}
+
 function isAlreadyMigrated(content, addColumnsData, createTablesData) {
   // Check addColumns — every table+column pair must exist in the SAME block
   for (const [table, columns] of Object.entries(addColumnsData)) {
@@ -676,7 +772,31 @@ function main() {
   // Read and parse SQL
   console.log(`\n🔄 Reading SQL migration: ${path.basename(sqlFilePath)}`);
   const sql = fs.readFileSync(sqlFilePath, "utf-8");
-  const { addColumns: addColumnsData, createTables, warnings } = parseSql(sql);
+  const {
+    addColumns,
+    createTables: parsedCreateTables,
+    warnings,
+  } = parseSql(sql);
+
+  let addColumnsData = addColumns;
+  let createTables = parsedCreateTables;
+
+  if (fs.existsSync(SCHEMA_TS_PATH)) {
+    const schemaContent = fs.readFileSync(SCHEMA_TS_PATH, "utf-8");
+    const filtered = filterSchemaChangesAlreadyInWatermelon(
+      schemaContent,
+      addColumnsData,
+      createTables
+    );
+    addColumnsData = filtered.addColumns;
+    createTables = filtered.createTables;
+
+    if (filtered.skipped.length > 0) {
+      console.log(
+        `\n✅ Skipped ${filtered.skipped.length} schema item(s) already present in schema.ts: ${filtered.skipped.join(", ")}`
+      );
+    }
+  }
 
   // Print warnings
   if (warnings.length > 0) {
@@ -779,4 +899,11 @@ function main() {
   );
 }
 
-main();
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  filterSchemaChangesAlreadyInWatermelon,
+  parseSql,
+};

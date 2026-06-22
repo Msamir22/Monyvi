@@ -8,7 +8,6 @@
 import { Category, TransactionType } from "@monyvi/db";
 import { useMemo } from "react";
 import { useAllCategories } from "../context/CategoriesContext";
-import { dedupeSystemCategoriesForDisplay } from "@/utils/display-categories";
 
 interface UseCategoriesResult {
   readonly categories: readonly Category[];
@@ -54,7 +53,7 @@ export function useCategories(
       result = result.filter((c) => !c.isHidden);
     }
 
-    return dedupeSystemCategoriesForDisplay(result);
+    return result;
   }, [allCategories, topLevelOnly, type, includeHidden]);
 
   const expenseCategories = useMemo(
