@@ -8,6 +8,7 @@
 import type { Category, TransactionType } from "@monyvi/db";
 import { useMemo } from "react";
 import { useAllCategories } from "../context/CategoriesContext";
+import { dedupeSystemCategoriesForDisplay } from "@/utils/display-categories";
 
 interface UseCategoryChildrenResult {
   /** Child categories of the given parent */
@@ -38,7 +39,7 @@ export function useCategoryChildren(
       result = result.filter((c) => c.type === type);
     }
 
-    return result;
+    return dedupeSystemCategoriesForDisplay(result);
   }, [categories, parentId, type]);
 
   return { children, isLoading };
