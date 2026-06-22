@@ -1,16 +1,11 @@
 import { readFileSync } from "fs";
 import path from "path";
 
-function readMigrationSql(): string {
+function readMigrationSql(
+  filename = "056_dedupe_system_categories.sql"
+): string {
   return readFileSync(
-    path.join(
-      process.cwd(),
-      "..",
-      "..",
-      "supabase",
-      "migrations",
-      "056_dedupe_system_categories.sql"
-    ),
+    path.join(process.cwd(), "..", "..", "supabase", "migrations", filename),
     "utf8"
   );
 }
@@ -83,5 +78,22 @@ describe("system category deduplication migration", () => {
     expect(sql).toMatch(/idx_categories_unique_active_system_child_untyped/m);
     expect(sql).toMatch(/idx_categories_unique_active_custom_root/m);
     expect(sql).toMatch(/idx_categories_unique_active_custom_child/m);
+  });
+
+  it("repairs active children left under already-deleted duplicate system parents", () => {
+    const sql = readMigrationSql(
+      "058_repair_deleted_parent_system_category_children.sql"
+    );
+
+    expect(sql).toMatch(/CREATE TEMP TABLE deleted_system_parent_repair_map/m);
+    expect(sql).toMatch(
+      /deleted_parent\.deleted = true[\s\S]*active_parent\.deleted = false/m
+    );
+    expect(sql).toMatch(
+      /UPDATE public\.categories AS child_categories[\s\S]*SET[\s\S]*parent_id = deleted_parent_map\.canonical_id[\s\S]*updated_at = now\(\)[\s\S]*child_categories\.parent_id = deleted_parent_map\.deleted_id/m
+    );
+    expect(sql).toMatch(
+      /CREATE TEMP TABLE duplicate_system_categories_to_merge[\s\S]*PARTITION BY[\s\S]*canonical_parent_id[\s\S]*system_name[\s\S]*level[\s\S]*type/m
+    );
   });
 });
