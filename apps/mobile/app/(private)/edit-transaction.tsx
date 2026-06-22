@@ -436,13 +436,19 @@ export default function EditTransaction(): React.ReactNode {
   // ---------------------------------------------------------------------------
   // Loading / Error States
   // ---------------------------------------------------------------------------
-  if (isLoadingTx || !isInitialized) {
+  if (
+    isLoadingTx ||
+    (transaction !== null && transaction !== undefined && !isInitialized)
+  ) {
     return <EditTransactionSkeleton />;
   }
 
   if (!transaction) {
     return (
-      <View className="flex-1 items-center justify-center px-6 bg-background dark:bg-background-dark">
+      <View
+        testID="edit-transaction-not-found"
+        className="flex-1 items-center justify-center px-6 bg-background dark:bg-background-dark"
+      >
         <Text className="text-lg font-semibold text-slate-500 dark:text-slate-400 text-center">
           {t("transaction_not_found")}
         </Text>
@@ -701,7 +707,10 @@ export default function EditTransaction(): React.ReactNode {
 
 function EditTransactionSkeleton(): React.JSX.Element {
   return (
-    <View className="flex-1 bg-background dark:bg-background-dark px-6 pt-6">
+    <View
+      testID="edit-transaction-skeleton"
+      className="flex-1 bg-background dark:bg-background-dark px-6 pt-6"
+    >
       <Skeleton width="45%" height={28} borderRadius={8} />
       <View className="mt-8 items-center">
         <Skeleton width={180} height={64} borderRadius={16} />

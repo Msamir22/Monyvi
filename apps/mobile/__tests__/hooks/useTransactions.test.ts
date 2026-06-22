@@ -58,6 +58,8 @@ jest.mock("@monyvi/db", () => ({
 jest.mock("@nozbe/watermelondb", () => ({
   Q: {
     desc: "desc",
+    gte: (...args: readonly unknown[]) => ({ kind: "gte", args }),
+    lte: (...args: readonly unknown[]) => ({ kind: "lte", args }),
     sortBy: (...args: readonly unknown[]) => ({ kind: "sortBy", args }),
     take: (...args: readonly unknown[]) => ({ kind: "take", args }),
     where: (...args: readonly unknown[]) => ({ kind: "where", args }),
@@ -89,7 +91,21 @@ jest.mock("../../hooks/useCurrentUser", () => ({
   }): (() => void) => onAuthenticated("user-1"),
 }));
 
-import { useRecentTransactions } from "../../hooks/useTransactions";
+import {
+  useMonthlyTransactions,
+  useRecentTransactions,
+} from "../../hooks/useTransactions";
+
+const expectedDisplayColumns = [
+  "account_id",
+  "amount",
+  "category_id",
+  "counterparty",
+  "currency",
+  "date",
+  "note",
+  "type",
+];
 
 describe("useRecentTransactions", () => {
   beforeEach(() => {
@@ -106,7 +122,7 @@ describe("useRecentTransactions", () => {
 
     await waitFor(() => {
       expect(mockObserveWithColumns).toHaveBeenCalledWith(
-        expect.arrayContaining(["category_id", "currency"])
+        expectedDisplayColumns
       );
     });
 
@@ -122,5 +138,17 @@ describe("useRecentTransactions", () => {
       ]);
       expect(result.current.isLoading).toBe(false);
     });
+  });
+
+  it("observes the same display column changes for monthly transaction rows", async () => {
+    renderHook(() => useMonthlyTransactions(2026, 5));
+
+    await waitFor(() => {
+      expect(mockObserveWithColumns).toHaveBeenCalledWith(
+        expectedDisplayColumns
+      );
+    });
+
+    expect(mockObserve).not.toHaveBeenCalled();
   });
 });

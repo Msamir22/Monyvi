@@ -99,12 +99,12 @@ function sqlTypeToWatermelon(sqlType, columnName) {
  * Parse a SQL migration file and extract schema-changing statements.
  *
  * @param {string} sql - The full SQL file content
- * @returns {{ addColumns: Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean}>>, createTables: Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean}>>, warnings: string[] }}
+ * @returns {{ addColumns: Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean, isIfNotExists?: boolean}>>, createTables: Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean, isIfNotExists?: boolean}>>, warnings: string[] }}
  */
 function parseSql(sql) {
-  /** @type {Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean}>>} */
+  /** @type {Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean, isIfNotExists?: boolean}>>} */
   const addColumns = {};
-  /** @type {Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean}>>} */
+  /** @type {Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean, isIfNotExists?: boolean}>>} */
   const createTables = {};
   /** @type {string[]} */
   const warnings = [];
@@ -157,7 +157,7 @@ function parseSql(sql) {
  * Also handles multi-column ADD: ALTER TABLE x ADD COLUMN a type, ADD COLUMN b type
  *
  * @param {string} stmt
- * @param {Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean}>>} result
+ * @param {Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean, isIfNotExists?: boolean}>>} result
  * @returns {boolean}
  */
 function parseAlterTableAddColumn(stmt, result) {
@@ -181,12 +181,13 @@ function parseAlterTableAddColumn(stmt, result) {
   // next ADD COLUMN clause, a trailing comma, or end-of-statement. This handles
   // complex DEFAULT expressions like `'{}'::JSONB`, `NOW()`, `gen_random_uuid()`.
   const addColumnRegex =
-    /ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s+([\s\S]+?)(?=\s*(?:,\s*ADD\s+COLUMN|$))/gi;
+    /ADD\s+COLUMN\s+(IF\s+NOT\s+EXISTS\s+)?(\w+)\s+([\s\S]+?)(?=\s*(?:,\s*ADD\s+COLUMN|$))/gi;
 
   let match;
   while ((match = addColumnRegex.exec(stmt)) !== null) {
-    const colName = match[1];
-    const rawType = match[2].trim();
+    const isIfNotExists = Boolean(match[1]);
+    const colName = match[2];
+    const rawType = match[3].trim();
 
     // Skip 'id' column — WatermelonDB handles it
     if (colName === "id") continue;
@@ -210,6 +211,7 @@ function parseAlterTableAddColumn(stmt, result) {
       type: wmType,
       isOptional,
       isIndexed,
+      isIfNotExists,
     });
   }
 
@@ -220,17 +222,18 @@ function parseAlterTableAddColumn(stmt, result) {
  * Try to parse a CREATE TABLE statement.
  *
  * @param {string} stmt
- * @param {Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean}>>} result
+ * @param {Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean, isIfNotExists?: boolean}>>} result
  * @returns {boolean}
  */
 function parseCreateTable(stmt, result) {
   const createMatch = stmt.match(
-    /^CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:\w+\.)?(\w+)\s*\(([\s\S]+)\)/i
+    /^CREATE\s+TABLE\s+(IF\s+NOT\s+EXISTS\s+)?(?:\w+\.)?(\w+)\s*\(([\s\S]+)\)/i
   );
   if (!createMatch) return false;
 
-  const tableName = createMatch[1];
-  const columnsBlock = createMatch[2];
+  const isIfNotExists = Boolean(createMatch[1]);
+  const tableName = createMatch[2];
+  const columnsBlock = createMatch[3];
 
   // Skip excluded tables
   if (EXCLUDED_TABLES.includes(tableName)) return true;
@@ -265,7 +268,13 @@ function parseCreateTable(stmt, result) {
     const isIndexed =
       INDEXED_FIELDS.includes(colName) || colName.endsWith("_id");
 
-    columns.push({ name: colName, type: wmType, isOptional, isIndexed });
+    columns.push({
+      name: colName,
+      type: wmType,
+      isOptional,
+      isIndexed,
+      isIfNotExists,
+    });
   }
 
   if (columns.length > 0) {
@@ -380,8 +389,8 @@ function generateImports(hasAddColumns, hasCreateTables) {
  * Generate a single WatermelonDB migration step as a code string.
  *
  * @param {number} toVersion
- * @param {Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean}>>} addColumnsData
- * @param {Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean}>>} createTablesData
+ * @param {Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean, isIfNotExists?: boolean}>>} addColumnsData
+ * @param {Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean, isIfNotExists?: boolean}>>} createTablesData
  * @returns {string}
  */
 function generateMigrationStep(toVersion, addColumnsData, createTablesData) {
@@ -639,6 +648,26 @@ function hasCreateTable(content, table) {
 }
 
 /**
+ * Find the column block for a specific table in the current WatermelonDB schema.
+ *
+ * @param {string} schemaContent
+ * @param {string} table
+ * @returns {string | null}
+ */
+function findTableSchemaColumns(schemaContent, table) {
+  const tableMatch = schemaContent.match(
+    new RegExp(
+      `tableSchema\\(\\s*\\{\\s*name:\\s*"${escapeRegex(
+        table
+      )}"\\s*,\\s*columns:\\s*\\[([\\s\\S]*?)\\]\\s*,?\\s*\\}\\s*\\)`,
+      "m"
+    )
+  );
+
+  return tableMatch ? tableMatch[1] : null;
+}
+
+/**
  * Check whether the current WatermelonDB schema already defines a table.
  *
  * @param {string} schemaContent
@@ -646,16 +675,7 @@ function hasCreateTable(content, table) {
  * @returns {boolean}
  */
 function hasTableInCurrentSchema(schemaContent, table) {
-  return (
-    schemaContent.match(
-      new RegExp(
-        `tableSchema\\(\\s*\\{[\\s\\S]*?name:\\s*"${escapeRegex(
-          table
-        )}"[\\s\\S]*?columns:\\s*\\[`,
-        "m"
-      )
-    ) !== null
-  );
+  return findTableSchemaColumns(schemaContent, table) !== null;
 }
 
 /**
@@ -667,20 +687,13 @@ function hasTableInCurrentSchema(schemaContent, table) {
  * @returns {boolean}
  */
 function hasColumnInCurrentSchema(schemaContent, table, colName) {
-  const tableMatch = schemaContent.match(
-    new RegExp(
-      `tableSchema\\(\\s*\\{[\\s\\S]*?name:\\s*"${escapeRegex(
-        table
-      )}"[\\s\\S]*?columns:\\s*\\[([\\s\\S]*?)\\]\\s*,?\\s*\\}\\s*\\)`,
-      "m"
-    )
-  );
+  const columnsBlock = findTableSchemaColumns(schemaContent, table);
 
-  if (!tableMatch) {
+  if (!columnsBlock) {
     return false;
   }
 
-  return new RegExp(`name:\\s*"${escapeRegex(colName)}"`).test(tableMatch[1]);
+  return new RegExp(`name:\\s*"${escapeRegex(colName)}"`).test(columnsBlock);
 }
 
 /**
@@ -689,18 +702,18 @@ function hasColumnInCurrentSchema(schemaContent, table, colName) {
  * migrations when the remote database is catching up to a column Watermelon already has.
  *
  * @param {string} schemaContent
- * @param {Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean}>>} addColumnsData
- * @param {Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean}>>} createTablesData
- * @returns {{ addColumns: Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean}>>, createTables: Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean}>>, skipped: string[] }}
+ * @param {Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean, isIfNotExists?: boolean}>>} addColumnsData
+ * @param {Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean, isIfNotExists?: boolean}>>} createTablesData
+ * @returns {{ addColumns: Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean, isIfNotExists?: boolean}>>, createTables: Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean, isIfNotExists?: boolean}>>, skipped: string[] }}
  */
 function filterSchemaChangesAlreadyInWatermelon(
   schemaContent,
   addColumnsData,
   createTablesData
 ) {
-  /** @type {Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean}>>} */
+  /** @type {Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean, isIfNotExists?: boolean}>>} */
   const filteredAddColumns = {};
-  /** @type {Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean}>>} */
+  /** @type {Record<string, Array<{name: string, type: string, isOptional: boolean, isIndexed: boolean, isIfNotExists?: boolean}>>} */
   const filteredCreateTables = {};
   /** @type {string[]} */
   const skipped = [];
@@ -713,11 +726,12 @@ function filterSchemaChangesAlreadyInWatermelon(
         column.name
       );
 
-      if (alreadyExists) {
+      if (alreadyExists && column.isIfNotExists) {
         skipped.push(`${table}.${column.name}`);
+        return false;
       }
 
-      return !alreadyExists;
+      return true;
     });
 
     if (newColumns.length > 0) {
@@ -726,7 +740,9 @@ function filterSchemaChangesAlreadyInWatermelon(
   }
 
   for (const [table, columns] of Object.entries(createTablesData)) {
-    if (hasTableInCurrentSchema(schemaContent, table)) {
+    const isIfNotExists = columns.some((column) => column.isIfNotExists);
+
+    if (isIfNotExists && hasTableInCurrentSchema(schemaContent, table)) {
       skipped.push(table);
       continue;
     }

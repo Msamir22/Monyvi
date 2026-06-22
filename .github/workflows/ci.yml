@@ -44,6 +44,9 @@ jobs:
       - name: Test Logic Package
         run: npm test -w @monyvi/logic
 
+      - name: Test Repository Scripts
+        run: npm run test:scripts
+
       - name: Test Mobile App
         run: npm test -w @monyvi/mobile
 

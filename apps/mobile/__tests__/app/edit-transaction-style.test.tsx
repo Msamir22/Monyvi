@@ -2,6 +2,11 @@ import { render, screen } from "@testing-library/react-native";
 import React from "react";
 
 const mockBack = jest.fn();
+let mockTransactionByIdResult: {
+  readonly transaction: Record<string, unknown> | null;
+  readonly isLoading: boolean;
+};
+
 const mockView = (testID: string): React.JSX.Element => {
   const ReactNative =
     jest.requireActual<typeof import("react-native")>("react-native");
@@ -33,21 +38,9 @@ jest.mock("react-i18next", () => ({
 
 jest.mock("@/hooks/useTransactionById", () => ({
   useTransactionById: (): {
-    readonly transaction: Record<string, unknown>;
-    readonly isLoading: false;
-  } => ({
-    transaction: {
-      id: "tx-1",
-      amount: 100,
-      type: "EXPENSE",
-      categoryId: "cat-food",
-      accountId: "account-1",
-      counterparty: undefined,
-      note: undefined,
-      date: new Date("2026-05-01T12:00:00.000Z"),
-    },
-    isLoading: false,
-  }),
+    readonly transaction: Record<string, unknown> | null;
+    readonly isLoading: boolean;
+  } => mockTransactionByIdResult,
 }));
 
 jest.mock("@/hooks/useAccounts", () => ({
@@ -145,12 +138,60 @@ jest.mock("@/services/transaction-service", () => ({
 import EditTransaction from "@/app/(private)/edit-transaction";
 
 describe("EditTransaction dark theme styling", () => {
+  beforeEach(() => {
+    mockTransactionByIdResult = {
+      transaction: {
+        id: "tx-1",
+        amount: 100,
+        type: "EXPENSE",
+        categoryId: "cat-food",
+        accountId: "account-1",
+        counterparty: undefined,
+        note: undefined,
+        date: new Date("2026-05-01T12:00:00.000Z"),
+      },
+      isLoading: false,
+    };
+  });
+
   it("uses the themed app background on the screen root", async () => {
     render(<EditTransaction />);
 
     await screen.findByTestId("edit-transaction-screen");
 
     expect(screen.getByTestId("edit-transaction-screen")).toHaveProp(
+      "className",
+      expect.stringContaining("bg-background dark:bg-background-dark")
+    );
+  });
+
+  it("uses the themed app background while loading the transaction", async () => {
+    mockTransactionByIdResult = {
+      transaction: null,
+      isLoading: true,
+    };
+
+    render(<EditTransaction />);
+
+    await screen.findByTestId("edit-transaction-skeleton");
+
+    expect(screen.getByTestId("edit-transaction-skeleton")).toHaveProp(
+      "className",
+      expect.stringContaining("bg-background dark:bg-background-dark")
+    );
+  });
+
+  it("uses the themed app background when the transaction is missing", async () => {
+    mockTransactionByIdResult = {
+      transaction: null,
+      isLoading: false,
+    };
+
+    render(<EditTransaction />);
+
+    await screen.findByText("transaction_not_found");
+
+    expect(screen.getByTestId("edit-transaction-not-found")).toHaveProp(
       "className",
       expect.stringContaining("bg-background dark:bg-background-dark")
     );

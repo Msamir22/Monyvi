@@ -577,6 +577,7 @@ export default function TransactionsPlaceholder(): React.JSX.Element {
           </View>
         ) : (
           <SectionList
+            testID="transactions-list"
             sections={sections}
             keyExtractor={sectionKeyExtractor}
             renderSectionHeader={renderSectionHeader}

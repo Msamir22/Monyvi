@@ -135,7 +135,7 @@ describe("CategorySelectorModal", () => {
       <CategorySelectorModal
         visible
         rootCategories={[]}
-        selectedId=""
+        selectedId="unselected-category"
         type="EXPENSE"
         onSelect={jest.fn()}
         onClose={jest.fn()}

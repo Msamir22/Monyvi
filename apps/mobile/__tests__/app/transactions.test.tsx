@@ -6,22 +6,18 @@
  * the tab bar.
  */
 
+import { render, screen } from "@testing-library/react-native";
 import React from "react";
-import { SectionList } from "react-native";
 import { TAB_BAR_HEIGHT } from "../../constants/ui";
 
-interface ReactTestRendererInstance {
-  readonly root: {
-    findByType: (type: unknown) => { props: Record<string, unknown> };
+interface TransactionsListNode {
+  readonly props: {
+    readonly contentContainerStyle?: {
+      readonly paddingBottom?: number;
+      readonly flexGrow?: number;
+    };
   };
 }
-
-interface ReactTestRendererModule {
-  readonly create: (element: React.ReactElement) => ReactTestRendererInstance;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
-const RTR: ReactTestRendererModule = require("react-test-renderer");
 
 const SAFE_AREA_BOTTOM = 34;
 const mockRouterPush = jest.fn();
@@ -179,11 +175,12 @@ import Transactions from "../../app/(private)/(tabs)/transactions";
 
 describe("Transactions tab", () => {
   it("reserves bottom space so the last transaction scrolls above the tab bar", () => {
-    const renderer = RTR.create(React.createElement(Transactions));
-    const list = renderer.root.findByType(SectionList);
-    const contentContainerStyle = list.props.contentContainerStyle as
-      | { paddingBottom?: number; flexGrow?: number }
-      | undefined;
+    render(<Transactions />);
+
+    const list = screen.getByTestId(
+      "transactions-list"
+    ) as unknown as TransactionsListNode;
+    const contentContainerStyle = list.props.contentContainerStyle;
 
     expect(contentContainerStyle?.flexGrow).toBe(1);
     expect(contentContainerStyle?.paddingBottom).toBeGreaterThanOrEqual(

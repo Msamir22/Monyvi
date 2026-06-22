@@ -3,6 +3,11 @@ import React from "react";
 import { ScrollView } from "react-native";
 
 const mockBack = jest.fn();
+let mockTransferByIdResult: {
+  readonly transfer: Record<string, unknown> | null;
+  readonly isLoading: boolean;
+};
+
 const mockView = (testID: string): React.JSX.Element => {
   const ReactNative =
     jest.requireActual<typeof import("react-native")>("react-native");
@@ -40,20 +45,9 @@ jest.mock("react-i18next", () => ({
 
 jest.mock("@/hooks/useTransferById", () => ({
   useTransferById: (): {
-    readonly transfer: Record<string, unknown>;
-    readonly isLoading: false;
-  } => ({
-    transfer: {
-      id: "transfer-1",
-      amount: 100,
-      convertedAmount: undefined,
-      fromAccountId: "account-1",
-      toAccountId: "account-2",
-      notes: undefined,
-      date: new Date("2026-05-01T12:00:00.000Z"),
-    },
-    isLoading: false,
-  }),
+    readonly transfer: Record<string, unknown> | null;
+    readonly isLoading: boolean;
+  } => mockTransferByIdResult,
 }));
 
 jest.mock("@/hooks/useAccounts", () => ({
@@ -146,6 +140,21 @@ jest.mock("expo-haptics", () => ({
 import EditTransfer from "@/app/(private)/edit-transfer";
 
 describe("EditTransfer dark theme styling", () => {
+  beforeEach(() => {
+    mockTransferByIdResult = {
+      transfer: {
+        id: "transfer-1",
+        amount: 100,
+        convertedAmount: undefined,
+        fromAccountId: "account-1",
+        toAccountId: "account-2",
+        notes: undefined,
+        date: new Date("2026-05-01T12:00:00.000Z"),
+      },
+      isLoading: false,
+    };
+  });
+
   it("uses the themed app background on the transfer screen surfaces", async () => {
     const view = render(<EditTransfer />);
 
@@ -161,6 +170,38 @@ describe("EditTransfer dark theme styling", () => {
     ) as RenderedNodeWithClassName;
 
     expect(scrollView.props.className).toEqual(
+      expect.stringContaining("bg-background dark:bg-background-dark")
+    );
+  });
+
+  it("uses the themed app background while loading the transfer", async () => {
+    mockTransferByIdResult = {
+      transfer: null,
+      isLoading: true,
+    };
+
+    render(<EditTransfer />);
+
+    await screen.findByTestId("edit-transfer-loading");
+
+    expect(screen.getByTestId("edit-transfer-loading")).toHaveProp(
+      "className",
+      expect.stringContaining("bg-background dark:bg-background-dark")
+    );
+  });
+
+  it("uses the themed app background when the transfer is missing", async () => {
+    mockTransferByIdResult = {
+      transfer: null,
+      isLoading: false,
+    };
+
+    render(<EditTransfer />);
+
+    await screen.findByText("transfer_not_found");
+
+    expect(screen.getByTestId("edit-transfer-not-found")).toHaveProp(
+      "className",
       expect.stringContaining("bg-background dark:bg-background-dark")
     );
   });
