@@ -35,7 +35,7 @@ interface CurrencyPickerProps {
 /**
  * Renders a touchable row representing a currency with its flag, code, name, and symbol.
  *
- * Highlights the row and displays a trailing checkmark when selected.
+ * Highlights the row and displays a checkmark after the currency code when selected.
  *
  * @param item - Currency metadata including `flag`, `code`, `name`, and `symbol`
  * @param isSelected - Whether this row is the currently selected currency
@@ -62,19 +62,28 @@ function CurrencyRow({
       <View className="flex-row items-center gap-3 flex-1">
         <Text className="text-2xl">{item.flag}</Text>
         <View className="flex-1">
-          <Text className="text-base font-semibold text-slate-800 dark:text-white">
-            {item.code}
-          </Text>
+          <View
+            testID={`currency-code-row-${item.code}`}
+            className="flex-row items-center gap-1.5"
+          >
+            <Text
+              testID={`currency-code-${item.code}`}
+              className="text-base font-semibold text-slate-800 dark:text-white"
+            >
+              {item.code}
+            </Text>
+            {isSelected ? (
+              <Ionicons
+                testID={`currency-selected-checkmark-${item.code}`}
+                name="checkmark-circle"
+                size={17}
+                color={palette.nileGreen[500]}
+              />
+            ) : null}
+          </View>
           <Text className="text-xs text-slate-500 dark:text-slate-400">
             {item.name}
           </Text>
-        </View>
-        <View className="w-6 items-center">
-          <Ionicons
-            name="checkmark-circle"
-            size={22}
-            color={isSelected ? palette.nileGreen[500] : "transparent"}
-          />
         </View>
         <Text className="text-sm text-slate-400 dark:text-slate-500 me-2">
           {item.symbol}
