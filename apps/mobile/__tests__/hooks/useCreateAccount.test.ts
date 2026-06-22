@@ -6,25 +6,8 @@
  * presses cannot create duplicate local rows or trigger multiple navigations.
  */
 
-import React from "react";
+import { act, renderHook } from "@testing-library/react-native";
 import type { AccountFormData } from "../../validation/account-validation";
-
-interface ReactTestRendererInstance {
-  unmount: () => void;
-}
-
-interface ReactTestRendererAct {
-  (callback: () => Promise<void>): Promise<void>;
-  (callback: () => void): void;
-}
-
-interface ReactTestRendererModule {
-  act: ReactTestRendererAct;
-  create: (element: React.ReactElement) => ReactTestRendererInstance;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
-const RTR: ReactTestRendererModule = require("react-test-renderer");
 
 const mockCreateAccountForUser = jest.fn();
 let mockCurrentUserId: string | null = "user-1";
@@ -87,33 +70,6 @@ jest.mock("react-i18next", () => ({
 // eslint-disable-next-line import/first
 import { useCreateAccount } from "../../hooks/useCreateAccount";
 
-interface HookResult {
-  readonly createAccount: (data: AccountFormData) => Promise<void>;
-  readonly isSubmitting: boolean;
-  readonly error: Error | null;
-}
-
-function renderHook(): {
-  readonly result: { current: HookResult };
-  readonly unmount: () => void;
-} {
-  const ref: { current: HookResult } = {
-    current: {
-      createAccount: () => Promise.resolve(),
-      isSubmitting: false,
-      error: null,
-    },
-  };
-
-  const HookWrapper = (): React.JSX.Element | null => {
-    ref.current = useCreateAccount() as HookResult;
-    return null;
-  };
-
-  const renderer = RTR.create(React.createElement(HookWrapper));
-  return { result: ref, unmount: () => renderer.unmount() };
-}
-
 const accountFormData: AccountFormData = {
   name: "Cash",
   accountType: "CASH",
@@ -144,13 +100,13 @@ describe("useCreateAccount", () => {
       return { success: true, accountId: "account-1", created: true };
     });
 
-    const { result } = renderHook();
+    const { result } = renderHook(() => useCreateAccount());
 
     let firstSubmit: Promise<void> = Promise.resolve();
     let secondSubmit: Promise<void> = Promise.resolve();
     let thirdSubmit: Promise<void> = Promise.resolve();
 
-    RTR.act(() => {
+    act(() => {
       firstSubmit = result.current.createAccount(accountFormData);
       secondSubmit = result.current.createAccount(accountFormData);
       thirdSubmit = result.current.createAccount(accountFormData);
@@ -162,7 +118,7 @@ describe("useCreateAccount", () => {
 
     releaseCreate();
 
-    await RTR.act(async () => {
+    await act(async () => {
       await Promise.all([firstSubmit, secondSubmit, thirdSubmit]);
     });
 
@@ -172,9 +128,9 @@ describe("useCreateAccount", () => {
 
   it("replaces to the accounts tab when there is no route to go back to", async () => {
     mockRouterCanGoBack.mockReturnValue(false);
-    const { result } = renderHook();
+    const { result } = renderHook(() => useCreateAccount());
 
-    await RTR.act(async () => {
+    await act(async () => {
       await result.current.createAccount(accountFormData);
     });
 
@@ -185,9 +141,9 @@ describe("useCreateAccount", () => {
   });
 
   it("uses localized success toast text without emojis", async () => {
-    const { result } = renderHook();
+    const { result } = renderHook(() => useCreateAccount());
 
-    await RTR.act(async () => {
+    await act(async () => {
       await result.current.createAccount(accountFormData);
     });
 
@@ -200,21 +156,32 @@ describe("useCreateAccount", () => {
     );
   });
 
-  it("uses localized session-required toast text", async () => {
+  it("does not submit or navigate while the current user is still resolving", async () => {
     mockCurrentUserId = null;
-    const { result } = renderHook();
+    mockIsResolvingUser = true;
+    const { result } = renderHook(() => useCreateAccount());
 
-    await RTR.act(async () => {
+    await act(async () => {
       await result.current.createAccount(accountFormData);
     });
 
-    expect(mockShowToast).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "error",
-        title: "accounts:toast_create_session_required_title",
-        message: "accounts:toast_create_session_required_message",
-      })
-    );
     expect(mockCreateAccountForUser).not.toHaveBeenCalled();
+    expect(mockShowToast).not.toHaveBeenCalled();
+    expect(mockRouterBack).not.toHaveBeenCalled();
+    expect(mockRouterReplace).not.toHaveBeenCalled();
+  });
+
+  it("routes to auth when the current user is missing after auth resolves", async () => {
+    mockCurrentUserId = null;
+    const { result } = renderHook(() => useCreateAccount());
+
+    await act(async () => {
+      await result.current.createAccount(accountFormData);
+    });
+
+    expect(mockCreateAccountForUser).not.toHaveBeenCalled();
+    expect(mockShowToast).not.toHaveBeenCalled();
+    expect(mockRouterBack).not.toHaveBeenCalled();
+    expect(mockRouterReplace).toHaveBeenCalledWith("/auth");
   });
 });
