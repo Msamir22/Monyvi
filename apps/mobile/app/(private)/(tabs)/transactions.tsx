@@ -12,6 +12,7 @@ import { TransferCard } from "@/components/transactions/TransferCard";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { palette } from "@/constants/colors";
+import { TAB_BAR_HEIGHT } from "@/constants/ui";
 import { useTheme } from "@/context/ThemeContext";
 import { batchDeleteDisplayTransactions } from "@/services/transaction-service";
 import {
@@ -36,6 +37,7 @@ import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, SectionList, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 /**
  * Render the Transactions screen with filters, search, grouped list, selection, and quick-edit flows.
@@ -48,6 +50,7 @@ import { ActivityIndicator, SectionList, Text, View } from "react-native";
  */
 export default function TransactionsPlaceholder(): React.JSX.Element {
   const { isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const { t } = useTranslation("transactions");
   const { t: tCommon } = useTranslation("common");
   const [period, setPeriod] = useState<GroupingPeriod>("this_month");
@@ -57,6 +60,7 @@ export default function TransactionsPlaceholder(): React.JSX.Element {
     "Transfer",
   ]);
   const [searchQuery, setSearchQuery] = useState("");
+  const listBottomPadding = TAB_BAR_HEIGHT + insets.bottom + 24;
 
   // Modal State
   const [periodModalVisible, setPeriodModalVisible] = useState(false);
@@ -576,6 +580,10 @@ export default function TransactionsPlaceholder(): React.JSX.Element {
             sections={sections}
             keyExtractor={sectionKeyExtractor}
             renderSectionHeader={renderSectionHeader}
+            contentContainerStyle={{
+              flexGrow: 1,
+              paddingBottom: listBottomPadding,
+            }}
             onRefresh={handleRefresh}
             refreshing={isRefreshing}
             renderItem={renderItem}

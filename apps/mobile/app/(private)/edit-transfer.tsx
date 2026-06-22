@@ -418,7 +418,7 @@ export default function EditTransfer(): React.ReactNode {
   // ---------------------------------------------------------------------------
   if (isLoadingTransfer) {
     return (
-      <View className="flex-1 items-center justify-center">
+      <View className="flex-1 items-center justify-center bg-background dark:bg-background-dark">
         <ActivityIndicator size="large" color={palette.nileGreen[500]} />
       </View>
     );
@@ -426,7 +426,7 @@ export default function EditTransfer(): React.ReactNode {
 
   if (!transfer) {
     return (
-      <View className="flex-1 items-center justify-center px-6">
+      <View className="flex-1 items-center justify-center px-6 bg-background dark:bg-background-dark">
         <Text className="text-lg font-semibold text-slate-500 dark:text-slate-400 text-center">
           {t("transfer_not_found")}
         </Text>
@@ -444,7 +444,10 @@ export default function EditTransfer(): React.ReactNode {
   // Render
   // ---------------------------------------------------------------------------
   return (
-    <View className="flex-1">
+    <View
+      testID="edit-transfer-screen"
+      className="flex-1 bg-background dark:bg-background-dark"
+    >
       {/* Header */}
       <PageHeader
         title={t("edit_transfer")}
@@ -468,7 +471,7 @@ export default function EditTransfer(): React.ReactNode {
       />
 
       <ScrollView
-        className="flex-1"
+        className="flex-1 bg-background dark:bg-background-dark"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 40 }}
       >
