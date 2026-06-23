@@ -317,10 +317,6 @@ describe("transaction-list-read-model-service", () => {
     expect(accountLookupCall[1]).toBe("user-1");
     expect(accountLookupCall[2]).toMatchObject({
       kind: "where",
-      column: "id",
-    });
-    expect(accountLookupCall[3]).toMatchObject({
-      kind: "where",
       column: "deleted",
     });
     expect(categoryLookupCall[0]).toBe(mockCategoriesCollection);
@@ -330,6 +326,52 @@ describe("transaction-list-read-model-service", () => {
       column: "id",
     });
     expect(categoryLookupCall[3]).toMatchObject({
+      kind: "where",
+      column: "deleted",
+    });
+  });
+
+  it("keeps duplicate account-name disambiguation when the duplicate is outside the visible list", async () => {
+    const cashEgp = createAccount("account-1", "Cash", "EGP");
+    const cashUsd = createAccount("account-2", "Cash", "USD");
+    const foodCategory = createCategory(
+      "Food",
+      "fast-food",
+      "Ionicons",
+      "category-food"
+    );
+    const expense = createTransaction({
+      id: "expense",
+      amount: 100,
+      type: "EXPENSE",
+      date: new Date("2026-05-14T10:00:00.000Z"),
+      account: cashEgp,
+      category: foodCategory,
+    });
+
+    mockQueryOwned
+      .mockReturnValueOnce(createQuery<Transaction>([]))
+      .mockReturnValueOnce(createQuery<Transaction>([expense]))
+      .mockReturnValueOnce(createQuery<Account>([cashEgp, cashUsd]));
+    mockQueryAccessibleCategories.mockReturnValueOnce(
+      createQuery<Category>([foodCategory])
+    );
+
+    const model = await getTransactionListReadModel({
+      userId: "user-1",
+      period: "this_month",
+      selectedTypes: ["Expense"],
+      searchQuery: "",
+    });
+
+    expect(model.displayedItems[0]).toMatchObject({
+      id: "expense",
+      accountName: "Cash (EGP)",
+    });
+    const accountLookupCall = mockQueryOwned.mock
+      .calls[2] as readonly unknown[];
+    expect(accountLookupCall).toHaveLength(3);
+    expect(accountLookupCall[2]).toMatchObject({
       kind: "where",
       column: "deleted",
     });

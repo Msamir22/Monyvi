@@ -371,7 +371,6 @@ async function enrichDisplayItems(
       ? queryOwned(
           accountsCollection(),
           userId,
-          Q.where("id", Q.oneOf(accountIds)),
           Q.where("deleted", Q.notEq(true))
         ).fetch()
       : Promise.resolve([]),
