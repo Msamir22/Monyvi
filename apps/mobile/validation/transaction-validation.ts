@@ -5,6 +5,13 @@ import { z } from "zod";
 // Schemas
 // ---------------------------------------------------------------------------
 
+function requiredIdSchema(message: string): z.ZodType<string | null> {
+  return z
+    .string()
+    .nullable()
+    .refine((value) => value !== null && value.length > 0, message);
+}
+
 /**
  * Zod schema for expense/income transaction form validation.
  */
@@ -16,7 +23,7 @@ const baseTransactionSchema = z.object({
       (val) => !isNaN(parseFloat(val)) && parseFloat(val) > 0,
       "Amount must be greater than 0"
     ),
-  accountId: z.string().min(1, "Account is required"),
+  accountId: requiredIdSchema("Account is required"),
   categoryId: z.string().min(1, "Category is required"),
 });
 
@@ -36,8 +43,8 @@ const transferSchema = z
         (val) => parseFloat(val) <= 1000000000,
         "Amount must be less than 1,000,000,000"
       ),
-    fromAccountId: z.string().min(1, "Source account is required"),
-    toAccountId: z.string().min(1, "Destination account is required"),
+    fromAccountId: requiredIdSchema("Source account is required"),
+    toAccountId: requiredIdSchema("Destination account is required"),
   })
   .refine((data) => data.fromAccountId !== data.toAccountId, {
     message: "Source and destination accounts must be different",

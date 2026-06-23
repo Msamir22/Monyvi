@@ -85,6 +85,7 @@ export default function AddTransaction(): React.ReactNode {
   const [activeAmountField, setActiveAmountField] = useState<
     "amount" | "targetAmount"
   >("amount");
+  const hasInitializedAccountSelectionRef = useRef(false);
   const { isDark } = useTheme();
 
   // Hooks
@@ -131,12 +132,18 @@ export default function AddTransaction(): React.ReactNode {
 
   // Initialize Defaults
   useEffect(() => {
-    if (!hasAccounts || selectedAccountId) return;
+    if (!hasAccounts) {
+      hasInitializedAccountSelectionRef.current = false;
+      return;
+    }
+
+    if (hasInitializedAccountSelectionRef.current) return;
 
     const selection = resolveInitialTransactionAccountSelection(accounts);
     setSelectedAccountId(selection.selectedAccountId);
     setToAccountId(selection.toAccountId);
-  }, [accounts, selectedAccountId, hasAccounts]);
+    hasInitializedAccountSelectionRef.current = true;
+  }, [accounts, hasAccounts]);
 
   // Track the previous type to only auto-reset category on type change.
   // Without this, selecting L2/L3 categories resets to L1 because
@@ -495,11 +502,25 @@ export default function AddTransaction(): React.ReactNode {
                 accounts={accounts}
                 fromAccountId={selectedAccountId}
                 toAccountId={toAccountId}
-                onSelectFrom={setSelectedAccountId}
-                onSelectTo={setToAccountId}
+                onSelectFrom={(id) => {
+                  setFormErrors((prev) => ({
+                    ...prev,
+                    fromAccountId: undefined,
+                  }));
+                  setSelectedAccountId(id);
+                }}
+                onSelectTo={(id) => {
+                  setFormErrors((prev) => ({
+                    ...prev,
+                    toAccountId: undefined,
+                  }));
+                  setToAccountId(id);
+                }}
                 amount={amount}
                 targetAmount={targetAmount}
                 onChangeTargetAmount={setTargetAmount}
+                fromAccountError={formErrors.fromAccountId}
+                toAccountError={formErrors.toAccountId}
                 exchangeRate={
                   selectedAccount && toAccount
                     ? latestRates?.getRate(

@@ -21,6 +21,10 @@ interface TransferFieldsProps {
   isTargetAmountActive?: boolean;
   /** Called when user taps the target amount to switch keypad focus */
   onFocusTargetAmount?: () => void;
+  /** Source account validation message, shown after submit attempts */
+  fromAccountError?: string;
+  /** Destination account validation message, shown after submit attempts */
+  toAccountError?: string;
 }
 
 export function TransferFields({
@@ -34,6 +38,8 @@ export function TransferFields({
   exchangeRate,
   isTargetAmountActive,
   onFocusTargetAmount,
+  fromAccountError,
+  toAccountError,
 }: TransferFieldsProps): React.JSX.Element {
   const [isFromModalOpen, setIsFromModalOpen] = useState(false);
   const [isToModalOpen, setIsToModalOpen] = useState(false);
@@ -82,7 +88,11 @@ export function TransferFields({
           <TouchableOpacity
             onPress={() => setIsFromModalOpen(true)}
             activeOpacity={0.7}
-            className="flex-row items-center bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700"
+            className={`flex-row items-center bg-white dark:bg-slate-800 p-4 rounded-2xl border ${
+              fromAccountError
+                ? "border-red-500/60"
+                : "border-slate-200 dark:border-slate-700"
+            }`}
           >
             <Text
               numberOfLines={1}
@@ -96,6 +106,11 @@ export function TransferFields({
               color={palette.slate[400]}
             />
           </TouchableOpacity>
+          {fromAccountError ? (
+            <Text className="text-red-500 text-xs font-medium mt-1">
+              {fromAccountError}
+            </Text>
+          ) : null}
         </View>
 
         {/* Swap Button */}
@@ -121,7 +136,11 @@ export function TransferFields({
           <TouchableOpacity
             onPress={() => setIsToModalOpen(true)}
             activeOpacity={0.7}
-            className="flex-row items-center bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700"
+            className={`flex-row items-center bg-white dark:bg-slate-800 p-4 rounded-2xl border ${
+              toAccountError
+                ? "border-red-500/60"
+                : "border-slate-200 dark:border-slate-700"
+            }`}
           >
             <Text
               numberOfLines={1}
@@ -135,6 +154,11 @@ export function TransferFields({
               color={palette.slate[400]}
             />
           </TouchableOpacity>
+          {toAccountError ? (
+            <Text className="text-red-500 text-xs font-medium mt-1">
+              {toAccountError}
+            </Text>
+          ) : null}
         </View>
       </View>
 

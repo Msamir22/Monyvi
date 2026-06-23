@@ -62,6 +62,15 @@ describe("validateTransactionForm", () => {
       expect(result.errors.accountId).toBeDefined();
     });
 
+    it("should fail with required account copy when accountId is null", () => {
+      const result = validateTransactionForm("EXPENSE", {
+        ...validPayload,
+        accountId: null,
+      });
+      expect(result.isValid).toBe(false);
+      expect(result.errors.accountId).toBe("Account is required");
+    });
+
     it("should fail when categoryId is empty", () => {
       const result = validateTransactionForm("EXPENSE", {
         ...validPayload,
@@ -135,6 +144,15 @@ describe("validateTransactionForm", () => {
       expect(result.errors.fromAccountId).toBeDefined();
     });
 
+    it("should fail with required source account copy when fromAccountId is null", () => {
+      const result = validateTransactionForm("TRANSFER", {
+        ...validTransfer,
+        fromAccountId: null,
+      });
+      expect(result.isValid).toBe(false);
+      expect(result.errors.fromAccountId).toBe("Source account is required");
+    });
+
     it("should fail when toAccountId is empty", () => {
       const result = validateTransactionForm("TRANSFER", {
         ...validTransfer,
@@ -142,6 +160,15 @@ describe("validateTransactionForm", () => {
       });
       expect(result.isValid).toBe(false);
       expect(result.errors.toAccountId).toBeDefined();
+    });
+
+    it("should fail with required destination account copy when toAccountId is null", () => {
+      const result = validateTransactionForm("TRANSFER", {
+        ...validTransfer,
+        toAccountId: null,
+      });
+      expect(result.isValid).toBe(false);
+      expect(result.errors.toAccountId).toBe("Destination account is required");
     });
 
     it("should fail when from and to accounts are the same", () => {
