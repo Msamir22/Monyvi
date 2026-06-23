@@ -8,6 +8,10 @@ DROP INDEX IF EXISTS public.idx_categories_unique_active_system_root_untyped;
 DROP INDEX IF EXISTS public.idx_categories_unique_active_system_child_untyped;
 DROP INDEX IF EXISTS public.idx_categories_unique_active_custom_root;
 DROP INDEX IF EXISTS public.idx_categories_unique_active_custom_child;
+DROP INDEX IF EXISTS public.idx_categories_unique_active_custom_root_typed;
+DROP INDEX IF EXISTS public.idx_categories_unique_active_custom_root_untyped;
+DROP INDEX IF EXISTS public.idx_categories_unique_active_custom_child_typed;
+DROP INDEX IF EXISTS public.idx_categories_unique_active_custom_child_untyped;
 
 CREATE TEMP TABLE deleted_system_parent_repair_map ON COMMIT DROP AS
 WITH root_parent_repairs AS (
@@ -309,19 +313,37 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_unique_active_system_child_unty
     AND parent_id IS NOT NULL
     AND type IS NULL;
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_unique_active_custom_root
-  ON public.categories (user_id, display_name, type)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_unique_active_custom_root_typed
+  ON public.categories (user_id, system_name, type)
   WHERE deleted = false
     AND is_system = false
     AND user_id IS NOT NULL
-    AND parent_id IS NULL;
+    AND parent_id IS NULL
+    AND type IS NOT NULL;
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_unique_active_custom_child
-  ON public.categories (user_id, parent_id, display_name, type)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_unique_active_custom_root_untyped
+  ON public.categories (user_id, system_name)
   WHERE deleted = false
     AND is_system = false
     AND user_id IS NOT NULL
-    AND parent_id IS NOT NULL;
+    AND parent_id IS NULL
+    AND type IS NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_unique_active_custom_child_typed
+  ON public.categories (user_id, parent_id, system_name, type)
+  WHERE deleted = false
+    AND is_system = false
+    AND user_id IS NOT NULL
+    AND parent_id IS NOT NULL
+    AND type IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_unique_active_custom_child_untyped
+  ON public.categories (user_id, parent_id, system_name)
+  WHERE deleted = false
+    AND is_system = false
+    AND user_id IS NOT NULL
+    AND parent_id IS NOT NULL
+    AND type IS NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_user_category_settings_unique_active
   ON public.user_category_settings (user_id, category_id)
