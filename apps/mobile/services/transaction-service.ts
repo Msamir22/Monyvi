@@ -303,8 +303,8 @@ function accumulateBalanceDelta(
  * Batch soft-deletes an array of transactions/transfers and atomically
  * reverts all affected account balances.
  *
- * Performance: Uses scalar `accountId`/`fromAccountId`/`toAccountId` fields
- * to collect affected account IDs, then fetches all accounts in a single
+ * Performance: Uses backing record scalar fields to collect affected account IDs,
+ * then fetches all accounts in a single
  * query — avoiding the N+1 `.fetch()` anti-pattern.
  *
  * @throws Error if the database write fails (caller handles UI feedback)
@@ -318,22 +318,26 @@ export async function batchDeleteDisplayTransactions(
   await database.write(async () => {
     // Phase 1: Validate item ownership and collect balance deltas (no DB reads)
     const balanceDeltas = new Map<string, number>();
+    const recordsToDelete: Array<Transaction | Transfer> = [];
 
     for (const item of items) {
-      scope.assertOwned(item);
-
       if (item._type === "transaction") {
-        if (item.isIncome) {
-          accumulateBalanceDelta(balanceDeltas, item.accountId, -item.amount);
-        } else if (item.isExpense) {
-          accumulateBalanceDelta(balanceDeltas, item.accountId, item.amount);
+        const record = scope.assertOwned(item.record);
+        recordsToDelete.push(record);
+
+        if (record.isIncome) {
+          accumulateBalanceDelta(balanceDeltas, record.accountId, -record.amount);
+        } else if (record.isExpense) {
+          accumulateBalanceDelta(balanceDeltas, record.accountId, record.amount);
         }
       } else if (item._type === "transfer") {
-        accumulateBalanceDelta(balanceDeltas, item.fromAccountId, item.amount);
-        const amountToDeduct = item.convertedAmount ?? item.amount;
+        const record = scope.assertOwned(item.record);
+        recordsToDelete.push(record);
+        accumulateBalanceDelta(balanceDeltas, record.fromAccountId, record.amount);
+        const amountToDeduct = record.convertedAmount ?? record.amount;
         accumulateBalanceDelta(
           balanceDeltas,
-          item.toAccountId,
+          record.toAccountId,
           -amountToDeduct
         );
       }
@@ -371,8 +375,8 @@ export async function batchDeleteDisplayTransactions(
       }
     }
 
-    for (const item of items) {
-      batches.push(prepareSoftDeleteDisplayTransaction(item));
+    for (const record of recordsToDelete) {
+      batches.push(prepareSoftDeleteDisplayRecord(record));
     }
 
     // Execute everything in a single atomic batch
@@ -380,14 +384,8 @@ export async function batchDeleteDisplayTransactions(
   });
 }
 
-function prepareSoftDeleteDisplayTransaction(item: DisplayTransaction): Model {
-  if (item._type === "transaction") {
-    return item.prepareUpdate((record: Transaction) => {
-      record.deleted = true;
-    });
-  }
-
-  return item.prepareUpdate((record: Transfer) => {
+function prepareSoftDeleteDisplayRecord(record: Transaction | Transfer): Model {
+  return record.prepareUpdate((record: Transaction | Transfer) => {
     record.deleted = true;
   });
 }

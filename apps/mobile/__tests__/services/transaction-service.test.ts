@@ -506,6 +506,24 @@ describe("transaction-service", () => {
   // batchDeleteDisplayTransactions
   // =========================================================================
   describe("batchDeleteDisplayTransactions", () => {
+    function asDisplayItem(record: MockModelRecord): MockModelRecord {
+      return mockModel(`${record.id}-display`, {
+        ...record,
+        record,
+      });
+    }
+
+    function asStaleDisplayItem(
+      record: MockModelRecord,
+      staleFields: Record<string, unknown>
+    ): MockModelRecord {
+      return mockModel(`${record.id}-display`, {
+        ...record,
+        ...staleFields,
+        record,
+      });
+    }
+
     it("should do nothing for empty array", async () => {
       await batchDeleteDisplayTransactions([]);
       expect(mockDb.write).not.toHaveBeenCalled();
@@ -533,8 +551,8 @@ describe("transaction-service", () => {
       });
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- MockModelRecord cannot satisfy WatermelonDB Model base class
       await batchDeleteDisplayTransactions([
-        i1,
-        i2,
+        asDisplayItem(i1),
+        asDisplayItem(i2),
       ] as unknown as readonly DisplayTransaction[]);
       expect(i1.deleted).toBe(true);
       expect(i2.deleted).toBe(true);
@@ -564,12 +582,70 @@ describe("transaction-service", () => {
       });
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- MockModelRecord cannot satisfy WatermelonDB Model base class
       await batchDeleteDisplayTransactions([
-        txI,
-        tfI,
+        asDisplayItem(txI),
+        asDisplayItem(tfI),
       ] as unknown as readonly DisplayTransaction[]);
       expect(txI.deleted).toBe(true);
       expect(tfI.deleted).toBe(true);
       expect(mockDb.batch).toHaveBeenCalledTimes(1);
+    });
+
+    it("uses the live transaction record for balance reversal and deletion", async () => {
+      const staleAccount = seedAccount("acc-stale", 500);
+      const liveAccount = seedAccount("acc-live", 700);
+      const liveRecord = mockModel("tx-1", {
+        _type: "transaction",
+        userId: "test-user-id",
+        accountId: "acc-live",
+        amount: 300,
+        isExpense: true,
+        isIncome: false,
+        deleted: false,
+      });
+      const staleDisplayItem = asStaleDisplayItem(liveRecord, {
+        accountId: "acc-stale",
+        amount: 50,
+      });
+
+      await batchDeleteDisplayTransactions([
+        staleDisplayItem,
+      ] as unknown as readonly DisplayTransaction[]);
+
+      expect(liveRecord.deleted).toBe(true);
+      expect(liveAccount.balance).toBe(1000);
+      expect(staleAccount.balance).toBe(500);
+    });
+
+    it("uses the live transfer record for balance reversal and deletion", async () => {
+      const staleFrom = seedAccount("acc-stale-from", 500);
+      const staleTo = seedAccount("acc-stale-to", 500);
+      const liveFrom = seedAccount("acc-live-from", 600);
+      const liveTo = seedAccount("acc-live-to", 900);
+      const liveRecord = mockModel("tf-1", {
+        _type: "transfer",
+        userId: "test-user-id",
+        fromAccountId: "acc-live-from",
+        toAccountId: "acc-live-to",
+        amount: 200,
+        convertedAmount: 250,
+        deleted: false,
+      });
+      const staleDisplayItem = asStaleDisplayItem(liveRecord, {
+        fromAccountId: "acc-stale-from",
+        toAccountId: "acc-stale-to",
+        amount: 25,
+        convertedAmount: 30,
+      });
+
+      await batchDeleteDisplayTransactions([
+        staleDisplayItem,
+      ] as unknown as readonly DisplayTransaction[]);
+
+      expect(liveRecord.deleted).toBe(true);
+      expect(liveFrom.balance).toBe(800);
+      expect(liveTo.balance).toBe(650);
+      expect(staleFrom.balance).toBe(500);
+      expect(staleTo.balance).toBe(500);
     });
 
     it("should not delete a transfer when a balance reversal account is missing", async () => {
@@ -586,7 +662,7 @@ describe("transaction-service", () => {
 
       await expect(
         batchDeleteDisplayTransactions([
-          tfI,
+          asDisplayItem(tfI),
         ] as unknown as readonly DisplayTransaction[])
       ).rejects.toThrow(BALANCE_REVERSAL_ACCOUNT_NOT_FOUND_ERROR_CODE);
 
@@ -608,11 +684,36 @@ describe("transaction-service", () => {
 
       await expect(
         batchDeleteDisplayTransactions([
-          foreignItem,
+          asDisplayItem(foreignItem),
         ] as unknown as readonly DisplayTransaction[])
       ).rejects.toThrow(USER_DATA_ACCESS_ERROR_CODES.OWNERSHIP_FAILED);
 
       expect(foreignItem.deleted).toBe(false);
+      expect(mockDb.batch).not.toHaveBeenCalled();
+    });
+
+    it("rejects a foreign-owned backing record before deleting anything", async () => {
+      seedAccount("acc-1", 900);
+      const foreignRecord = mockModel("tx-foreign", {
+        _type: "transaction",
+        userId: "foreign-user-id",
+        accountId: "acc-1",
+        amount: 100,
+        isExpense: true,
+        isIncome: false,
+        deleted: false,
+      });
+      const ownedDisplayItem = asStaleDisplayItem(foreignRecord, {
+        userId: "test-user-id",
+      });
+
+      await expect(
+        batchDeleteDisplayTransactions([
+          ownedDisplayItem,
+        ] as unknown as readonly DisplayTransaction[])
+      ).rejects.toThrow(USER_DATA_ACCESS_ERROR_CODES.OWNERSHIP_FAILED);
+
+      expect(foreignRecord.deleted).toBe(false);
       expect(mockDb.batch).not.toHaveBeenCalled();
     });
   });
