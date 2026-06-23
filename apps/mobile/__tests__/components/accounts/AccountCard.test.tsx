@@ -18,6 +18,25 @@ jest.mock("react-i18next", () => ({
   }),
 }));
 
+jest.mock("@expo/vector-icons", () => {
+  const ReactActual = jest.requireActual<typeof import("react")>("react");
+  const { Text } =
+    jest.requireActual<typeof import("react-native")>("react-native");
+
+  interface MockIoniconsProps {
+    readonly name: string;
+    readonly accessibilityLabel?: string;
+  }
+
+  const Ionicons = ({
+    name,
+    accessibilityLabel,
+  }: MockIoniconsProps): React.ReactElement =>
+    ReactActual.createElement(Text, { accessibilityLabel }, name);
+
+  return { Ionicons };
+});
+
 jest.mock("@/context/ThemeContext", () => ({
   useTheme: (): { readonly isDark: boolean } => ({
     isDark: mockIsDark,
@@ -159,5 +178,20 @@ describe("AccountCard", () => {
     expect(
       screen.getByTestId("account-provider-logo-vodafone-account")
     ).not.toHaveProp("style");
+  });
+
+  it("refreshes the default badge when the default flag changes on the same account instance", () => {
+    const updatedAccount = account({ isDefault: false });
+    const { rerender } = render(
+      <AccountCard account={updatedAccount} latestRates={null} />
+    );
+
+    expect(screen.queryByLabelText("Default account")).toBeNull();
+
+    (updatedAccount as { isDefault: boolean }).isDefault = true;
+
+    rerender(<AccountCard account={updatedAccount} latestRates={null} />);
+
+    expect(screen.getByLabelText("Default account")).toBeTruthy();
   });
 });

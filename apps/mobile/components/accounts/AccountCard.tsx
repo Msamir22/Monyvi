@@ -5,7 +5,7 @@ import { formatAccountBalance } from "@/utils/financial-display";
 import { Account, MarketRate } from "@monyvi/db";
 import { convertCurrency, formatCurrency } from "@monyvi/logic";
 import { Ionicons } from "@expo/vector-icons";
-import { memo, useCallback, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "@/context/ThemeContext";
@@ -40,7 +40,7 @@ interface AccountCardProps {
  * @param onPress - Optional press handler invoked when the card is tapped.
  * @returns A JSX element representing the account card.
  */
-function AccountCardImpl({
+export function AccountCard({
   account,
   latestRates,
   onPress,
@@ -173,14 +173,3 @@ function AccountCardImpl({
     </TouchableOpacity>
   );
 }
-
-/**
- * Memoized export — props are shallow-equal-friendly:
- * - `account` is a WatermelonDB Model ref (stable across observe emits unless
- *   the row itself changed)
- * - `latestRates` is value-stable when `useMarketRates` returns a memoized
- *   shape (see `useMarketRates`)
- * - `displayName` is a string
- * - `onPress` is expected to be a stable `useCallback` from the parent
- */
-export const AccountCard = memo(AccountCardImpl);
