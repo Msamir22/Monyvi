@@ -17,6 +17,7 @@ import { ConfirmationModal } from "@/components/modals/ConfirmationModal";
 import { AccountSelectorModal } from "@/components/modals/AccountSelectorModal";
 import { CategorySelectorModal } from "@/components/modals/CategorySelectorModal";
 import { PageHeader } from "@/components/navigation/PageHeader";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { RecurringWarningBanner } from "@/components/transactions/RecurringWarningBanner";
 import { palette } from "@/constants/colors";
 import { useToast } from "@/components/ui/Toast";
@@ -49,7 +50,6 @@ import React, {
   useState,
 } from "react";
 import {
-  ActivityIndicator,
   LayoutAnimation,
   ScrollView,
   Text,
@@ -436,17 +436,19 @@ export default function EditTransaction(): React.ReactNode {
   // ---------------------------------------------------------------------------
   // Loading / Error States
   // ---------------------------------------------------------------------------
-  if (isLoadingTx || !isInitialized) {
-    return (
-      <View className="flex-1 items-center justify-center">
-        <ActivityIndicator size="large" color={palette.nileGreen[500]} />
-      </View>
-    );
+  if (
+    isLoadingTx ||
+    (transaction !== null && transaction !== undefined && !isInitialized)
+  ) {
+    return <EditTransactionSkeleton />;
   }
 
   if (!transaction) {
     return (
-      <View className="flex-1 items-center justify-center px-6">
+      <View
+        testID="edit-transaction-not-found"
+        className="flex-1 items-center justify-center px-6 bg-background dark:bg-background-dark"
+      >
         <Text className="text-lg font-semibold text-slate-500 dark:text-slate-400 text-center">
           {t("transaction_not_found")}
         </Text>
@@ -464,7 +466,10 @@ export default function EditTransaction(): React.ReactNode {
   // Render
   // ---------------------------------------------------------------------------
   return (
-    <View className="flex-1">
+    <View
+      testID="edit-transaction-screen"
+      className="flex-1 bg-background dark:bg-background-dark"
+    >
       {/* Header */}
       <PageHeader
         title={t("edit_transaction")}
@@ -489,8 +494,8 @@ export default function EditTransaction(): React.ReactNode {
 
       <ScrollView
         className="flex-1"
+        contentContainerClassName="pb-10"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 40 }}
       >
         {/* Recurring Warning */}
         {transaction.linkedRecurringId && (
@@ -585,7 +590,7 @@ export default function EditTransaction(): React.ReactNode {
       {!isOptionalExpanded && !isTransferMode && (
         <TouchableOpacity
           onPress={() => setIsOptionalExpanded(true)}
-          className="flex-row items-center justify-center py-2 border-t border-slate-200 dark:border-slate-800"
+          className="flex-row items-center justify-center py-2 border-t border-slate-200 dark:border-slate-800 bg-background dark:bg-background-dark"
         >
           <Ionicons
             name="create-outline"
@@ -696,6 +701,27 @@ export default function EditTransaction(): React.ReactNode {
         variant="warning"
         icon="link-outline"
       />
+    </View>
+  );
+}
+
+function EditTransactionSkeleton(): React.JSX.Element {
+  return (
+    <View
+      testID="edit-transaction-skeleton"
+      className="flex-1 bg-background dark:bg-background-dark px-6 pt-6"
+    >
+      <Skeleton width="45%" height={28} borderRadius={8} />
+      <View className="mt-8 items-center">
+        <Skeleton width={180} height={64} borderRadius={16} />
+      </View>
+      <View className="mt-8 flex-row gap-4">
+        <Skeleton width="48%" height={72} borderRadius={16} />
+        <Skeleton width="48%" height={72} borderRadius={16} />
+      </View>
+      <View className="mt-6">
+        <Skeleton width="100%" height={92} borderRadius={16} />
+      </View>
     </View>
   );
 }

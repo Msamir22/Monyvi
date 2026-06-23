@@ -24,6 +24,17 @@ type UseTransactionsOptions = Partial<
   limit?: number;
 };
 
+const TRANSACTION_DISPLAY_COLUMNS = [
+  "account_id",
+  "amount",
+  "category_id",
+  "counterparty",
+  "currency",
+  "date",
+  "note",
+  "type",
+] as const;
+
 /**
  * Hook to get transactions reactively
  * @param options - Filter options (limit, accountId, categoryId, type)
@@ -86,17 +97,19 @@ export function useTransactions(
         );
 
         // Subscribe to changes
-        const subscription = query.observe().subscribe({
-          next: (result) => {
-            setTransactions(result);
-            setIsLoading(false);
-          },
-          error: (err: unknown) => {
-            logger.error("transactions.observe.failed", err);
-            setError(err instanceof Error ? err : new Error(String(err)));
-            setIsLoading(false);
-          },
-        });
+        const subscription = query
+          .observeWithColumns([...TRANSACTION_DISPLAY_COLUMNS])
+          .subscribe({
+            next: (result) => {
+              setTransactions(result);
+              setIsLoading(false);
+            },
+            error: (err: unknown) => {
+              logger.error("transactions.observe.failed", err);
+              setError(err instanceof Error ? err : new Error(String(err)));
+              setIsLoading(false);
+            },
+          });
 
         return () => subscription.unsubscribe();
       },
@@ -166,17 +179,19 @@ export function useMonthlyTransactions(
           Q.sortBy("date", Q.desc)
         );
 
-        const subscription = query.observe().subscribe({
-          next: (result) => {
-            setTransactions(result);
-            setIsLoading(false);
-          },
-          error: (err: unknown) => {
-            logger.error("monthlyTransactions.observe.failed", err);
-            setError(err instanceof Error ? err : new Error(String(err)));
-            setIsLoading(false);
-          },
-        });
+        const subscription = query
+          .observeWithColumns([...TRANSACTION_DISPLAY_COLUMNS])
+          .subscribe({
+            next: (result) => {
+              setTransactions(result);
+              setIsLoading(false);
+            },
+            error: (err: unknown) => {
+              logger.error("monthlyTransactions.observe.failed", err);
+              setError(err instanceof Error ? err : new Error(String(err)));
+              setIsLoading(false);
+            },
+          });
 
         return () => subscription.unsubscribe();
       },
