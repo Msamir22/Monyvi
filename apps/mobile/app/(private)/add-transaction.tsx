@@ -86,6 +86,7 @@ export default function AddTransaction(): React.ReactNode {
     "amount" | "targetAmount"
   >("amount");
   const hasInitializedAccountSelectionRef = useRef(false);
+  const hasUserSelectedAccountRef = useRef(false);
   const { isDark } = useTheme();
 
   // Hooks
@@ -134,12 +135,20 @@ export default function AddTransaction(): React.ReactNode {
   useEffect(() => {
     if (!hasAccounts) {
       hasInitializedAccountSelectionRef.current = false;
+      hasUserSelectedAccountRef.current = false;
       return;
     }
 
-    if (hasInitializedAccountSelectionRef.current) return;
+    if (
+      hasInitializedAccountSelectionRef.current ||
+      hasUserSelectedAccountRef.current
+    ) {
+      return;
+    }
 
     const selection = resolveInitialTransactionAccountSelection(accounts);
+    if (!selection.selectedAccountId) return;
+
     setSelectedAccountId(selection.selectedAccountId);
     setToAccountId(selection.toAccountId);
     hasInitializedAccountSelectionRef.current = true;
@@ -375,7 +384,11 @@ export default function AddTransaction(): React.ReactNode {
             categoryId: selectedCategoryId,
           };
 
-    const { isValid, errors } = validateTransactionForm(type, formData);
+    const { isValid, errors } = validateTransactionForm(type, formData, {
+      accountRequired: t("please_select_an_account"),
+      sourceAccountRequired: t("please_select_source_account"),
+      destinationAccountRequired: t("please_select_destination_account"),
+    });
     if (!isValid) {
       setFormErrors(errors);
       return;
@@ -503,6 +516,7 @@ export default function AddTransaction(): React.ReactNode {
                 fromAccountId={selectedAccountId}
                 toAccountId={toAccountId}
                 onSelectFrom={(id) => {
+                  hasUserSelectedAccountRef.current = true;
                   setFormErrors((prev) => ({
                     ...prev,
                     fromAccountId: undefined,
@@ -510,6 +524,7 @@ export default function AddTransaction(): React.ReactNode {
                   setSelectedAccountId(id);
                 }}
                 onSelectTo={(id) => {
+                  hasUserSelectedAccountRef.current = true;
                   setFormErrors((prev) => ({
                     ...prev,
                     toAccountId: undefined,
@@ -756,7 +771,10 @@ export default function AddTransaction(): React.ReactNode {
         visible={isAccountModalOpen}
         accounts={accounts}
         selectedId={selectedAccountId}
-        onSelect={setSelectedAccountId}
+        onSelect={(id) => {
+          hasUserSelectedAccountRef.current = true;
+          setSelectedAccountId(id);
+        }}
         onClose={() => setIsAccountModalOpen(false)}
       />
 

@@ -71,6 +71,19 @@ describe("validateTransactionForm", () => {
       expect(result.errors.accountId).toBe("Account is required");
     });
 
+    it("should use localized required account copy when provided", () => {
+      const result = validateTransactionForm(
+        "EXPENSE",
+        {
+          ...validPayload,
+          accountId: null,
+        },
+        { accountRequired: "localized account required" }
+      );
+      expect(result.isValid).toBe(false);
+      expect(result.errors.accountId).toBe("localized account required");
+    });
+
     it("should fail when categoryId is empty", () => {
       const result = validateTransactionForm("EXPENSE", {
         ...validPayload,
@@ -169,6 +182,24 @@ describe("validateTransactionForm", () => {
       });
       expect(result.isValid).toBe(false);
       expect(result.errors.toAccountId).toBe("Destination account is required");
+    });
+
+    it("should use localized transfer account copy when provided", () => {
+      const result = validateTransactionForm(
+        "TRANSFER",
+        {
+          ...validTransfer,
+          fromAccountId: null,
+          toAccountId: null,
+        },
+        {
+          sourceAccountRequired: "localized source required",
+          destinationAccountRequired: "localized destination required",
+        }
+      );
+      expect(result.isValid).toBe(false);
+      expect(result.errors.fromAccountId).toBe("localized source required");
+      expect(result.errors.toAccountId).toBe("localized destination required");
     });
 
     it("should fail when from and to accounts are the same", () => {

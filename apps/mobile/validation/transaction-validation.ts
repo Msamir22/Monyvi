@@ -5,6 +5,30 @@ import { z } from "zod";
 // Schemas
 // ---------------------------------------------------------------------------
 
+export interface TransactionFormData {
+  readonly amount: string;
+  readonly accountId: string | null;
+  readonly categoryId: string;
+}
+
+export interface TransferFormData {
+  readonly amount: string;
+  readonly fromAccountId: string | null;
+  readonly toAccountId: string | null;
+}
+
+export interface TransactionValidationMessages {
+  readonly accountRequired: string;
+  readonly sourceAccountRequired: string;
+  readonly destinationAccountRequired: string;
+}
+
+const defaultValidationMessages: TransactionValidationMessages = {
+  accountRequired: "Account is required",
+  sourceAccountRequired: "Source account is required",
+  destinationAccountRequired: "Destination account is required",
+};
+
 function requiredIdSchema(message: string): z.ZodType<string | null> {
   return z
     .string()
@@ -15,48 +39,49 @@ function requiredIdSchema(message: string): z.ZodType<string | null> {
 /**
  * Zod schema for expense/income transaction form validation.
  */
-const baseTransactionSchema = z.object({
-  amount: z
-    .string()
-    .min(1, "Amount is required")
-    .refine(
-      (val) => !isNaN(parseFloat(val)) && parseFloat(val) > 0,
-      "Amount must be greater than 0"
-    ),
-  accountId: requiredIdSchema("Account is required"),
-  categoryId: z.string().min(1, "Category is required"),
-});
-
-/**
- * Zod schema for transfer form validation.
- */
-const transferSchema = z
-  .object({
+function createBaseTransactionSchema(
+  messages: TransactionValidationMessages
+): z.ZodType<TransactionFormData> {
+  return z.object({
     amount: z
       .string()
       .min(1, "Amount is required")
       .refine(
         (val) => !isNaN(parseFloat(val)) && parseFloat(val) > 0,
         "Amount must be greater than 0"
-      )
-      .refine(
-        (val) => parseFloat(val) <= 1000000000,
-        "Amount must be less than 1,000,000,000"
       ),
-    fromAccountId: requiredIdSchema("Source account is required"),
-    toAccountId: requiredIdSchema("Destination account is required"),
-  })
-  .refine((data) => data.fromAccountId !== data.toAccountId, {
-    message: "Source and destination accounts must be different",
-    path: ["toAccountId"],
+    accountId: requiredIdSchema(messages.accountRequired),
+    categoryId: z.string().min(1, "Category is required"),
   });
+}
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export type TransactionFormData = z.infer<typeof baseTransactionSchema>;
-export type TransferFormData = z.infer<typeof transferSchema>;
+/**
+ * Zod schema for transfer form validation.
+ */
+function createTransferSchema(
+  messages: TransactionValidationMessages
+): z.ZodType<TransferFormData> {
+  return z
+    .object({
+      amount: z
+        .string()
+        .min(1, "Amount is required")
+        .refine(
+          (val) => !isNaN(parseFloat(val)) && parseFloat(val) > 0,
+          "Amount must be greater than 0"
+        )
+        .refine(
+          (val) => parseFloat(val) <= 1000000000,
+          "Amount must be less than 1,000,000,000"
+        ),
+      fromAccountId: requiredIdSchema(messages.sourceAccountRequired),
+      toAccountId: requiredIdSchema(messages.destinationAccountRequired),
+    })
+    .refine((data) => data.fromAccountId !== data.toAccountId, {
+      message: "Source and destination accounts must be different",
+      path: ["toAccountId"],
+    });
+}
 
 /** Union of all possible form field keys for error display */
 export type TransactionValidationErrors = Partial<
@@ -80,15 +105,14 @@ export type TransactionValidationErrors = Partial<
  */
 export function validateTransactionForm(
   type: TransactionType | "TRANSFER",
-  data:
-    | { amount: string; accountId: string | null; categoryId: string }
-    | {
-        amount: string;
-        fromAccountId: string | null;
-        toAccountId: string | null;
-      }
+  data: TransactionFormData | TransferFormData,
+  messages: Partial<TransactionValidationMessages> = {}
 ): { isValid: boolean; errors: TransactionValidationErrors } {
-  const schema = type === "TRANSFER" ? transferSchema : baseTransactionSchema;
+  const validationMessages = { ...defaultValidationMessages, ...messages };
+  const schema =
+    type === "TRANSFER"
+      ? createTransferSchema(validationMessages)
+      : createBaseTransactionSchema(validationMessages);
   const result = schema.safeParse(data);
 
   if (result.success) {
