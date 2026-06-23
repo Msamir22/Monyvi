@@ -124,6 +124,32 @@ describe("useDeleteAccount", () => {
     expect(mockRouterBack).toHaveBeenCalledTimes(1);
   });
 
+  it("ignores duplicate delete submissions while the first delete is in flight", async () => {
+    let resolveDelete: (value: Readonly<{ success: true }>) => void = () =>
+      undefined;
+    mockDeleteAccountWithCascade.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveDelete = resolve;
+        })
+    );
+
+    const { result } = renderHook(() => useDeleteAccount("acc-1"));
+
+    await act(async () => {
+      const firstDelete = result.current.performDelete("acc-1");
+      const duplicateDelete = result.current.performDelete("acc-1");
+
+      resolveDelete({ success: true });
+
+      await Promise.all([firstDelete, duplicateDelete]);
+    });
+
+    expect(mockDeleteAccountWithCascade).toHaveBeenCalledTimes(1);
+    expect(mockRouterBack).toHaveBeenCalledTimes(1);
+    expect(mockShowToast).toHaveBeenCalledTimes(1);
+  });
+
   it("uses localized session-required toast text", async () => {
     mockCurrentUserId = null;
     const { result } = renderHook(() => useDeleteAccount("acc-1"));
@@ -168,5 +194,27 @@ describe("useDeleteAccount", () => {
       })
     );
     expect(mockRouterBack).not.toHaveBeenCalled();
+  });
+
+  it("re-enables deletion after a failed delete so the user can retry", async () => {
+    mockDeleteAccountWithCascade
+      .mockRejectedValueOnce(new Error("cascade delete failed"))
+      .mockResolvedValueOnce({ success: true });
+    const { result } = renderHook(() => useDeleteAccount("acc-1"));
+
+    await act(async () => {
+      await result.current.performDelete("acc-1");
+    });
+
+    expect(result.current.isDeleting).toBe(false);
+    expect(mockDeleteAccountWithCascade).toHaveBeenCalledTimes(1);
+    expect(mockRouterBack).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.performDelete("acc-1");
+    });
+
+    expect(mockDeleteAccountWithCascade).toHaveBeenCalledTimes(2);
+    expect(mockRouterBack).toHaveBeenCalledTimes(1);
   });
 });
