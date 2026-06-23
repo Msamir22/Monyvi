@@ -36,7 +36,7 @@ function assertCustomCategoryIndexesUseSystemName(sql, migrationPath) {
   );
   assert.doesNotMatch(
     sql,
-    /ON public\.categories \(user_id, (?:parent_id, )?display_name, type\)/,
+    /ON public\.categories \(user_id, (?:parent_id, )?display_name(?:, type)?\)/,
     `${migrationPath} should not use display_name for custom category uniqueness`
   );
 }
