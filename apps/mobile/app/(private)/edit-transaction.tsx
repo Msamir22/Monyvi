@@ -244,8 +244,12 @@ export default function EditTransaction(): React.ReactNode {
     }
   };
 
-  const balanceProjection = useMemo(() => {
-    if (!transaction || !selectedAccount || !amount) {
+  const balanceProjection = (() => {
+    const projectionAccount = isTransferMode
+      ? accounts.find((account) => account.id === transaction?.accountId)
+      : selectedAccount;
+
+    if (!transaction || !projectionAccount || !amount) {
       return null;
     }
 
@@ -254,16 +258,27 @@ export default function EditTransaction(): React.ReactNode {
       return null;
     }
 
+    const projectedEditedAmount = isTransferMode
+      ? transaction.amount
+      : parsedAmount;
+
     return calculateEditedTransactionBalanceProjection({
-      currentAccountBalance: selectedAccount.balance,
+      currentAccountBalances: accounts.map((account) => ({
+        accountId: account.id,
+        balance: account.balance,
+      })),
       originalAmount: transaction.amount,
       originalType: transaction.type,
       originalAccountId: transaction.accountId,
-      editedAmount: parsedAmount,
+      editedAmount: projectedEditedAmount,
       editedType: type,
-      editedAccountId: selectedAccount.id,
+      editedAccountId: projectionAccount.id,
     });
-  }, [amount, selectedAccount, transaction, type]);
+  })();
+  const balanceWarning = balanceProjection?.warningAccountProjection ?? null;
+  const balanceWarningAccount = balanceWarning
+    ? accounts.find((account) => account.id === balanceWarning.accountId)
+    : null;
 
   // ---------------------------------------------------------------------------
   // Handle Save
@@ -534,14 +549,14 @@ export default function EditTransaction(): React.ReactNode {
         {/* Amount Display */}
         <>
           {/* Insufficient balance warning */}
-          {selectedAccount && balanceProjection?.shouldWarn && (
+          {balanceWarning && balanceWarningAccount && (
             <Text className="text-amber-500 text-xs font-medium text-center mb-1">
               {t("warning_negative_balance")}{" "}
               {formatAmountInput(
-                balanceProjection.projectedBalance.toFixed(2),
+                balanceWarning.projectedBalance.toFixed(2),
                 "0"
               )}{" "}
-              {selectedAccount.currency}
+              {balanceWarningAccount.currency}
             </Text>
           )}
           <AmountDisplay
