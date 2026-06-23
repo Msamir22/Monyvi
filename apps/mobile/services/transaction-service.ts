@@ -382,12 +382,12 @@ export async function batchDeleteDisplayTransactions(
 
 function prepareSoftDeleteDisplayTransaction(item: DisplayTransaction): Model {
   if (item._type === "transaction") {
-    return item.prepareUpdate((record: Transaction) => {
+    return item.record.prepareUpdate((record: Transaction) => {
       record.deleted = true;
     });
   }
 
-  return item.prepareUpdate((record: Transfer) => {
+  return item.record.prepareUpdate((record: Transfer) => {
     record.deleted = true;
   });
 }

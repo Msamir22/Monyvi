@@ -506,6 +506,13 @@ describe("transaction-service", () => {
   // batchDeleteDisplayTransactions
   // =========================================================================
   describe("batchDeleteDisplayTransactions", () => {
+    function asDisplayItem(record: MockModelRecord): MockModelRecord {
+      return mockModel(`${record.id}-display`, {
+        ...record,
+        record,
+      });
+    }
+
     it("should do nothing for empty array", async () => {
       await batchDeleteDisplayTransactions([]);
       expect(mockDb.write).not.toHaveBeenCalled();
@@ -533,8 +540,8 @@ describe("transaction-service", () => {
       });
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- MockModelRecord cannot satisfy WatermelonDB Model base class
       await batchDeleteDisplayTransactions([
-        i1,
-        i2,
+        asDisplayItem(i1),
+        asDisplayItem(i2),
       ] as unknown as readonly DisplayTransaction[]);
       expect(i1.deleted).toBe(true);
       expect(i2.deleted).toBe(true);
@@ -564,8 +571,8 @@ describe("transaction-service", () => {
       });
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- MockModelRecord cannot satisfy WatermelonDB Model base class
       await batchDeleteDisplayTransactions([
-        txI,
-        tfI,
+        asDisplayItem(txI),
+        asDisplayItem(tfI),
       ] as unknown as readonly DisplayTransaction[]);
       expect(txI.deleted).toBe(true);
       expect(tfI.deleted).toBe(true);
@@ -586,7 +593,7 @@ describe("transaction-service", () => {
 
       await expect(
         batchDeleteDisplayTransactions([
-          tfI,
+          asDisplayItem(tfI),
         ] as unknown as readonly DisplayTransaction[])
       ).rejects.toThrow(BALANCE_REVERSAL_ACCOUNT_NOT_FOUND_ERROR_CODE);
 
@@ -608,7 +615,7 @@ describe("transaction-service", () => {
 
       await expect(
         batchDeleteDisplayTransactions([
-          foreignItem,
+          asDisplayItem(foreignItem),
         ] as unknown as readonly DisplayTransaction[])
       ).rejects.toThrow(USER_DATA_ACCESS_ERROR_CODES.OWNERSHIP_FAILED);
 

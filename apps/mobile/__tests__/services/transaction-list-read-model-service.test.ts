@@ -3,13 +3,16 @@ import type { Account, Category, Transaction, Transfer } from "@monyvi/db";
 const mockTransactionsCollection = { table: "transactions" };
 const mockTransfersCollection = { table: "transfers" };
 const mockAccountsCollection = { table: "accounts" };
+const mockCategoriesCollection = { table: "categories" };
 const mockDatabaseGet = jest.fn((tableName: string): unknown => {
   if (tableName === "transactions") return mockTransactionsCollection;
   if (tableName === "transfers") return mockTransfersCollection;
   if (tableName === "accounts") return mockAccountsCollection;
+  if (tableName === "categories") return mockCategoriesCollection;
   throw new Error(`Unexpected table: ${tableName}`);
 });
 const mockQueryOwned = jest.fn();
+const mockQueryAccessibleCategories = jest.fn();
 
 interface QueryCondition {
   readonly kind: "where" | "gte" | "lte" | "gt" | "oneOf" | "notEq" | "sortBy";
@@ -20,6 +23,10 @@ interface QueryCondition {
 interface MockQuery<TRecord> {
   readonly fetch: jest.Mock<Promise<TRecord[]>, []>;
   readonly observeWithColumns: jest.Mock;
+}
+
+interface MockRelation {
+  readonly fetch: jest.Mock;
 }
 
 jest.mock("@monyvi/db", () => ({
@@ -51,11 +58,13 @@ jest.mock("@nozbe/watermelondb", () => ({
 
 jest.mock("@/services/user-data-access", () => ({
   queryOwned: (...args: readonly unknown[]): unknown => mockQueryOwned(...args),
+  queryAccessibleCategories: (...args: readonly unknown[]): unknown =>
+    mockQueryAccessibleCategories(...args),
 }));
 
 import {
   buildTransactionGroups,
-  type DisplayTransaction,
+  type DisplayListItem,
   getTransactionListReadModel,
   observeTransactionListInvalidationSources,
 } from "@/services/transaction-list-read-model-service";
@@ -79,9 +88,11 @@ function createAccount(
 function createCategory(
   displayName: string,
   iconName = "restaurant",
-  iconLibrary = "Ionicons"
+  iconLibrary = "Ionicons",
+  id = displayName.toLowerCase()
 ): Category {
   return {
+    id,
     displayName,
     iconConfig: { iconName, iconLibrary },
   } as unknown as Category;
@@ -97,6 +108,7 @@ interface MockTransactionOverrides {
   readonly counterparty?: string;
   readonly account?: Account;
   readonly category?: Category | null;
+  readonly userId?: string;
 }
 
 function createTransaction(overrides: MockTransactionOverrides): Transaction {
@@ -106,6 +118,9 @@ function createTransaction(overrides: MockTransactionOverrides): Transaction {
 
   return {
     ...overrides,
+    userId: overrides.userId ?? "user-1",
+    accountId: account.id,
+    categoryId: category?.id ?? "missing-category",
     currency: overrides.currency ?? "EGP",
     dateInMs: overrides.date.getTime(),
     isIncome: overrides.type === "INCOME",
@@ -126,6 +141,7 @@ interface MockTransferOverrides {
   readonly fromAccount?: Account;
   readonly toAccount?: Account;
   readonly notes?: string;
+  readonly userId?: string;
 }
 
 function createTransfer(overrides: MockTransferOverrides): Transfer {
@@ -136,6 +152,9 @@ function createTransfer(overrides: MockTransferOverrides): Transfer {
 
   return {
     ...overrides,
+    userId: overrides.userId ?? "user-1",
+    fromAccountId: fromAccount.id,
+    toAccountId: toAccount.id,
     currency: "EGP",
     dateInMs: overrides.date.getTime(),
     fromAccount: {
@@ -145,6 +164,11 @@ function createTransfer(overrides: MockTransferOverrides): Transfer {
       fetch: jest.fn(() => Promise.resolve(toAccount)),
     },
   } as unknown as Transfer;
+}
+
+function expectRelationFetchNotCalled(relation: unknown): void {
+  const mockRelation = relation as MockRelation;
+  expect(mockRelation.fetch.mock.calls).toHaveLength(0);
 }
 
 describe("transaction-list-read-model-service", () => {
@@ -183,13 +207,25 @@ describe("transaction-list-read-model-service", () => {
   it("fetches selected transaction types, transfers, future transactions, and display account names", async () => {
     const cashEgp = createAccount("account-1", "Cash", "EGP");
     const cashUsd = createAccount("account-2", "Cash", "USD");
+    const foodCategory = createCategory(
+      "Food",
+      "fast-food",
+      "Ionicons",
+      "category-food"
+    );
+    const salaryCategory = createCategory(
+      "Salary",
+      "cash",
+      "Ionicons",
+      "category-salary"
+    );
     const expense = createTransaction({
       id: "expense",
       amount: 100,
       type: "EXPENSE",
       date: new Date("2026-05-14T10:00:00.000Z"),
       account: cashEgp,
-      category: createCategory("Food", "fast-food", "Ionicons"),
+      category: foodCategory,
       note: "Lunch",
     });
     const income = createTransaction({
@@ -198,7 +234,7 @@ describe("transaction-list-read-model-service", () => {
       type: "INCOME",
       date: new Date("2026-05-13T10:00:00.000Z"),
       account: cashUsd,
-      category: createCategory("Salary"),
+      category: salaryCategory,
     });
     const future = createTransaction({
       id: "future",
@@ -219,11 +255,13 @@ describe("transaction-list-read-model-service", () => {
     const transfersQuery = createQuery([transfer]);
     const displayTransactionsQuery = createQuery([expense, income]);
     const accountsQuery = createQuery([cashEgp, cashUsd]);
+    const categoriesQuery = createQuery([foodCategory, salaryCategory]);
     mockQueryOwned
       .mockReturnValueOnce(futureQuery)
       .mockReturnValueOnce(transfersQuery)
       .mockReturnValueOnce(displayTransactionsQuery)
       .mockReturnValueOnce(accountsQuery);
+    mockQueryAccessibleCategories.mockReturnValueOnce(categoriesQuery);
 
     const model = await getTransactionListReadModel({
       userId: "user-1",
@@ -243,11 +281,25 @@ describe("transaction-list-read-model-service", () => {
       categoryName: "Food",
       categoryIconName: "fast-food",
       categoryIconLibrary: "Ionicons",
+      record: expense,
     });
     expect(model.displayedItems[2]).toMatchObject({
       fromAccountName: "Cash (EGP)",
       toAccountName: "Cash (USD)",
+      record: transfer,
     });
+    expect(Object.getPrototypeOf(model.displayedItems[0])).toBe(
+      Object.prototype
+    );
+    expect(Object.getPrototypeOf(model.displayedItems[2])).toBe(
+      Object.prototype
+    );
+    expectRelationFetchNotCalled(expense.account);
+    expectRelationFetchNotCalled(expense.category);
+    expectRelationFetchNotCalled(income.account);
+    expectRelationFetchNotCalled(income.category);
+    expectRelationFetchNotCalled(transfer.fromAccount);
+    expectRelationFetchNotCalled(transfer.toAccount);
     expect(mockQueryOwned).toHaveBeenNthCalledWith(
       3,
       mockTransactionsCollection,
@@ -257,6 +309,30 @@ describe("transaction-list-read-model-service", () => {
       expect.objectContaining({ column: "date" }),
       { kind: "sortBy", column: "date", value: "desc" }
     );
+    const accountLookupCall = mockQueryOwned.mock
+      .calls[3] as readonly unknown[];
+    const categoryLookupCall = mockQueryAccessibleCategories.mock
+      .calls[0] as readonly unknown[];
+    expect(accountLookupCall[0]).toBe(mockAccountsCollection);
+    expect(accountLookupCall[1]).toBe("user-1");
+    expect(accountLookupCall[2]).toMatchObject({
+      kind: "where",
+      column: "id",
+    });
+    expect(accountLookupCall[3]).toMatchObject({
+      kind: "where",
+      column: "deleted",
+    });
+    expect(categoryLookupCall[0]).toBe(mockCategoriesCollection);
+    expect(categoryLookupCall[1]).toBe("user-1");
+    expect(categoryLookupCall[2]).toMatchObject({
+      kind: "where",
+      column: "id",
+    });
+    expect(categoryLookupCall[3]).toMatchObject({
+      kind: "where",
+      column: "deleted",
+    });
   });
 
   it("filters display items by search query after enrichment", async () => {
@@ -280,6 +356,9 @@ describe("transaction-list-read-model-service", () => {
       .mockReturnValueOnce(
         createQuery<Account>([createAccount("a1", "Cash", "EGP")])
       );
+    mockQueryAccessibleCategories.mockReturnValueOnce(
+      createQuery<Category>([createCategory("Food"), createCategory("Rent")])
+    );
 
     const model = await getTransactionListReadModel({
       userId: "user-1",
@@ -292,40 +371,58 @@ describe("transaction-list-read-model-service", () => {
   });
 
   it("builds net-worth groups without mutating source display items", () => {
-    const expense = Object.assign(
-      Object.create(
-        createTransaction({
-          id: "expense",
-          amount: 100,
-          type: "EXPENSE",
-          date: new Date("2026-05-14T10:00:00.000Z"),
-        })
-      ),
-      {
-        _type: "transaction" as const,
-        accountName: "Cash",
-        categoryName: "Food",
-        categoryIconName: "restaurant",
-        categoryIconLibrary: "Ionicons",
-      }
-    ) as DisplayTransaction;
-    const income = Object.assign(
-      Object.create(
-        createTransaction({
-          id: "income",
-          amount: 300,
-          type: "INCOME",
-          date: new Date("2026-05-13T10:00:00.000Z"),
-        })
-      ),
-      {
-        _type: "transaction" as const,
-        accountName: "Cash",
-        categoryName: "Salary",
-        categoryIconName: "cash",
-        categoryIconLibrary: "Ionicons",
-      }
-    ) as DisplayTransaction;
+    const expenseRecord = createTransaction({
+      id: "expense",
+      amount: 100,
+      type: "EXPENSE",
+      date: new Date("2026-05-14T10:00:00.000Z"),
+    });
+    const incomeRecord = createTransaction({
+      id: "income",
+      amount: 300,
+      type: "INCOME",
+      date: new Date("2026-05-13T10:00:00.000Z"),
+    });
+    const expense: DisplayListItem = {
+      _type: "transaction",
+      record: expenseRecord,
+      id: expenseRecord.id,
+      userId: expenseRecord.userId,
+      accountId: expenseRecord.accountId,
+      categoryId: expenseRecord.categoryId,
+      amount: expenseRecord.amount,
+      currency: expenseRecord.currency,
+      type: expenseRecord.type,
+      date: expenseRecord.date,
+      dateInMs: expenseRecord.dateInMs,
+      isIncome: expenseRecord.isIncome,
+      isExpense: expenseRecord.isExpense,
+      source: "MANUAL",
+      accountName: "Cash",
+      categoryName: "Food",
+      categoryIconName: "restaurant",
+      categoryIconLibrary: "Ionicons",
+    };
+    const income: DisplayListItem = {
+      _type: "transaction",
+      record: incomeRecord,
+      id: incomeRecord.id,
+      userId: incomeRecord.userId,
+      accountId: incomeRecord.accountId,
+      categoryId: incomeRecord.categoryId,
+      amount: incomeRecord.amount,
+      currency: incomeRecord.currency,
+      type: incomeRecord.type,
+      date: incomeRecord.date,
+      dateInMs: incomeRecord.dateInMs,
+      isIncome: incomeRecord.isIncome,
+      isExpense: incomeRecord.isExpense,
+      source: "MANUAL",
+      accountName: "Cash",
+      categoryName: "Salary",
+      categoryIconName: "cash",
+      categoryIconLibrary: "Ionicons",
+    };
     const future = createTransaction({
       id: "expense",
       amount: 50,

@@ -9,9 +9,13 @@ import {
   isSameDay,
 } from "@/utils/dateHelpers";
 import { buildAccountDisplayNames } from "@/utils/account-display";
-import { queryOwned } from "@/services/user-data-access";
+import {
+  queryAccessibleCategories,
+  queryOwned,
+} from "@/services/user-data-access";
 import {
   Account,
+  Category,
   database,
   Transaction,
   Transfer,
@@ -32,22 +36,54 @@ export type GroupingPeriod =
   | "this_year"
   | "all_time";
 
-type TransactionWithType = Transaction & { _type: "transaction" };
-type TransferWithType = Transfer & { _type: "transfer" };
+interface TransactionDisplayItem {
+  readonly _type: "transaction";
+  readonly record: Transaction;
+  readonly id: string;
+  readonly userId: string;
+  readonly accountId: string;
+  readonly categoryId: string;
+  readonly amount: number;
+  readonly currency: CurrencyType;
+  readonly type: Transaction["type"];
+  readonly date: Date;
+  readonly dateInMs: number;
+  readonly isIncome: boolean;
+  readonly isExpense: boolean;
+  readonly counterparty?: string;
+  readonly note?: string;
+  readonly source: Transaction["source"];
+  readonly linkedRecurringId?: string;
+  readonly accountName: string;
+  readonly categoryName: string;
+  readonly categoryIconName: string;
+  readonly categoryIconLibrary: string;
+  readonly displayNetWorth?: number;
+}
+
+interface TransferDisplayItem {
+  readonly _type: "transfer";
+  readonly record: Transfer;
+  readonly id: string;
+  readonly userId: string;
+  readonly fromAccountId: string;
+  readonly toAccountId: string;
+  readonly amount: number;
+  readonly convertedAmount?: number;
+  readonly currency: CurrencyType;
+  readonly date: Date;
+  readonly dateInMs: number;
+  readonly notes?: string;
+  readonly fromAccountName: string;
+  readonly toAccountName: string;
+  readonly displayNetWorth?: number;
+}
+
+export type DisplayListItem = TransactionDisplayItem | TransferDisplayItem;
 
 export type DisplayTransaction =
-  | (TransactionWithType & {
-      displayNetWorth: number;
-      accountName: string;
-      categoryName: string;
-      categoryIconName: string;
-      categoryIconLibrary: string;
-    })
-  | (TransferWithType & {
-      displayNetWorth: number;
-      fromAccountName: string;
-      toAccountName: string;
-    });
+  | (TransactionDisplayItem & { readonly displayNetWorth: number })
+  | (TransferDisplayItem & { readonly displayNetWorth: number });
 
 export interface GroupedTransaction {
   readonly title: string;
@@ -59,7 +95,7 @@ export interface GroupedTransaction {
 
 export interface TransactionListReadModel {
   readonly futureTransactions: readonly Transaction[];
-  readonly displayedItems: readonly DisplayTransaction[];
+  readonly displayedItems: readonly DisplayListItem[];
 }
 
 export interface GetTransactionListReadModelInput {
@@ -159,7 +195,7 @@ export function buildTransactionGroups(
       input.preferredCurrency,
       input.latestRates
     );
-  const getSignedAmount = (item: DisplayTransaction): number => {
+  const getSignedAmount = (item: DisplayListItem): number => {
     if (item._type !== "transaction") {
       return 0;
     }
@@ -181,12 +217,16 @@ export function buildTransactionGroups(
   }
 
   let runningNetWorth = anchorNetWorth;
-  const processedItems = input.displayedItems.map((item) => {
-    const itemWithNetWorth = Object.create(item) as DisplayTransaction;
-    Object.assign(itemWithNetWorth, { displayNetWorth: runningNetWorth });
-    runningNetWorth -= getSignedAmount(item);
-    return itemWithNetWorth;
-  });
+  const processedItems = input.displayedItems.map(
+    (item): DisplayTransaction => {
+      const itemWithNetWorth: DisplayTransaction = {
+        ...item,
+        displayNetWorth: runningNetWorth,
+      };
+      runningNetWorth -= getSignedAmount(item);
+      return itemWithNetWorth;
+    }
+  );
 
   return groupDisplayItems(processedItems, input);
 }
@@ -203,6 +243,10 @@ function transfersCollection(): ReturnType<typeof database.get<Transfer>> {
 
 function accountsCollection(): ReturnType<typeof database.get<Account>> {
   return database.get<Account>("accounts");
+}
+
+function categoriesCollection(): ReturnType<typeof database.get<Category>> {
+  return database.get<Category>("categories");
 }
 
 function getPeriodDateRange(period: GroupingPeriod): {
@@ -310,86 +354,57 @@ async function fetchDisplayTransfers(
 function combineDisplayItems(
   transactions: readonly Transaction[],
   transfers: readonly Transfer[]
-): Array<TransactionWithType | TransferWithType> {
-  return [
-    ...transactions.map(
-      (transaction) =>
-        Object.assign(Object.create(transaction), {
-          _type: "transaction" as const,
-        }) as TransactionWithType
-    ),
-    ...transfers.map(
-      (transfer) =>
-        Object.assign(Object.create(transfer), {
-          _type: "transfer" as const,
-        }) as TransferWithType
-    ),
-  ].sort((a, b) => b.dateInMs - a.dateInMs);
+): Array<Transaction | Transfer> {
+  return [...transactions, ...transfers].sort(
+    (a, b) => b.dateInMs - a.dateInMs
+  );
 }
 
 async function enrichDisplayItems(
   userId: string,
-  items: ReadonlyArray<TransactionWithType | TransferWithType>
-): Promise<DisplayTransaction[]> {
-  const ownedAccounts = await queryOwned(
-    accountsCollection(),
-    userId,
-    Q.where("deleted", Q.notEq(true))
-  ).fetch();
+  items: ReadonlyArray<Transaction | Transfer>
+): Promise<DisplayListItem[]> {
+  const accountIds = collectAccountIds(items);
+  const categoryIds = collectCategoryIds(items);
+  const [ownedAccounts, accessibleCategories] = await Promise.all([
+    accountIds.length > 0
+      ? queryOwned(
+          accountsCollection(),
+          userId,
+          Q.where("id", Q.oneOf(accountIds)),
+          Q.where("deleted", Q.notEq(true))
+        ).fetch()
+      : Promise.resolve([]),
+    categoryIds.length > 0
+      ? queryAccessibleCategories(
+          categoriesCollection(),
+          userId,
+          Q.where("id", Q.oneOf(categoryIds)),
+          Q.where("deleted", Q.notEq(true))
+        ).fetch()
+      : Promise.resolve([]),
+  ]);
   const displayNames = buildAccountDisplayNames(ownedAccounts);
-  const resolveName = (account: {
-    readonly id?: string;
-    readonly name: string;
-  }): string =>
-    (account.id !== undefined ? displayNames.get(account.id) : undefined) ??
-    account.name;
-
-  return Promise.all(
-    items.map(async (item): Promise<DisplayTransaction> => {
-      if (item._type === "transaction") {
-        const account = await item.account.fetch().catch(() => ({
-          id: undefined,
-          name: "Unknown",
-        }));
-        const category = await item.category.fetch().catch(() => null);
-        const iconConfig = (
-          category as {
-            readonly iconConfig?: {
-              readonly iconName: string;
-              readonly iconLibrary: string;
-            };
-          } | null
-        )?.iconConfig;
-
-        return Object.assign(Object.create(item), {
-          accountName: resolveName(account),
-          categoryName: category?.displayName ?? "Unknown",
-          categoryIconName: iconConfig?.iconName ?? "help-circle",
-          categoryIconLibrary: iconConfig?.iconLibrary ?? "Ionicons",
-        }) as DisplayTransaction;
-      }
-
-      const fromAccount = await item.fromAccount.fetch().catch(() => ({
-        id: undefined,
-        name: "Unknown",
-      }));
-      const toAccount = await item.toAccount.fetch().catch(() => ({
-        id: undefined,
-        name: "Unknown",
-      }));
-
-      return Object.assign(Object.create(item), {
-        fromAccountName: resolveName(fromAccount),
-        toAccountName: resolveName(toAccount),
-      }) as DisplayTransaction;
-    })
+  const accountsById = new Map(
+    ownedAccounts.map((account) => [account.id, account])
   );
+  const categoriesById = new Map(
+    accessibleCategories.map((category) => [category.id, category])
+  );
+
+  return items.map((item): DisplayListItem => {
+    if (isTransaction(item)) {
+      return createTransactionDisplayItem(item, displayNames, categoriesById);
+    }
+
+    return createTransferDisplayItem(item, displayNames, accountsById);
+  });
 }
 
 function filterDisplayItems(
-  items: readonly DisplayTransaction[],
+  items: readonly DisplayListItem[],
   searchQuery: string
-): DisplayTransaction[] {
+): DisplayListItem[] {
   if (!searchQuery) {
     return [...items];
   }
@@ -411,6 +426,106 @@ function filterDisplayItems(
       item.amount.toString().includes(lowerQuery)
     );
   });
+}
+
+function collectAccountIds(
+  items: ReadonlyArray<Transaction | Transfer>
+): string[] {
+  const ids = new Set<string>();
+  for (const item of items) {
+    if (isTransaction(item)) {
+      ids.add(item.accountId);
+    } else {
+      ids.add(item.fromAccountId);
+      ids.add(item.toAccountId);
+    }
+  }
+
+  return [...ids];
+}
+
+function collectCategoryIds(
+  items: ReadonlyArray<Transaction | Transfer>
+): string[] {
+  const ids = new Set<string>();
+  for (const item of items) {
+    if (isTransaction(item)) {
+      ids.add(item.categoryId);
+    }
+  }
+
+  return [...ids];
+}
+
+function isTransaction(item: Transaction | Transfer): item is Transaction {
+  return "categoryId" in item;
+}
+
+function resolveAccountName(
+  accountId: string,
+  displayNames: ReadonlyMap<string, string>
+): string {
+  return displayNames.get(accountId) ?? "Unknown";
+}
+
+function createTransactionDisplayItem(
+  record: Transaction,
+  displayNames: ReadonlyMap<string, string>,
+  categoriesById: ReadonlyMap<string, Category>
+): TransactionDisplayItem {
+  const category = categoriesById.get(record.categoryId);
+  const iconConfig = category?.iconConfig;
+
+  return {
+    _type: "transaction",
+    record,
+    id: record.id,
+    userId: record.userId,
+    accountId: record.accountId,
+    categoryId: record.categoryId,
+    amount: record.amount,
+    currency: record.currency,
+    type: record.type,
+    date: record.date,
+    dateInMs: record.dateInMs,
+    isIncome: record.isIncome,
+    isExpense: record.isExpense,
+    counterparty: record.counterparty,
+    note: record.note,
+    source: record.source,
+    linkedRecurringId: record.linkedRecurringId,
+    accountName: resolveAccountName(record.accountId, displayNames),
+    categoryName: category?.displayName ?? "Unknown",
+    categoryIconName: iconConfig?.iconName ?? "help-circle",
+    categoryIconLibrary: iconConfig?.iconLibrary ?? "Ionicons",
+  };
+}
+
+function createTransferDisplayItem(
+  record: Transfer,
+  displayNames: ReadonlyMap<string, string>,
+  accountsById: ReadonlyMap<string, Account>
+): TransferDisplayItem {
+  return {
+    _type: "transfer",
+    record,
+    id: record.id,
+    userId: record.userId,
+    fromAccountId: record.fromAccountId,
+    toAccountId: record.toAccountId,
+    amount: record.amount,
+    convertedAmount: record.convertedAmount,
+    currency: record.currency,
+    date: record.date,
+    dateInMs: record.dateInMs,
+    notes: record.notes,
+    fromAccountName: accountsById.has(record.fromAccountId)
+      ? resolveAccountName(record.fromAccountId, displayNames)
+      : "Unknown",
+    toAccountName: accountsById.has(record.toAccountId)
+      ? resolveAccountName(record.toAccountId, displayNames)
+      : "Unknown",
+  };
 }
 
 function groupDisplayItems(
