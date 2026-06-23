@@ -64,6 +64,7 @@ export function useDeleteAccount(accountId: string): UseDeleteAccountResult {
   const [isLoadingCounts, setIsLoadingCounts] = useState(false);
   const [hasLoadedCounts, setHasLoadedCounts] = useState(false);
   const isMountedRef = useRef(true);
+  const isDeleteInFlightRef = useRef(false);
   const { showToast } = useToast();
   const router = useRouter();
   const { t } = useTranslation("accounts");
@@ -112,7 +113,7 @@ export function useDeleteAccount(accountId: string): UseDeleteAccountResult {
 
   const performDelete = useCallback(
     async (id: string): Promise<void> => {
-      if (isDeleting) return;
+      if (isDeleteInFlightRef.current) return;
 
       if (!userId) {
         showToast({
@@ -123,6 +124,7 @@ export function useDeleteAccount(accountId: string): UseDeleteAccountResult {
         return;
       }
 
+      isDeleteInFlightRef.current = true;
       setIsDeleting(true);
 
       try {
@@ -161,10 +163,11 @@ export function useDeleteAccount(accountId: string): UseDeleteAccountResult {
           message: tCommon("error_generic"),
         });
       } finally {
+        isDeleteInFlightRef.current = false;
         setIsDeleting(false);
       }
     },
-    [isDeleting, showToast, router, t, tCommon, userId]
+    [showToast, router, t, tCommon, userId]
   );
 
   return {

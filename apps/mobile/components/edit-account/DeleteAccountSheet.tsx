@@ -263,6 +263,13 @@ export function DeleteAccountSheet({
               </TouchableOpacity>
 
               <TouchableOpacity
+                testID="delete-account-confirm-button"
+                accessibilityRole="button"
+                accessibilityLabel={t("delete_account")}
+                accessibilityState={{
+                  disabled: isDeleting,
+                  busy: isDeleting,
+                }}
                 className="flex-1 py-3.5 rounded-xl items-center justify-center bg-red-500"
                 onPress={onConfirm}
                 disabled={isDeleting}
