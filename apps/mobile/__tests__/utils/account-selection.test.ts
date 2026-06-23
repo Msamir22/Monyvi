@@ -12,14 +12,14 @@ describe("resolveInitialTransactionAccountSelection", () => {
     expect(result.toAccountId).toBe("bank-1");
   });
 
-  it("falls back to the first account when no default exists", () => {
+  it("does not guess an account when no default exists", () => {
     const result = resolveInitialTransactionAccountSelection([
       { id: "bank-1", isDefault: false },
       { id: "cash-1", isDefault: false },
     ]);
 
-    expect(result.selectedAccountId).toBe("bank-1");
-    expect(result.toAccountId).toBe("cash-1");
+    expect(result.selectedAccountId).toBeNull();
+    expect(result.toAccountId).toBeNull();
   });
 
   it("returns an empty transfer destination when only one account exists", () => {

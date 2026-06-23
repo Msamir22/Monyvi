@@ -11,8 +11,7 @@ interface InitialTransactionAccountSelection {
 export function resolveInitialTransactionAccountSelection(
   accounts: readonly SelectableAccount[]
 ): InitialTransactionAccountSelection {
-  const selectedAccount =
-    accounts.find((account) => account.isDefault) ?? accounts.at(0);
+  const selectedAccount = accounts.find((account) => account.isDefault);
   if (!selectedAccount) {
     return { selectedAccountId: null, toAccountId: null };
   }
