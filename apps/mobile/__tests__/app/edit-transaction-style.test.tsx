@@ -196,4 +196,27 @@ describe("EditTransaction dark theme styling", () => {
       expect.stringContaining("bg-background dark:bg-background-dark")
     );
   });
+
+  it("does not show a balance warning for an unchanged expense already reflected in the account balance", async () => {
+    mockTransactionByIdResult = {
+      transaction: {
+        id: "tx-1",
+        amount: 1100,
+        type: "EXPENSE",
+        categoryId: "cat-food",
+        accountId: "account-1",
+        counterparty: undefined,
+        note: undefined,
+        date: new Date("2026-05-01T12:00:00.000Z"),
+      },
+      isLoading: false,
+    };
+
+    render(<EditTransaction />);
+
+    await screen.findByTestId("edit-transaction-screen");
+
+    expect(screen.queryByText(/will put your balance/i)).toBeNull();
+    expect(screen.queryByText(/warning_negative_balance/i)).toBeNull();
+  });
 });
