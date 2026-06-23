@@ -146,7 +146,7 @@ describe("CategorySelectorModal", () => {
     expect(screen.getAllByText("Accessories")).toHaveLength(1);
     expect(screen.getAllByText("Footwear")).toHaveLength(1);
     expect(
-      view.UNSAFE_queryAllByProps({ removeClippedSubviews: true })
-    ).toHaveLength(0);
+      view.UNSAFE_getByProps({ removeClippedSubviews: false })
+    ).toBeTruthy();
   });
 });
