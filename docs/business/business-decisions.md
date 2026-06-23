@@ -158,6 +158,8 @@ Business rules:
   providers also store the stable registry identity (`institution_id`).
 - The first active account created for a user is marked default.
 - At most one active account per user should be default.
+- Users may intentionally have active accounts with no default account. The
+  default flag is a convenience fallback, not a required invariant.
 - Account type and currency are read-only after creation.
 - Default cash accounts are seeded with the user's current preferred UI
   language: English stores `Cash`, Arabic stores `كاش`. The stored account name
@@ -169,6 +171,10 @@ Business rules:
   bank details, transactions, transfers, debts, and recurring payments.
 - Deleting the default account clears the default flag; another account is not
   automatically promoted.
+- When no default account exists, manual transaction entry leaves the account
+  unselected and asks the user to choose. Voice and SMS matching may still use
+  exact account evidence, but if no confident account match exists they must
+  return no match for user review instead of guessing.
 
 ### Bank Details And SMS Senders
 
