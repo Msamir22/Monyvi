@@ -28,7 +28,10 @@ export default function CreateBudgetScreen(): React.JSX.Element {
   const { budget, isLoading, loadErrorKey } = useEditableBudget(id);
 
   return (
-    <View className="flex-1">
+    <View
+      testID="create-budget-screen"
+      className="flex-1 bg-background dark:bg-background-dark"
+    >
       <PageHeader
         title={isEdit ? t("edit_budget") : t("new_budget")}
         showBackButton={true}

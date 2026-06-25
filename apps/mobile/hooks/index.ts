@@ -24,6 +24,8 @@ export {
   type UseRecurringPaymentsOptions,
   type UseRecurringPaymentsResult,
 } from "./useRecurringPayments";
+export { useRecurringPayment } from "./useRecurringPayment";
+export { useFormScroll } from "./useFormScroll";
 export { useKeyboardVisibility } from "./useKeyboardVisibility";
 export { useAccountForm } from "./useAccountForm";
 export { useEgyptianInstitutionEligibility } from "./useEgyptianInstitutionEligibility";

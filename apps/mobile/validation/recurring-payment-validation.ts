@@ -20,8 +20,8 @@ const recurringPaymentSchema = z.object({
       (val) => !isNaN(parseFloat(val)) && parseFloat(val) > 0,
       "Amount must be greater than 0"
     ),
-  accountId: z.string().min(1, "Account is required"),
-  categoryId: z.string().min(1, "Category is required"),
+  accountId: z.string().nullable().refine(Boolean, "Account is required"),
+  categoryId: z.string().nullable().refine(Boolean, "Category is required"),
 });
 
 // ---------------------------------------------------------------------------
@@ -48,8 +48,8 @@ export type RecurringPaymentValidationErrors = Partial<
 export function validateRecurringPaymentForm(data: {
   name: string;
   amount: string;
-  accountId: string;
-  categoryId: string;
+  accountId: string | null;
+  categoryId: string | null;
 }): { isValid: boolean; errors: RecurringPaymentValidationErrors } {
   const result = recurringPaymentSchema.safeParse(data);
 

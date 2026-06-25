@@ -12,7 +12,16 @@ export {
 } from "./transaction-service";
 export { createTransfer, updateTransfer } from "./transfer-service";
 export type { TransferData } from "./transfer-service";
-export { createRecurringPayment } from "./recurring-payment-service";
-export type { RecurringPaymentData } from "./recurring-payment-service";
+export {
+  createRecurringPayment,
+  deleteRecurringPayment,
+  pauseRecurringPayment,
+  resumeRecurringPayment,
+  updateRecurringPayment,
+} from "./recurring-payment-service";
+export type {
+  RecurringPaymentData,
+  UpdateRecurringPaymentData,
+} from "./recurring-payment-service";
 export { ensureCashAccount, findCashAccount } from "./account-service";
 export type { EnsureCashAccountResult } from "./account-service";

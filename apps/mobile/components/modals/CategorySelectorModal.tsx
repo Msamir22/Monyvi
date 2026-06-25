@@ -24,6 +24,7 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -49,7 +50,7 @@ interface CategorySelectorModalProps {
   /** L1 root categories filtered by type (expense/income) */
   readonly rootCategories: readonly Category[];
   /** Currently selected category ID */
-  readonly selectedId: string;
+  readonly selectedId: string | null;
   /** Transaction type for filtering subcategories */
   readonly type: TransactionType;
   /** Callback with the selected category's ID */
@@ -80,6 +81,7 @@ export function CategorySelectorModal({
 }: CategorySelectorModalProps): React.JSX.Element {
   const { isDark } = useTheme();
   const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const { t } = useTranslation("common");
 
   // Navigation state machine
@@ -226,7 +228,11 @@ export function CategorySelectorModal({
       <TouchableWithoutFeedback onPress={handleClose}>
         <View className="flex-1 bg-black/60 justify-end">
           <TouchableWithoutFeedback>
-            <View className="rounded-t-3xl overflow-hidden bg-white dark:bg-slate-900">
+            <View
+              testID="category-selector-sheet"
+              className="rounded-t-3xl overflow-hidden bg-white dark:bg-slate-900"
+              style={{ paddingBottom: insets.bottom }}
+            >
               {/* Header */}
               <View className="flex-row justify-between items-center px-6 py-5 border-b border-slate-200 dark:border-slate-800">
                 <Text className="text-xl font-bold text-slate-800 dark:text-slate-100">
@@ -281,7 +287,11 @@ export function CategorySelectorModal({
                     data={filteredCategories}
                     keyExtractor={keyExtractor}
                     renderItem={renderItem}
-                    contentContainerClassName="px-4 pb-10 pt-1"
+                    contentContainerStyle={{
+                      paddingBottom: insets.bottom + 40,
+                      paddingHorizontal: 16,
+                      paddingTop: 4,
+                    }}
                     showsVerticalScrollIndicator={false}
                     removeClippedSubviews={false}
                     maxToRenderPerBatch={15}

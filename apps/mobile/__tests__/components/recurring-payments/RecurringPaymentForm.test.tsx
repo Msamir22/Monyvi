@@ -1,0 +1,547 @@
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react-native";
+import React from "react";
+import {
+  Keyboard,
+  ScrollView,
+  View,
+  type EmitterSubscription,
+} from "react-native";
+
+const mockAccountModal = jest.fn();
+const mockCategoryModal = jest.fn();
+const mockFrequencyModal = jest.fn();
+const mockScrollTo = jest.fn<
+  void,
+  [{ readonly animated?: boolean; readonly y?: number }]
+>();
+let keyboardShowListener:
+  | ((event: { readonly endCoordinates: { readonly height: number } }) => void)
+  | null = null;
+
+jest
+  .spyOn(Keyboard, "addListener")
+  .mockImplementation((eventName, listener): EmitterSubscription => {
+    if (eventName === "keyboardDidShow") {
+      keyboardShowListener = listener as typeof keyboardShowListener;
+    }
+
+    return { remove: jest.fn() } as unknown as EmitterSubscription;
+  });
+
+jest.spyOn(View.prototype, "measureInWindow").mockImplementation((callback) => {
+  callback(0, 2000, 320, 72);
+});
+
+jest.spyOn(ScrollView.prototype, "scrollTo").mockImplementation((options) => {
+  if (typeof options === "object" && options) {
+    mockScrollTo(options);
+  }
+});
+
+jest.mock("@react-native-community/datetimepicker", () => ({
+  __esModule: true,
+  default: (): null => null,
+}));
+
+jest.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: (): { readonly bottom: number } => ({ bottom: 0 }),
+}));
+
+jest.mock("react-i18next", () => ({
+  useTranslation: (): { readonly t: (key: string) => string } => ({
+    t: (key: string): string => key,
+  }),
+}));
+
+jest.mock("@/context/ThemeContext", () => ({
+  useTheme: (): { readonly isDark: true } => ({ isDark: true }),
+}));
+
+jest.mock("@/components/modals/AccountSelectorModal", () => ({
+  AccountSelectorModal: (props: { readonly visible: boolean }): null => {
+    mockAccountModal(props.visible);
+    return null;
+  },
+}));
+
+jest.mock("@/components/modals/CategorySelectorModal", () => ({
+  CategorySelectorModal: (props: { readonly visible: boolean }): null => {
+    mockCategoryModal(props.visible);
+    return null;
+  },
+}));
+
+jest.mock("@/components/modals/FrequencyPickerModal", () => ({
+  FrequencyPickerModal: (props: { readonly visible: boolean }): null => {
+    mockFrequencyModal(props.visible);
+    return null;
+  },
+  getFrequencyLabel: (frequency: string): string => frequency,
+}));
+
+jest.mock("@/components/common/CategoryIcon", () => ({
+  CategoryIcon: (): null => null,
+}));
+
+jest.mock("@expo/vector-icons", () => {
+  const ReactNative =
+    jest.requireActual<typeof import("react-native")>("react-native");
+
+  return {
+    Ionicons: ({
+      color,
+      name,
+    }: {
+      readonly color?: string;
+      readonly name: string;
+    }): React.JSX.Element => (
+      <ReactNative.Text testID={`icon-${name}`}>{color ?? ""}</ReactNative.Text>
+    ),
+  };
+});
+
+import {
+  RecurringPaymentForm,
+  type RecurringPaymentFormHandle,
+  type RecurringPaymentFormValues,
+} from "@/components/recurring-payments/RecurringPaymentForm";
+import type { Account, Category } from "@monyvi/db";
+
+const initialValues: RecurringPaymentFormValues = {
+  name: "Netflix",
+  amount: "250",
+  type: "EXPENSE",
+  accountId: "account-1",
+  categoryId: "category-1",
+  frequency: "MONTHLY",
+  startDate: new Date("2026-06-01T00:00:00.000Z"),
+  action: "NOTIFY",
+  notes: "",
+};
+
+const accounts = [
+  {
+    id: "account-1",
+    name: "Cash",
+    type: "CASH",
+    balance: 1000,
+    currency: "EGP",
+  },
+] as const;
+
+const categories = [
+  {
+    id: "category-1",
+    displayName: "Subscriptions",
+    icon: "card-outline",
+    iconLibrary: "Ionicons",
+    color: null,
+    isExpense: true,
+  },
+] as const;
+
+function renderForm(
+  overrides: Partial<React.ComponentProps<typeof RecurringPaymentForm>> = {}
+): void {
+  render(
+    <RecurringPaymentForm
+      mode="create"
+      initialValues={initialValues}
+      accounts={accounts as unknown as readonly Account[]}
+      expenseCategories={categories as unknown as readonly Category[]}
+      incomeCategories={[]}
+      isSubmitting={false}
+      submitLabel="save"
+      onSubmit={jest.fn()}
+      {...overrides}
+    />
+  );
+}
+
+describe("RecurringPaymentForm", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockScrollTo.mockClear();
+    keyboardShowListener = null;
+  });
+
+  it("renders the approved shared add/edit sections", () => {
+    renderForm();
+
+    expect(screen.getByTestId("recurring-payment-summary-card")).toBeTruthy();
+    expect(screen.getByTestId("recurring-payment-type-tabs")).toBeTruthy();
+    expect(
+      screen.getByTestId("recurring-payment-details-section")
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId("recurring-payment-schedule-section")
+    ).toBeTruthy();
+    expect(screen.getByTestId("recurring-payment-action-section")).toBeTruthy();
+    expect(screen.getByTestId("recurring-payment-notes-section")).toBeTruthy();
+    expect(screen.queryByTestId("recurring-payment-edit-actions")).toBeNull();
+  });
+
+  it("opens the selector modals from the grouped schedule rows", () => {
+    renderForm();
+
+    fireEvent.press(screen.getByTestId("recurring-payment-account-row"));
+    fireEvent.press(screen.getByTestId("recurring-payment-category-row"));
+    fireEvent.press(screen.getByTestId("recurring-payment-frequency-row"));
+
+    expect(mockAccountModal).toHaveBeenLastCalledWith(true);
+    expect(mockCategoryModal).toHaveBeenLastCalledWith(true);
+    expect(mockFrequencyModal).toHaveBeenLastCalledWith(true);
+  });
+
+  it("shows pause/resume and delete actions only in edit mode", () => {
+    renderForm({
+      mode: "edit",
+      status: "ACTIVE",
+      onPauseToggle: jest.fn(),
+      onDelete: jest.fn(),
+    });
+
+    expect(screen.getByTestId("recurring-payment-edit-actions")).toBeTruthy();
+    expect(screen.getByTestId("recurring-payment-pause-action")).toBeTruthy();
+    expect(screen.getByTestId("recurring-payment-delete-action")).toBeTruthy();
+  });
+
+  it("prefixes the amount input with the selected account currency", () => {
+    renderForm();
+
+    expect(
+      screen.getByTestId("recurring-payment-amount-currency-prefix")
+    ).toHaveTextContent("EGP");
+  });
+
+  it("renders the amount field as a full-width row below the name", () => {
+    renderForm();
+
+    expect(screen.getByTestId("recurring-payment-amount-field")).toHaveProp(
+      "className",
+      expect.stringContaining("w-full")
+    );
+  });
+
+  it("scrolls the amount field above the numeric keyboard when focused", async () => {
+    renderForm();
+
+    fireEvent(screen.getByTestId("recurring-payment-amount-input"), "focus");
+    keyboardShowListener?.({ endCoordinates: { height: 300 } });
+
+    await waitFor(() => {
+      expect(mockScrollTo).toHaveBeenCalled();
+    });
+    const scrollOptions = mockScrollTo.mock.calls[0]?.[0];
+
+    expect(scrollOptions?.animated).toBe(true);
+    expect(typeof scrollOptions?.y).toBe("number");
+  });
+
+  it("scrolls to the first visible validation error when submitted from the header", async () => {
+    const ref = React.createRef<RecurringPaymentFormHandle>();
+    render(
+      <RecurringPaymentForm
+        ref={ref}
+        mode="create"
+        initialValues={{
+          ...initialValues,
+          categoryId: null,
+        }}
+        accounts={accounts as unknown as readonly Account[]}
+        expenseCategories={categories as unknown as readonly Category[]}
+        incomeCategories={[]}
+        isSubmitting={false}
+        submitLabel="save"
+        onSubmit={jest.fn()}
+      />
+    );
+    mockScrollTo.mockClear();
+
+    act(() => {
+      ref.current?.submit();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Category is required")).toBeTruthy();
+      expect(mockScrollTo).toHaveBeenCalled();
+    });
+    expect(screen.getByText("Category is required")).toHaveProp(
+      "className",
+      expect.stringContaining("input-error")
+    );
+  });
+
+  it("renders payment action choices as compact options", () => {
+    renderForm();
+
+    expect(screen.queryByText("notify_me_description")).toBeNull();
+    expect(screen.queryByText("auto_create_description")).toBeNull();
+    expect(screen.getByTestId("recurring-payment-action-NOTIFY")).toBeTruthy();
+  });
+
+  it("places summary status in the header and amount details below", () => {
+    renderForm();
+
+    expect(screen.getByTestId("recurring-payment-summary-status")).toHaveProp(
+      "className",
+      expect.stringContaining("py-1.5")
+    );
+    expect(screen.getByTestId("recurring-payment-summary-details")).toHaveProp(
+      "className",
+      expect.stringContaining("mt-5")
+    );
+    expect(
+      screen.getByTestId("recurring-payment-summary-divider")
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId("recurring-payment-summary-next-due")
+    ).toBeTruthy();
+  });
+
+  it("aligns summary amount and next due values with matching typography", () => {
+    renderForm();
+
+    expect(screen.getByText("next_due")).toBeTruthy();
+    expect(
+      screen.getByTestId("recurring-payment-summary-amount-value")
+    ).toHaveProp("className", expect.stringContaining("text-lg font-bold"));
+    expect(
+      screen.getByTestId("recurring-payment-summary-due-value")
+    ).toHaveProp("className", expect.stringContaining("text-lg font-bold"));
+    expect(
+      screen.getByTestId("recurring-payment-summary-amount-label")
+    ).toHaveProp("className", expect.not.stringContaining("uppercase"));
+    expect(
+      screen.getByTestId("recurring-payment-summary-amount-label")
+    ).toHaveProp("className", expect.not.stringContaining("font-bold"));
+    expect(
+      screen.getByTestId("recurring-payment-summary-next-due-label")
+    ).toHaveProp("className", expect.not.stringContaining("uppercase"));
+    expect(
+      screen.getByTestId("recurring-payment-summary-next-due-label")
+    ).toHaveProp("className", expect.not.stringContaining("font-bold"));
+  });
+
+  it("uses status-specific summary pill colors", () => {
+    renderForm({ status: "PAUSED" });
+
+    expect(screen.getByTestId("recurring-payment-summary-status")).toHaveProp(
+      "className",
+      expect.stringContaining("bg-slate-25")
+    );
+    expect(screen.getByTestId("recurring-payment-summary-status")).toHaveProp(
+      "className",
+      expect.stringContaining("dark:bg-slate-700")
+    );
+  });
+
+  it("renders the summary amount with suffix currency and divider spacing", () => {
+    renderForm();
+
+    expect(
+      screen.getByTestId("recurring-payment-summary-amount-value")
+    ).toHaveTextContent("-250 EGP");
+    expect(screen.getByTestId("recurring-payment-summary-amount")).toHaveProp(
+      "className",
+      expect.stringContaining("flex-1 pe-8")
+    );
+    expect(screen.getByTestId("recurring-payment-summary-next-due")).toHaveProp(
+      "className",
+      expect.stringContaining("flex-1 ps-12")
+    );
+    expect(screen.getByTestId("recurring-payment-summary-divider")).toHaveProp(
+      "className",
+      expect.stringContaining("ms-1 me-3")
+    );
+  });
+
+  it("shows a calendar icon beside the next due date", () => {
+    renderForm();
+
+    expect(
+      screen.getByTestId("recurring-payment-summary-due-icon")
+    ).toBeTruthy();
+    expect(screen.getByTestId("recurring-payment-summary-due-row")).toHaveProp(
+      "className",
+      expect.stringContaining("flex-row")
+    );
+    expect(screen.getByTestId("recurring-payment-summary-due-icon")).toHaveProp(
+      "className",
+      expect.stringContaining("me-2")
+    );
+  });
+
+  it("shows the frequency with the payment type in title case", () => {
+    renderForm();
+
+    expect(screen.getAllByText("Monthly Expense")).toHaveLength(2);
+  });
+
+  it("uses full schedule dividers instead of text-only dividers", () => {
+    renderForm();
+
+    expect(screen.getByTestId("recurring-payment-divider-0")).toHaveProp(
+      "className",
+      expect.stringContaining("mx-4")
+    );
+  });
+
+  it("uses the same green schedule icon styling for all schedule rows", () => {
+    renderForm();
+
+    expect(
+      screen.getAllByTestId("recurring-payment-schedule-icon")
+    ).toHaveLength(4);
+    screen.getAllByTestId("recurring-payment-schedule-icon").forEach((icon) => {
+      expect(icon).toHaveProp(
+        "className",
+        expect.stringContaining("bg-nileGreen-100")
+      );
+    });
+  });
+
+  it("renders the payment action helper description", () => {
+    renderForm();
+
+    expect(screen.getByText("payment_action_description")).toBeTruthy();
+  });
+
+  it("uses the shared field-label style for section titles", () => {
+    renderForm();
+
+    expect(screen.getByTestId("recurring-payment-schedule-title")).toHaveProp(
+      "className",
+      expect.stringContaining("input-label")
+    );
+    expect(screen.getByTestId("recurring-payment-action-title")).toHaveProp(
+      "className",
+      expect.stringContaining("input-label")
+    );
+  });
+
+  it("formats amount input with separators while submitting the clean value", async () => {
+    const onSubmit = jest.fn();
+    renderForm({
+      initialValues: {
+        ...initialValues,
+        amount: "12500",
+      },
+      onSubmit,
+    });
+
+    expect(screen.getByDisplayValue("12,500")).toBeTruthy();
+
+    fireEvent.changeText(screen.getByDisplayValue("12,500"), "99,999.50");
+    fireEvent.press(screen.getByText("save"));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ amount: "99999.50" })
+      );
+    });
+  });
+
+  it("exposes submit through the form ref", async () => {
+    const onSubmit = jest.fn();
+    const ref = React.createRef<RecurringPaymentFormHandle>();
+    render(
+      <RecurringPaymentForm
+        ref={ref}
+        mode="create"
+        initialValues={initialValues}
+        accounts={accounts as unknown as readonly Account[]}
+        expenseCategories={categories as unknown as readonly Category[]}
+        incomeCategories={[]}
+        isSubmitting={false}
+        submitLabel="save"
+        onSubmit={onSubmit}
+      />
+    );
+
+    ref.current?.submit();
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "Netflix" })
+      );
+    });
+  });
+
+  it("renders icon-bearing edit actions", () => {
+    renderForm({
+      mode: "edit",
+      status: "PAUSED",
+      onPauseToggle: jest.fn(),
+      onDelete: jest.fn(),
+    });
+
+    expect(screen.getByTestId("recurring-payment-resume-icon")).toBeTruthy();
+    expect(screen.getByTestId("recurring-payment-delete-icon")).toBeTruthy();
+    expect(screen.getByTestId("recurring-payment-pause-chevron")).toBeTruthy();
+    expect(screen.getByTestId("recurring-payment-delete-chevron")).toBeTruthy();
+    expect(
+      screen.getByTestId("recurring-payment-pause-action-content")
+    ).toHaveProp("className", expect.not.stringContaining("border"));
+    expect(screen.getByTestId("recurring-payment-save-separator")).toBeTruthy();
+  });
+
+  it("uses yellow for pause and green for resume action icons", () => {
+    const { rerender } = render(
+      <RecurringPaymentForm
+        mode="edit"
+        status="ACTIVE"
+        initialValues={initialValues}
+        accounts={accounts as unknown as readonly Account[]}
+        expenseCategories={categories as unknown as readonly Category[]}
+        incomeCategories={[]}
+        isSubmitting={false}
+        submitLabel="save"
+        onSubmit={jest.fn()}
+        onPauseToggle={jest.fn()}
+        onDelete={jest.fn()}
+      />
+    );
+
+    expect(screen.getByTestId("icon-pause-circle-outline")).toHaveTextContent(
+      "#D97706"
+    );
+
+    rerender(
+      <RecurringPaymentForm
+        mode="edit"
+        status="PAUSED"
+        initialValues={initialValues}
+        accounts={accounts as unknown as readonly Account[]}
+        expenseCategories={categories as unknown as readonly Category[]}
+        incomeCategories={[]}
+        isSubmitting={false}
+        submitLabel="save"
+        onSubmit={jest.fn()}
+        onPauseToggle={jest.fn()}
+        onDelete={jest.fn()}
+      />
+    );
+
+    expect(screen.getByTestId("icon-play-circle-outline")).toHaveTextContent(
+      "#10B981"
+    );
+  });
+
+  it("uses New Payment as the card fallback title", () => {
+    renderForm({
+      initialValues: {
+        ...initialValues,
+        name: "",
+      },
+    });
+
+    expect(screen.getByText("new_payment")).toBeTruthy();
+  });
+});

@@ -120,7 +120,10 @@ export default function BudgetDetailScreen(): React.JSX.Element {
   // ── Loading state ──
   if (isLoading) {
     return (
-      <View className="flex-1">
+      <View
+        testID="budget-detail-screen"
+        className="flex-1 bg-background dark:bg-background-dark"
+      >
         <PageHeader
           title={t("budget_detail")}
           showBackButton={true}
@@ -136,7 +139,10 @@ export default function BudgetDetailScreen(): React.JSX.Element {
   // ── Budget not found ──
   if (!budget || !metrics) {
     return (
-      <View className="flex-1">
+      <View
+        testID="budget-detail-screen"
+        className="flex-1 bg-background dark:bg-background-dark"
+      >
         <PageHeader
           title={t("budget_detail")}
           showBackButton={true}
@@ -157,7 +163,10 @@ export default function BudgetDetailScreen(): React.JSX.Element {
   const effectiveCurrency = budget.currency ?? preferredCurrency;
 
   return (
-    <View className="flex-1">
+    <View
+      testID="budget-detail-screen"
+      className="flex-1 bg-background dark:bg-background-dark"
+    >
       {/* Content layer — z-index 0 ensures actions overlay renders above */}
       <View style={{ zIndex: 0, flex: 1 }}>
         <PageHeader
