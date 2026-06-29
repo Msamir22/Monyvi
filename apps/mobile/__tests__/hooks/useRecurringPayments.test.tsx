@@ -14,6 +14,17 @@ interface MockObserver<TRecord> {
 }
 
 let observer: MockObserver<RecurringPayment> | null = null;
+let shouldEmitInitialPayments = true;
+
+interface MockCurrentUserState {
+  readonly userId: string | null;
+  readonly isResolvingUser: boolean;
+}
+
+let mockCurrentUserState: MockCurrentUserState = {
+  userId: "user-1",
+  isResolvingUser: false,
+};
 
 interface MockRecurringPayment {
   readonly id: string;
@@ -76,10 +87,7 @@ jest.mock("@/utils/logger", () => ({
 }));
 
 jest.mock("../../hooks/useCurrentUser", () => ({
-  useCurrentUser: (): { userId: string; isResolvingUser: boolean } => ({
-    userId: "user-1",
-    isResolvingUser: false,
-  }),
+  useCurrentUser: (): MockCurrentUserState => mockCurrentUserState,
   runUserScopedEffect: ({
     userId,
     isResolvingUser,
@@ -120,17 +128,30 @@ function RecurringPaymentsCountsProbe(): React.JSX.Element {
   );
 }
 
+function RecurringPaymentsLoadingProbe(): React.JSX.Element {
+  const { isLoading } = useRecurringPayments();
+
+  return <Text testID="is-loading">{String(isLoading)}</Text>;
+}
+
 describe("useRecurringPayments", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     observer = null;
+    shouldEmitInitialPayments = true;
+    mockCurrentUserState = {
+      userId: "user-1",
+      isResolvingUser: false,
+    };
     payment.status = "ACTIVE";
     mockObserveWithColumns.mockReturnValue({
       subscribe: (
         nextObserver: MockObserver<RecurringPayment>
       ): { unsubscribe: jest.Mock } => {
         observer = nextObserver;
-        nextObserver.next(payments);
+        if (shouldEmitInitialPayments) {
+          nextObserver.next(payments);
+        }
         return { unsubscribe: mockUnsubscribe };
       },
     });
@@ -156,6 +177,39 @@ describe("useRecurringPayments", () => {
       "next_due_date",
       "status",
     ]);
+  });
+
+  it("returns loading after authentication starts until recurring payments emit", async () => {
+    shouldEmitInitialPayments = false;
+    mockCurrentUserState = {
+      userId: null,
+      isResolvingUser: false,
+    };
+
+    const { rerender } = render(<RecurringPaymentsLoadingProbe />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("is-loading")).toHaveTextContent("false");
+    });
+
+    mockCurrentUserState = {
+      userId: "user-1",
+      isResolvingUser: false,
+    };
+
+    rerender(<RecurringPaymentsLoadingProbe />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("is-loading")).toHaveTextContent("true");
+    });
+
+    act(() => {
+      observer?.next(payments);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("is-loading")).toHaveTextContent("false");
+    });
   });
 
   it("re-renders when Watermelon emits the same array after a payment status changes", async () => {

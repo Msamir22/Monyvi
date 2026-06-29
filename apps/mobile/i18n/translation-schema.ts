@@ -232,8 +232,18 @@ interface TransactionsTranslations {
   // Recurring payments / bills
   readonly my_bills: string;
   readonly upcoming_expenses: string;
+  readonly due_this_month: string;
   readonly next_7_days: string;
   readonly this_month: string;
+  readonly overdue: string;
+  readonly renews_next: string;
+  readonly upcoming: string;
+  readonly sort_by: string;
+  readonly sort_payments: string;
+  readonly sort_payments_description: string;
+  readonly highest_amount: string;
+  readonly lowest_amount: string;
+  readonly name_a_z: string;
   readonly tap_to_add_recurring: string;
   readonly no_status_payments: string;
   readonly new_recurring_payment: string;
