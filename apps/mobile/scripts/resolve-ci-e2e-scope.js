@@ -18,6 +18,10 @@ function isDocsOnlyFile(filePath) {
 }
 
 function requiresFullE2e(filePath) {
+  if (filePath === "apps/mobile/scripts/resolve-ci-e2e-scope.js") {
+    return false;
+  }
+
   return (
     filePath === ".github/workflows/ci.yml" ||
     filePath === "package.json" ||
@@ -41,6 +45,14 @@ function getSuitesForFile(filePath) {
   }
 
   const suites = [];
+  const isScopeResolverFile =
+    normalized === "apps/mobile/scripts/resolve-ci-e2e-scope.js";
+  const isTestFile =
+    normalized.includes("/__tests__/") ||
+    normalized.endsWith(".test.ts") ||
+    normalized.endsWith(".test.tsx") ||
+    normalized.endsWith(".spec.ts") ||
+    normalized.endsWith(".spec.tsx");
   const isSharedSmsParserPath =
     /ai-sms|sms-fixture|sms-hash|sms-keyword|egyptian-bank/i.test(normalized);
   if (
@@ -59,19 +71,31 @@ function getSuitesForFile(filePath) {
     suites.push("sms-sync");
   }
 
-  if (
-    /transaction|category|account|transfer|recurring-payment/i.test(normalized)
-  ) {
-    if (/account/i.test(normalized)) {
-      suites.push("accounts");
-      suites.push("transactions");
-    }
-    if (/transaction|category|transfer|recurring-payment/i.test(normalized)) {
-      suites.push("transactions");
-    }
+  const isAccountManagementPath =
+    /add-account|edit-account|account-form|institution|useCreateAccount|useUpdateAccount|edit-account-service/i.test(
+      normalized
+    );
+  if (isAccountManagementPath) {
+    suites.push("accounts");
+    suites.push("transactions");
   }
 
-  if (suites.length === 0 && normalized.startsWith("apps/mobile/")) {
+  if (
+    /transaction|category|transfer|recurring-payment|recurringPayment|budget|AccountSelectorModal|FrequencyPickerModal|ConfirmationModal|useFormScroll|locales\/(?:ar|en)\/transactions\.json/i.test(
+      normalized
+    )
+  ) {
+    suites.push("transactions");
+  }
+
+  if (
+    suites.length === 0 &&
+    !isScopeResolverFile &&
+    normalized.startsWith("apps/mobile/") &&
+    !isTestFile &&
+    !normalized.startsWith("apps/mobile/locales/") &&
+    !/\/index\.(ts|tsx|js|jsx)$/.test(normalized)
+  ) {
     return orderedSuites;
   }
 
