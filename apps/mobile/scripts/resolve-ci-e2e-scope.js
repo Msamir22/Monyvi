@@ -80,6 +80,14 @@ function getSuitesForFile(filePath) {
     suites.push("transactions");
   }
 
+  if (/locales\/(?:ar|en)\/accounts\.json/i.test(normalized)) {
+    suites.push("accounts");
+  }
+
+  if (/locales\/(?:ar|en)\/common\.json/i.test(normalized)) {
+    suites.push(...orderedSuites);
+  }
+
   if (
     /transaction|category|transfer|recurring-payment|recurringPayment|budget|AccountSelectorModal|FrequencyPickerModal|ConfirmationModal|useFormScroll|locales\/(?:ar|en)\/transactions\.json/i.test(
       normalized

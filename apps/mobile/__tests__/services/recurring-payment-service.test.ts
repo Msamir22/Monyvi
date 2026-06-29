@@ -185,6 +185,26 @@ describe("recurring-payment-service", () => {
     });
   });
 
+  it("persists the frequency-aware next due date when creating a recurring payment", async () => {
+    const result = await createRecurringPayment({
+      name: "Weekly Gym",
+      amount: 250,
+      currency: "EGP",
+      type: "EXPENSE",
+      accountId: "account-1",
+      categoryId: "category-1",
+      frequency: "WEEKLY",
+      startDate: new Date("2026-06-01T00:00:00.000Z"),
+      action: "NOTIFY",
+      notes: "membership",
+    });
+
+    expect(result).toMatchObject({
+      frequency: "WEEKLY",
+      nextDueDate: new Date("2026-06-08T00:00:00.000Z"),
+    });
+  });
+
   it("updates editable fields on an owned recurring payment", async () => {
     const payment = createRecurringRecord({
       frequency: "WEEKLY",

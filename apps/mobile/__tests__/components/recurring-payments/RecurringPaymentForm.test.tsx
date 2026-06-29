@@ -524,6 +524,25 @@ describe("RecurringPaymentForm", () => {
     ).toHaveTextContent("-1,234.56 EGP");
   });
 
+  it("uses shared currency formatting for prefixed currencies in the summary", () => {
+    renderForm({
+      accounts: [
+        {
+          ...accounts[0],
+          currency: "USD",
+        },
+      ] as unknown as readonly Account[],
+      initialValues: {
+        ...initialValues,
+        amount: "1234.5",
+      },
+    });
+
+    expect(
+      screen.getByTestId("recurring-payment-summary-amount-value")
+    ).toHaveTextContent("-$1,234.50");
+  });
+
   it("shows a calendar icon beside the next due date", () => {
     renderForm();
 

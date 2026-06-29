@@ -122,6 +122,24 @@ describe("resolve-ci-e2e-scope", () => {
     });
   });
 
+  it("runs account E2E for account locale copy changes", () => {
+    expect(
+      scopeResolver.resolveCiE2eScope(["apps/mobile/locales/en/accounts.json"])
+    ).toEqual({
+      shouldRun: true,
+      suites: ["accounts"],
+    });
+  });
+
+  it("runs all Android E2E suites for shared common locale copy changes", () => {
+    expect(
+      scopeResolver.resolveCiE2eScope(["apps/mobile/locales/en/common.json"])
+    ).toEqual({
+      shouldRun: true,
+      suites: ["accounts", "transactions", "sms-sync", "live-sms"],
+    });
+  });
+
   it("diffs the full pushed range on push events", () => {
     expect(
       scopeResolver.getGitDiffArgs({

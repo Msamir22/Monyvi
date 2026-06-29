@@ -1,4 +1,4 @@
-import { calculateNextDueDate, getNextMonthSameDay } from "@/utils/dateHelpers";
+import { calculateNextDueDate } from "@/utils/dateHelpers";
 import {
   Account,
   Category,
@@ -66,7 +66,7 @@ export async function createRecurringPayment(
       rec.categoryId = data.categoryId;
       rec.frequency = data.frequency;
       rec.startDate = data.startDate;
-      rec.nextDueDate = getNextMonthSameDay(data.startDate);
+      rec.nextDueDate = calculateNextDueDate(data.startDate, data.frequency);
       rec.action = data.action;
       rec.status = "ACTIVE";
       rec.deleted = false;

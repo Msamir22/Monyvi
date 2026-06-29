@@ -2,7 +2,7 @@ import { CategoryIcon } from "@/components/common/CategoryIcon";
 import { palette } from "@/constants/colors";
 import { getCategoryIconConfig } from "@/utils/category-icon-config";
 import type { Category, CurrencyType, RecurringStatus } from "@monyvi/db";
-import { parseAmountInput } from "@monyvi/logic";
+import { formatCurrency, parseAmountInput } from "@monyvi/logic";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { useTranslation } from "react-i18next";
@@ -31,14 +31,13 @@ export function RecurringPaymentSummaryCard({
   isIncome,
   category,
 }: PaymentSummaryCardProps): React.JSX.Element {
-  const { t, i18n } = useTranslation("transactions");
+  const { t } = useTranslation("transactions");
   const parsedAmount = Number.parseFloat(parseAmountInput(amount));
   const displayAmount = Number.isFinite(parsedAmount) ? parsedAmount : 0;
-  const formattedAmount = formatSummaryAmount(
-    displayAmount,
+  const formattedAmount = formatCurrency({
+    amount: displayAmount,
     currency,
-    i18n.language
-  );
+  });
   const iconConfig = category ? getCategoryIconConfig(category) : null;
   const statusClasses = getStatusPillClasses(statusKind);
 
@@ -165,14 +164,4 @@ function getStatusPillClasses(status: RecurringStatus): {
     container: "bg-nileGreen-100 dark:bg-slate-700",
     text: "text-nileGreen-700 dark:text-nileGreen-400",
   };
-}
-
-function formatSummaryAmount(
-  amount: number,
-  currency: CurrencyType,
-  locale: string
-): string {
-  const formattedNumber = new Intl.NumberFormat(locale).format(amount || 0);
-
-  return `${formattedNumber} ${currency}`;
 }
