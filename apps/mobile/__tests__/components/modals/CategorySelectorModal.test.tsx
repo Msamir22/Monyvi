@@ -58,6 +58,10 @@ jest.mock("@/context/ThemeContext", () => ({
   useTheme: (): { readonly isDark: false } => ({ isDark: false }),
 }));
 
+jest.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: (): { readonly bottom: number } => ({ bottom: 24 }),
+}));
+
 jest.mock("@/hooks/useCategoryChildren", () => ({
   useCategoryChildren: (): {
     readonly children: readonly Category[];
