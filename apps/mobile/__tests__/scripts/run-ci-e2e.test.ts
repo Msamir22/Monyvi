@@ -99,6 +99,16 @@ describe("run-ci-e2e helpers", () => {
         "io.grpc.StatusRuntimeException: UNAVAILABLE"
       )
     ).toBe(true);
+    expect(
+      runCiE2e.isDeviceOfflineFailure(
+        "viewHierarchy failed: io.grpc.StatusRuntimeException: UNAVAILABLE: End of stream or IOException"
+      )
+    ).toBe(true);
+    expect(
+      runCiE2e.isDeviceOfflineFailure(
+        "Maestro timed out while reading the Android view hierarchy"
+      )
+    ).toBe(true);
   });
 
   it("does not retry normal assertion failures", () => {

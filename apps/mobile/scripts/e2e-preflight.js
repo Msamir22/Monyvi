@@ -213,6 +213,31 @@ function adb(args, options = {}) {
   });
 }
 
+function isRetryableMaestroTransportFailure(output) {
+  return /StatusRuntimeException:\s*UNAVAILABLE(?::\s*End of stream or IOException)?|host:transport:.*device offline|device offline|viewHierarchy.*(?:UNAVAILABLE|IOException|timed out|timeout)|(?:timed out|timeout).*view hierarchy/i.test(
+    output
+  );
+}
+
+function reconnectAndroidDevice() {
+  run("adb", ["kill-server"], { allowFailure: true, timeout: 30000 });
+  run("adb", ["start-server"], { timeout: 30000 });
+  run("adb", ["wait-for-device"], { timeout: 60000 });
+
+  if (!isReleaseBuild) {
+    adb(["reverse", "tcp:8081", "tcp:8081"], { allowFailure: true });
+  }
+}
+
+function stabilizeAndroidDevice() {
+  run("adb", ["wait-for-device"], { timeout: 60000 });
+  collapseSystemUi();
+
+  if (!isReleaseBuild) {
+    adb(["reverse", "tcp:8081", "tcp:8081"], { allowFailure: true });
+  }
+}
+
 function buildDevMenuPreferencesXml() {
   return [
     "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>",
@@ -710,9 +735,12 @@ module.exports = {
   shouldRestoreFromDevLauncher,
   hostMetroUrl,
   metroUrl,
+  isRetryableMaestroTransportFailure,
+  reconnectAndroidDevice,
   resolveMetroUrls,
   resolveMaestroBin,
   run,
+  stabilizeAndroidDevice,
   startAppWithoutChangingPermissions,
   wait,
   waitForProductUi,

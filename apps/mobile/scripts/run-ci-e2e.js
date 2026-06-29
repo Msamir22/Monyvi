@@ -1,7 +1,12 @@
 const { join } = require("node:path");
-const { spawn, spawnSync } = require("node:child_process");
+const { spawn } = require("node:child_process");
 const { createClient } = require("@supabase/supabase-js");
 const { applyE2eAuthDeepLink } = require("./e2e-auth-deeplink");
+const {
+  isRetryableMaestroTransportFailure,
+  reconnectAndroidDevice,
+  stabilizeAndroidDevice,
+} = require("./e2e-preflight");
 const { getE2eSeedConfig, seedE2eData } = require("./e2e-seed");
 
 const mobileRoot = join(__dirname, "..");
@@ -107,9 +112,7 @@ function assertRequiredEnv() {
 }
 
 function isDeviceOfflineFailure(output) {
-  return /device offline|StatusRuntimeException: UNAVAILABLE|host:transport:.*device offline/i.test(
-    output
-  );
+  return isRetryableMaestroTransportFailure(output);
 }
 
 function appendOutputTail(
@@ -167,29 +170,11 @@ function getRequestedCiSuites(env = process.env) {
   return new Set(requested);
 }
 
-function runAdb(args, options = {}) {
-  return spawnSync("adb", args, {
-    cwd: mobileRoot,
-    env: process.env,
-    shell: false,
-    stdio: "inherit",
-    ...options,
-  });
-}
-
 function reconnectAdb(attempt, maxAttempts) {
   console.warn(
     `ADB device went offline. Reconnecting before retry ${attempt + 1} of ${maxAttempts}.`
   );
-  runAdb(["kill-server"], { timeout: 30_000 });
-  runAdb(["start-server"], { timeout: 30_000 });
-  const waitResult = runAdb(["wait-for-device"], { timeout: 60_000 });
-
-  if (waitResult.status !== 0) {
-    throw new Error("ADB device did not come back online after reconnect.");
-  }
-
-  runAdb(["reverse", "tcp:8081", "tcp:8081"], { timeout: 30_000 });
+  reconnectAndroidDevice();
 }
 
 function runNodeScriptOnce(script, args, options = {}) {
@@ -243,6 +228,7 @@ async function runNodeScript(script, args, options = {}) {
   const maxAttempts = getDeviceOfflineRetryCount();
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    stabilizeAndroidDevice();
     const result = await runNodeScriptOnce(script, args, options);
 
     if (result.status === 0) {

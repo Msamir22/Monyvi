@@ -8,8 +8,9 @@ const {
   dumpVisibleText,
   ensureE2eAppReady,
   forceStopApp,
+  isRetryableMaestroTransportFailure,
+  reconnectAndroidDevice,
   resolveMaestroBin,
-  run,
   wait,
 } = require("./e2e-preflight");
 const { applyE2eAuthDeepLink } = require("./e2e-auth-deeplink");
@@ -158,12 +159,6 @@ function grantNotificationPermission() {
   grantPermission(notificationPermission);
 }
 
-function isRetryableMaestroTransportFailure(output) {
-  return /StatusRuntimeException:\s*UNAVAILABLE(?::\s*End of stream or IOException)?|host:transport:.*device offline|device offline/i.test(
-    output
-  );
-}
-
 function getMaestroFlowTimeoutMs(env = process.env) {
   const parsed = Number(env.E2E_MAESTRO_FLOW_TIMEOUT_MS);
   return Number.isFinite(parsed) && parsed > 0
@@ -178,13 +173,7 @@ function getAuthBootstrapFlow(env = process.env) {
 }
 
 function reconnectMaestroTransport() {
-  run("adb", ["kill-server"], { allowFailure: true, timeout: 30000 });
-  run("adb", ["start-server"], { timeout: 30000 });
-  run("adb", ["wait-for-device"], { timeout: 60000 });
-
-  if (!isReleaseRun) {
-    adb(["reverse", "tcp:8081", "tcp:8081"], { allowFailure: true });
-  }
+  reconnectAndroidDevice();
 }
 
 function runMaestroFlowOnce(maestroBin, flow) {

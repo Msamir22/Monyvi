@@ -6,6 +6,9 @@ interface RunSmsSyncJourneysModule {
   ):
     | "../helpers/ci-auth-bootstrap.yaml"
     | "../helpers/ci-auth-deeplink-bootstrap.yaml";
+  getMaestroFlowTimeoutMs(
+    env?: Readonly<Record<string, string | undefined>>
+  ): number;
   shouldRelaunchBetweenSmsSyncJourneys(
     env?: Readonly<Record<string, string | undefined>>
   ): boolean;
@@ -65,5 +68,14 @@ describe("run-sms-sync-journeys helpers", () => {
         E2E_AUTH_DEEPLINK_BOOTSTRAP: "1",
       })
     ).toBe("../helpers/ci-auth-deeplink-bootstrap.yaml");
+  });
+
+  it("uses a bounded Maestro flow timeout with env override", () => {
+    expect(smsSyncJourneys.getMaestroFlowTimeoutMs({})).toBe(10 * 60 * 1000);
+    expect(
+      smsSyncJourneys.getMaestroFlowTimeoutMs({
+        E2E_MAESTRO_FLOW_TIMEOUT_MS: "1000",
+      })
+    ).toBe(1000);
   });
 });

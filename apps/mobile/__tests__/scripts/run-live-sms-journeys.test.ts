@@ -90,6 +90,11 @@ describe("run-live-sms-journeys helpers", () => {
         "Caused by: java.io.IOException: Command failed (host:transport:emulator-5554): device offline"
       )
     ).toBe(true);
+    expect(
+      liveSmsJourneys.isRetryableMaestroTransportFailure(
+        "Maestro timed out while reading the Android view hierarchy"
+      )
+    ).toBe(true);
   });
 
   it("does not retry normal Maestro assertion failures", () => {
