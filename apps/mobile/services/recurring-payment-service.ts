@@ -98,9 +98,10 @@ export async function updateRecurringPayment(
       record.type = data.type;
       record.accountId = data.accountId;
       record.categoryId = data.categoryId;
-      record.frequency = data.frequency;
       const shouldRecalculateNextDueDate =
-        record.startDate.getTime() !== data.startDate.getTime();
+        record.startDate.getTime() !== data.startDate.getTime() ||
+        record.frequency !== data.frequency;
+      record.frequency = data.frequency;
       record.startDate = data.startDate;
       if (shouldRecalculateNextDueDate) {
         record.nextDueDate = calculateNextDueDate(

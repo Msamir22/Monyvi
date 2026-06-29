@@ -18,6 +18,7 @@ export default function CreateRecurringPaymentScreen(): React.JSX.Element {
   const { t: tCommon } = useTranslation("common");
   const { accounts } = useAccounts();
   const { expenseCategories, incomeCategories } = useCategories();
+  const { categories: allCategories } = useCategories({ topLevelOnly: false });
   const { showToast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const formRef = useRef<RecurringPaymentFormHandle>(null);
@@ -103,6 +104,7 @@ export default function CreateRecurringPaymentScreen(): React.JSX.Element {
         accounts={accounts}
         expenseCategories={expenseCategories}
         incomeCategories={incomeCategories}
+        allCategories={allCategories}
         isSubmitting={isSubmitting}
         submitLabel={t("add_recurring_payment")}
         onSubmit={handleSubmit}

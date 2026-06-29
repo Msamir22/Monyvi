@@ -9,7 +9,7 @@ import { TextField } from "@/components/ui/TextField";
 import { palette } from "@/constants/colors";
 import { useTheme } from "@/context/ThemeContext";
 import { useFormScroll } from "@/hooks/useFormScroll";
-import { formatDate, getNextMonthSameDay } from "@/utils/dateHelpers";
+import { calculateNextDueDate, formatDate } from "@/utils/dateHelpers";
 import { validateRecurringPaymentForm } from "@/validation/recurring-payment-validation";
 import type {
   Account,
@@ -62,6 +62,7 @@ interface RecurringPaymentFormProps {
   readonly accounts: readonly Account[];
   readonly expenseCategories: readonly Category[];
   readonly incomeCategories: readonly Category[];
+  readonly allCategories?: readonly Category[];
   readonly isSubmitting: boolean;
   readonly submitLabel: string;
   readonly status?: RecurringStatus;
@@ -124,6 +125,7 @@ export const RecurringPaymentForm = React.forwardRef<
     accounts,
     expenseCategories,
     incomeCategories,
+    allCategories = [],
     isSubmitting,
     submitLabel,
     status = "ACTIVE",
@@ -164,14 +166,29 @@ export const RecurringPaymentForm = React.forwardRef<
     [accounts, form.accountId]
   );
   const selectedCurrency = selectedAccount?.currency ?? DEFAULT_CURRENCY;
-  const categories =
+  const rootCategories =
     form.type === "EXPENSE" ? expenseCategories : incomeCategories;
+  const categoryLookupSource =
+    allCategories.length > 0 ? allCategories : rootCategories;
+  const categories = useMemo(
+    () =>
+      categoryLookupSource.filter((category) =>
+        form.type === "EXPENSE" ? category.isExpense : category.isIncome
+      ),
+    [categoryLookupSource, form.type]
+  );
   const selectedCategory = useMemo(
     () =>
       categories.find((category) => category.id === form.categoryId) ?? null,
     [categories, form.categoryId]
   );
-  const displayDueDate = dueDate ?? getNextMonthSameDay(form.startDate);
+  const hasScheduleChanges =
+    initialValues.startDate.getTime() !== form.startDate.getTime() ||
+    initialValues.frequency !== form.frequency;
+  const displayDueDate =
+    dueDate && !hasScheduleChanges
+      ? dueDate
+      : calculateNextDueDate(form.startDate, form.frequency);
 
   useEffect(() => {
     if (form.accountId || !initialValues.accountId) return;
@@ -195,7 +212,7 @@ export const RecurringPaymentForm = React.forwardRef<
 
   const handleSubmit = useCallback(async (): Promise<void> => {
     const result = validateRecurringPaymentForm({
-      name: form.name,
+      name: form.name.trim(),
       amount: form.amount,
       accountId: form.accountId,
       categoryId: form.categoryId,
@@ -529,7 +546,7 @@ export const RecurringPaymentForm = React.forwardRef<
       />
       <CategorySelectorModal
         visible={showCategoryModal}
-        rootCategories={categories}
+        rootCategories={rootCategories}
         selectedId={form.categoryId}
         type={form.type}
         onSelect={(categoryId) => updateField("categoryId", categoryId)}

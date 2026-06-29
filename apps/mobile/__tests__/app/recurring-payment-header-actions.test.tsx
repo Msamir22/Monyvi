@@ -333,6 +333,14 @@ describe("recurring payment header and destructive actions", () => {
     });
   });
 
+  it("does not render pause or resume for a completed payment", () => {
+    mockPaymentStatus = "COMPLETED";
+    render(<EditRecurringPaymentScreen />);
+
+    expect(screen.queryByTestId("form-pause-toggle")).toBeNull();
+    expect(screen.getByTestId("form-delete")).toBeTruthy();
+  });
+
   it("confirms before deleting a payment", async () => {
     render(<EditRecurringPaymentScreen />);
 

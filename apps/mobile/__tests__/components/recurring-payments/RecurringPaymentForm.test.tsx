@@ -82,9 +82,24 @@ jest.mock("@/components/modals/CategorySelectorModal", () => ({
 }));
 
 jest.mock("@/components/modals/FrequencyPickerModal", () => ({
-  FrequencyPickerModal: (props: { readonly visible: boolean }): null => {
+  FrequencyPickerModal: (props: {
+    readonly visible: boolean;
+    readonly onSelect: (frequency: "WEEKLY") => void;
+  }): React.JSX.Element | null => {
     mockFrequencyModal(props.visible);
-    return null;
+    if (!props.visible) return null;
+
+    const ReactNative =
+      jest.requireActual<typeof import("react-native")>("react-native");
+
+    return (
+      <ReactNative.Pressable
+        testID="select-weekly-frequency"
+        onPress={() => props.onSelect("WEEKLY")}
+      >
+        <ReactNative.Text>weekly</ReactNative.Text>
+      </ReactNative.Pressable>
+    );
   },
   getFrequencyLabel: (frequency: string): string => frequency,
 }));
@@ -149,6 +164,15 @@ const categories = [
     isExpense: true,
   },
 ] as const;
+
+const childCategory = {
+  id: "category-child",
+  displayName: "Streaming",
+  icon: "film-outline",
+  iconLibrary: "Ionicons",
+  color: null,
+  isExpense: true,
+} as const;
 
 function renderForm(
   overrides: Partial<React.ComponentProps<typeof RecurringPaymentForm>> = {}
@@ -227,6 +251,71 @@ describe("RecurringPaymentForm", () => {
     expect(screen.getByTestId("recurring-payment-edit-actions")).toBeTruthy();
     expect(screen.queryByTestId("recurring-payment-pause-action")).toBeNull();
     expect(screen.getByTestId("recurring-payment-delete-action")).toBeTruthy();
+  });
+
+  it("updates the summary due date after schedule edits", () => {
+    renderForm({
+      mode: "edit",
+      dueDate: new Date("2026-07-01T00:00:00.000Z"),
+    });
+
+    expect(
+      screen.getByTestId("recurring-payment-summary-due-value")
+    ).toHaveTextContent("Jul 1, 2026");
+
+    fireEvent.press(screen.getByTestId("recurring-payment-frequency-row"));
+    fireEvent.press(screen.getByTestId("select-weekly-frequency"));
+
+    expect(
+      screen.getByTestId("recurring-payment-summary-due-value")
+    ).toHaveTextContent("Jun 8, 2026");
+  });
+
+  it("shows a selected subcategory from the full category list", () => {
+    renderForm({
+      initialValues: {
+        ...initialValues,
+        categoryId: "category-child",
+      },
+      allCategories: [
+        ...categories,
+        childCategory,
+      ] as unknown as readonly Category[],
+    });
+
+    expect(screen.getAllByText("Streaming").length).toBeGreaterThan(0);
+    expect(screen.queryByText("select_category")).toBeNull();
+  });
+
+  it("validates whitespace-only payment names as required", async () => {
+    const ref = React.createRef<RecurringPaymentFormHandle>();
+    const onSubmit = jest.fn();
+
+    render(
+      <RecurringPaymentForm
+        ref={ref}
+        mode="create"
+        initialValues={{
+          ...initialValues,
+          name: "   ",
+        }}
+        accounts={accounts as unknown as readonly Account[]}
+        expenseCategories={categories as unknown as readonly Category[]}
+        incomeCategories={[]}
+        isSubmitting={false}
+        submitLabel="save"
+        onSubmit={onSubmit}
+      />
+    );
+
+    act(() => {
+      ref.current?.submit();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Name is required")).toBeTruthy();
+    });
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 
   it("prefixes the amount input with the selected account currency", () => {

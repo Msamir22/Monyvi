@@ -28,6 +28,7 @@ export default function EditRecurringPaymentScreen(): React.JSX.Element {
   const { payment, isLoading } = useRecurringPayment(id);
   const { accounts } = useAccounts();
   const { expenseCategories, incomeCategories } = useCategories();
+  const { categories: allCategories } = useCategories({ topLevelOnly: false });
   const { showToast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleteVisible, setIsDeleteVisible] = useState(false);
@@ -185,6 +186,7 @@ export default function EditRecurringPaymentScreen(): React.JSX.Element {
         accounts={accounts}
         expenseCategories={expenseCategories}
         incomeCategories={incomeCategories}
+        allCategories={allCategories}
         status={payment.status}
         dueDate={payment.nextDueDate}
         isSubmitting={isSubmitting}
