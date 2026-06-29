@@ -69,6 +69,7 @@ const RECURRING_PAYMENT_LIST_OBSERVED_COLUMNS = [
   "currency",
   "type",
   "category_id",
+  "account_id",
   "frequency",
   "next_due_date",
   "status",

@@ -31,10 +31,14 @@ export function RecurringPaymentSummaryCard({
   isIncome,
   category,
 }: PaymentSummaryCardProps): React.JSX.Element {
-  const { t } = useTranslation("transactions");
+  const { t, i18n } = useTranslation("transactions");
   const parsedAmount = Number.parseFloat(parseAmountInput(amount));
   const displayAmount = Number.isFinite(parsedAmount) ? parsedAmount : 0;
-  const formattedAmount = formatSummaryAmount(displayAmount, currency);
+  const formattedAmount = formatSummaryAmount(
+    displayAmount,
+    currency,
+    i18n.language
+  );
   const iconConfig = category ? getCategoryIconConfig(category) : null;
   const statusClasses = getStatusPillClasses(statusKind);
 
@@ -163,10 +167,12 @@ function getStatusPillClasses(status: RecurringStatus): {
   };
 }
 
-function formatSummaryAmount(amount: number, currency: CurrencyType): string {
-  const formattedNumber = new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 0,
-  }).format(amount || 0);
+function formatSummaryAmount(
+  amount: number,
+  currency: CurrencyType,
+  locale: string
+): string {
+  const formattedNumber = new Intl.NumberFormat(locale).format(amount || 0);
 
   return `${formattedNumber} ${currency}`;
 }

@@ -54,8 +54,12 @@ jest.mock("react-native-safe-area-context", () => ({
 }));
 
 jest.mock("react-i18next", () => ({
-  useTranslation: (): { readonly t: (key: string) => string } => ({
+  useTranslation: (): {
+    readonly t: (key: string) => string;
+    readonly i18n: { readonly language: string };
+  } => ({
     t: (key: string): string => key,
+    i18n: { language: "en-US" },
   }),
 }));
 
@@ -212,6 +216,19 @@ describe("RecurringPaymentForm", () => {
     expect(screen.getByTestId("recurring-payment-delete-action")).toBeTruthy();
   });
 
+  it("hides pause and resume actions for completed payments", () => {
+    renderForm({
+      mode: "edit",
+      status: "COMPLETED",
+      onPauseToggle: jest.fn(),
+      onDelete: jest.fn(),
+    });
+
+    expect(screen.getByTestId("recurring-payment-edit-actions")).toBeTruthy();
+    expect(screen.queryByTestId("recurring-payment-pause-action")).toBeNull();
+    expect(screen.getByTestId("recurring-payment-delete-action")).toBeTruthy();
+  });
+
   it("prefixes the amount input with the selected account currency", () => {
     renderForm();
 
@@ -276,6 +293,49 @@ describe("RecurringPaymentForm", () => {
       "className",
       expect.stringContaining("input-error")
     );
+  });
+
+  it("scrolls upward when the first validation error is above the viewport", async () => {
+    const ref = React.createRef<RecurringPaymentFormHandle>();
+    jest
+      .spyOn(View.prototype, "measureInWindow")
+      .mockImplementationOnce((callback) => {
+        callback(0, 8, 320, 72);
+      });
+
+    const view = render(
+      <RecurringPaymentForm
+        ref={ref}
+        mode="create"
+        initialValues={{
+          ...initialValues,
+          name: "",
+        }}
+        accounts={accounts as unknown as readonly Account[]}
+        expenseCategories={categories as unknown as readonly Category[]}
+        incomeCategories={[]}
+        isSubmitting={false}
+        submitLabel="save"
+        onSubmit={jest.fn()}
+      />
+    );
+    fireEvent.scroll(view.UNSAFE_getByType(ScrollView), {
+      nativeEvent: { contentOffset: { y: 300 } },
+    });
+    mockScrollTo.mockClear();
+
+    act(() => {
+      ref.current?.submit();
+    });
+
+    await waitFor(() => {
+      expect(mockScrollTo).toHaveBeenCalled();
+    });
+    const scrollOptions = mockScrollTo.mock.calls[0]?.[0];
+
+    expect(scrollOptions?.animated).toBe(true);
+    expect(typeof scrollOptions?.y).toBe("number");
+    expect(scrollOptions?.y).toBeLessThan(300);
   });
 
   it("renders payment action choices as compact options", () => {
@@ -362,6 +422,19 @@ describe("RecurringPaymentForm", () => {
     );
   });
 
+  it("preserves fractional amounts in the summary", () => {
+    renderForm({
+      initialValues: {
+        ...initialValues,
+        amount: "1234.56",
+      },
+    });
+
+    expect(
+      screen.getByTestId("recurring-payment-summary-amount-value")
+    ).toHaveTextContent("-1,234.56 EGP");
+  });
+
   it("shows a calendar icon beside the next due date", () => {
     renderForm();
 
@@ -444,6 +517,51 @@ describe("RecurringPaymentForm", () => {
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith(
         expect.objectContaining({ amount: "99999.50" })
+      );
+    });
+  });
+
+  it("defaults to the first account when account data arrives after mount", async () => {
+    const onSubmit = jest.fn();
+    const { rerender } = render(
+      <RecurringPaymentForm
+        mode="create"
+        initialValues={{
+          ...initialValues,
+          accountId: null,
+        }}
+        accounts={[]}
+        expenseCategories={categories as unknown as readonly Category[]}
+        incomeCategories={[]}
+        isSubmitting={false}
+        submitLabel="save"
+        onSubmit={onSubmit}
+      />
+    );
+
+    rerender(
+      <RecurringPaymentForm
+        mode="create"
+        initialValues={{
+          ...initialValues,
+          accountId: "account-1",
+        }}
+        accounts={accounts as unknown as readonly Account[]}
+        expenseCategories={categories as unknown as readonly Category[]}
+        incomeCategories={[]}
+        isSubmitting={false}
+        submitLabel="save"
+        onSubmit={onSubmit}
+      />
+    );
+    await waitFor(() => {
+      expect(screen.getByText("Cash")).toBeTruthy();
+    });
+    fireEvent.press(screen.getByText("save"));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ accountId: "account-1" })
       );
     });
   });

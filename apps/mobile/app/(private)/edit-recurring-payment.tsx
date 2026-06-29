@@ -190,17 +190,21 @@ export default function EditRecurringPaymentScreen(): React.JSX.Element {
         isSubmitting={isSubmitting}
         submitLabel={t("save_changes")}
         onSubmit={handleSubmit}
-        onPauseToggle={() => {
-          setIsPauseResumeVisible(true);
-          return Promise.resolve();
-        }}
+        onPauseToggle={
+          payment.status === "COMPLETED"
+            ? undefined
+            : () => {
+                setIsPauseResumeVisible(true);
+                return Promise.resolve();
+              }
+        }
         onDelete={() => {
           setIsDeleteVisible(true);
           return Promise.resolve();
         }}
       />
       <ConfirmationModal
-        visible={isPauseResumeVisible}
+        visible={isPauseResumeVisible && payment.status !== "COMPLETED"}
         title={
           payment.status === "PAUSED" ? t("resume_payment") : t("pause_payment")
         }

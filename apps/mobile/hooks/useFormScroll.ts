@@ -58,6 +58,15 @@ export function useFormScroll<TField extends string>({
           const visibleBottom =
             windowHeight - keyboardHeightRef.current - bottomInset - fieldGap;
           const overflow = y + height - visibleBottom;
+          const underTopGap = fieldGap - y;
+
+          if (underTopGap > 0) {
+            scrollViewRef.current?.scrollTo({
+              y: Math.max(0, currentScrollYRef.current - underTopGap),
+              animated: true,
+            });
+            return;
+          }
 
           if (overflow > 0) {
             scrollViewRef.current?.scrollTo({

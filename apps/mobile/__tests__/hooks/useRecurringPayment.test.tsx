@@ -18,6 +18,7 @@ const payment = {
   id: "payment-1",
   userId: "user-1",
   status: "ACTIVE",
+  deleted: false,
 } as unknown as RecurringPayment;
 
 jest.mock("@monyvi/db", () => ({
@@ -84,6 +85,7 @@ describe("useRecurringPayment", () => {
     jest.clearAllMocks();
     observer = null;
     payment.status = "ACTIVE";
+    (payment as unknown as { deleted: boolean }).deleted = false;
     mockObserveOwnedById.mockReturnValue({
       subscribe: (
         nextObserver: MockObserver<RecurringPayment>
@@ -109,6 +111,23 @@ describe("useRecurringPayment", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("payment-status")).toHaveTextContent("PAUSED");
+    });
+  });
+
+  it("treats soft-deleted recurring payments as missing", async () => {
+    render(<RecurringPaymentStatusProbe />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("payment-status")).toHaveTextContent("ACTIVE");
+    });
+
+    (payment as unknown as { deleted: boolean }).deleted = true;
+    act(() => {
+      observer?.next(payment);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("payment-status")).toHaveTextContent("missing");
     });
   });
 });

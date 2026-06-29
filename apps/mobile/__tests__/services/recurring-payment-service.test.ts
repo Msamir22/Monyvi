@@ -84,7 +84,21 @@ jest.mock("@/services/user-data-access", () => ({
 }));
 
 jest.mock("@/utils/dateHelpers", () => ({
-  calculateNextDueDate: (): Date => new Date("2026-08-01T00:00:00.000Z"),
+  calculateNextDueDate: (date: Date, frequency: string): Date => {
+    if (frequency === "WEEKLY") {
+      const next = new Date(date);
+      next.setUTCDate(next.getUTCDate() + 7);
+      return next;
+    }
+
+    if (frequency === "YEARLY") {
+      const next = new Date(date);
+      next.setUTCFullYear(next.getUTCFullYear() + 1);
+      return next;
+    }
+
+    return new Date("2026-08-01T00:00:00.000Z");
+  },
   getNextMonthSameDay: (): Date => new Date("2026-07-01T00:00:00.000Z"),
 }));
 
@@ -172,7 +186,51 @@ describe("recurring-payment-service", () => {
   });
 
   it("updates editable fields on an owned recurring payment", async () => {
-    const payment = createRecurringRecord();
+    const payment = createRecurringRecord({
+      frequency: "WEEKLY",
+      startDate: new Date("2026-01-01T00:00:00.000Z"),
+      nextDueDate: new Date("2026-07-08T00:00:00.000Z"),
+    });
+    mockFindOwned.mockImplementation(
+      (_collection: MockCollection, id: string): Promise<unknown> => {
+        if (id === "account-1") {
+          return Promise.resolve({ id, userId: "user-1", currency: "EGP" });
+        }
+
+        return Promise.resolve(payment);
+      }
+    );
+
+    await updateRecurringPayment("payment-1", {
+      name: "Gym",
+      amount: 450,
+      currency: "EGP",
+      type: "EXPENSE",
+      accountId: "account-1",
+      categoryId: "category-1",
+      frequency: "WEEKLY",
+      startDate: new Date("2026-01-01T00:00:00.000Z"),
+      action: "AUTO_CREATE",
+      notes: undefined,
+    });
+
+    expect(payment.update).toHaveBeenCalledTimes(1);
+    expect(payment).toMatchObject({
+      name: "Gym",
+      amount: 450,
+      frequency: "WEEKLY",
+      action: "AUTO_CREATE",
+      notes: undefined,
+      nextDueDate: new Date("2026-07-08T00:00:00.000Z"),
+    });
+  });
+
+  it("recomputes next due date with the selected frequency when the start date changes", async () => {
+    const payment = createRecurringRecord({
+      frequency: "MONTHLY",
+      startDate: new Date("2026-06-01T00:00:00.000Z"),
+      nextDueDate: new Date("2026-07-01T00:00:00.000Z"),
+    });
     mockFindOwned.mockImplementation(
       (_collection: MockCollection, id: string): Promise<unknown> => {
         if (id === "account-1") {
@@ -196,14 +254,7 @@ describe("recurring-payment-service", () => {
       notes: undefined,
     });
 
-    expect(payment.update).toHaveBeenCalledTimes(1);
-    expect(payment).toMatchObject({
-      name: "Gym",
-      amount: 450,
-      frequency: "WEEKLY",
-      action: "AUTO_CREATE",
-      notes: undefined,
-    });
+    expect(payment.nextDueDate).toEqual(new Date("2026-06-22T00:00:00.000Z"));
   });
 
   it("pauses, resumes, and soft-deletes an owned recurring payment", async () => {

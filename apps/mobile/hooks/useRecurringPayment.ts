@@ -42,7 +42,7 @@ export function useRecurringPayment(
           currentUserId
         ).subscribe({
           next: (result) => {
-            setPayment(result);
+            setPayment(result && !result.deleted ? result : null);
             setObservedRevision((revision) => revision + 1);
             setIsLoading(false);
           },

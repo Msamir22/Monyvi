@@ -6,7 +6,7 @@ import {
 } from "@testing-library/react-native";
 import React from "react";
 
-let mockPaymentStatus: "ACTIVE" | "PAUSED" = "ACTIVE";
+let mockPaymentStatus: "ACTIVE" | "PAUSED" | "COMPLETED" = "ACTIVE";
 
 jest.mock("expo-router", () => ({
   router: { back: jest.fn() },
@@ -51,7 +51,7 @@ jest.mock("@/components/recurring-payments", () => {
   const RecurringPaymentForm = ReactActual.forwardRef(
     (
       props: {
-        readonly status?: "ACTIVE" | "PAUSED";
+        readonly status?: "ACTIVE" | "PAUSED" | "COMPLETED";
         readonly onSubmit: (values: {
           readonly name: string;
           readonly amount: string;
@@ -129,12 +129,14 @@ jest.mock("@/components/modals/ConfirmationModal", () => ({
     variant,
     icon,
     onConfirm,
+    onCancel,
   }: {
     readonly visible: boolean;
     readonly title: string;
     readonly variant?: string;
     readonly icon?: string;
     readonly onConfirm: () => void;
+    readonly onCancel: () => void;
   }): React.JSX.Element | null => {
     if (!visible) return null;
     const ReactNative =
@@ -150,6 +152,9 @@ jest.mock("@/components/modals/ConfirmationModal", () => ({
         </ReactNative.Text>
         <ReactNative.Pressable testID="modal-confirm" onPress={onConfirm}>
           <ReactNative.Text>confirm</ReactNative.Text>
+        </ReactNative.Pressable>
+        <ReactNative.Pressable testID="modal-cancel" onPress={onCancel}>
+          <ReactNative.Text>cancel</ReactNative.Text>
         </ReactNative.Pressable>
       </ReactNative.View>
     );
@@ -201,7 +206,7 @@ jest.mock("@/hooks/useRecurringPayment", () => ({
       readonly startDate: Date;
       readonly action: "NOTIFY";
       readonly notes: "";
-      readonly status: "ACTIVE" | "PAUSED";
+      readonly status: "ACTIVE" | "PAUSED" | "COMPLETED";
       readonly nextDueDate: Date;
     };
     readonly isLoading: false;
@@ -234,12 +239,14 @@ jest.mock("@/services/recurring-payment-service", () => ({
 
 import CreateRecurringPaymentScreen from "@/app/(private)/create-recurring-payment";
 import EditRecurringPaymentScreen from "@/app/(private)/edit-recurring-payment";
+import { router } from "expo-router";
 
 interface RecurringPaymentServiceMocks {
   readonly createRecurringPayment: jest.Mock;
   readonly updateRecurringPayment: jest.Mock;
   readonly pauseRecurringPayment: jest.Mock;
   readonly resumeRecurringPayment: jest.Mock;
+  readonly deleteRecurringPayment: jest.Mock;
 }
 
 function serviceMocks(): RecurringPaymentServiceMocks {
@@ -324,5 +331,32 @@ describe("recurring payment header and destructive actions", () => {
         "payment-1"
       );
     });
+  });
+
+  it("confirms before deleting a payment", async () => {
+    render(<EditRecurringPaymentScreen />);
+
+    fireEvent.press(screen.getByTestId("form-delete"));
+
+    expect(serviceMocks().deleteRecurringPayment).not.toHaveBeenCalled();
+    expect(screen.getByText("delete_payment")).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId("modal-confirm"));
+
+    await waitFor(() => {
+      expect(serviceMocks().deleteRecurringPayment).toHaveBeenCalledWith(
+        "payment-1"
+      );
+      expect(router.back).toHaveBeenCalled();
+    });
+  });
+
+  it("does not delete when the delete confirmation is cancelled", () => {
+    render(<EditRecurringPaymentScreen />);
+
+    fireEvent.press(screen.getByTestId("form-delete"));
+    fireEvent.press(screen.getByTestId("modal-cancel"));
+
+    expect(serviceMocks().deleteRecurringPayment).not.toHaveBeenCalled();
   });
 });

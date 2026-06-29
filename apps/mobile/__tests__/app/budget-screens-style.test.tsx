@@ -161,4 +161,38 @@ describe("Budget screen dark theme styling", () => {
       expect.stringContaining("bg-background dark:bg-background-dark")
     );
   });
+
+  it("uses the themed app background on the budget detail loading root", () => {
+    mockSearchParams = { id: "budget-1" };
+    mockBudgetDetailResult = {
+      ...mockBudgetDetailResult,
+      budget: null,
+      metrics: null,
+      isLoading: true,
+    };
+
+    render(<BudgetDetailScreen />);
+
+    expect(screen.getByTestId("budget-detail-screen")).toHaveProp(
+      "className",
+      expect.stringContaining("bg-background dark:bg-background-dark")
+    );
+  });
+
+  it("uses the themed app background on the budget detail not-found root", () => {
+    mockSearchParams = { id: "budget-1" };
+    mockBudgetDetailResult = {
+      ...mockBudgetDetailResult,
+      budget: null,
+      metrics: null,
+      isLoading: false,
+    };
+
+    render(<BudgetDetailScreen />);
+
+    expect(screen.getByTestId("budget-detail-screen")).toHaveProp(
+      "className",
+      expect.stringContaining("bg-background dark:bg-background-dark")
+    );
+  });
 });

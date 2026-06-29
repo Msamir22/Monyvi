@@ -152,6 +152,7 @@ describe("useRecurringPayments", () => {
       "currency",
       "type",
       "category_id",
+      "account_id",
       "frequency",
       "next_due_date",
       "status",

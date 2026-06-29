@@ -27,6 +27,7 @@ import DateTimePicker, {
 } from "@react-native-community/datetimepicker";
 import React, {
   useCallback,
+  useEffect,
   useImperativeHandle,
   useMemo,
   useState,
@@ -171,6 +172,13 @@ export const RecurringPaymentForm = React.forwardRef<
     [categories, form.categoryId]
   );
   const displayDueDate = dueDate ?? getNextMonthSameDay(form.startDate);
+
+  useEffect(() => {
+    if (form.accountId || !initialValues.accountId) return;
+
+    setForm((prev) => ({ ...prev, accountId: initialValues.accountId }));
+    setErrors((prev) => ({ ...prev, accountId: undefined }));
+  }, [form.accountId, initialValues.accountId]);
 
   const updateField = useCallback(
     <K extends keyof RecurringPaymentFormValues>(
@@ -408,51 +416,55 @@ export const RecurringPaymentForm = React.forwardRef<
 
         {mode === "edit" ? (
           <View testID="recurring-payment-edit-actions" className="mb-6">
-            <TouchableOpacity
-              testID="recurring-payment-pause-action"
-              onPress={() => void onPauseToggle?.()}
-            >
-              <View
-                testID="recurring-payment-pause-action-content"
-                className="py-4 px-4 flex-row items-center"
+            {status !== "COMPLETED" ? (
+              <TouchableOpacity
+                testID="recurring-payment-pause-action"
+                onPress={() => void onPauseToggle?.()}
               >
                 <View
-                  testID={
-                    status === "PAUSED"
-                      ? "recurring-payment-resume-icon"
-                      : "recurring-payment-pause-icon"
-                  }
-                  className="me-2"
+                  testID="recurring-payment-pause-action-content"
+                  className="py-4 px-4 flex-row items-center"
                 >
-                  <Ionicons
-                    name={
+                  <View
+                    testID={
                       status === "PAUSED"
-                        ? "play-circle-outline"
-                        : "pause-circle-outline"
+                        ? "recurring-payment-resume-icon"
+                        : "recurring-payment-pause-icon"
                     }
-                    size={20}
-                    color={
-                      status === "PAUSED"
-                        ? palette.nileGreen[500]
-                        : palette.gold[600]
-                    }
-                  />
+                    className="me-2"
+                  >
+                    <Ionicons
+                      name={
+                        status === "PAUSED"
+                          ? "play-circle-outline"
+                          : "pause-circle-outline"
+                      }
+                      size={20}
+                      color={
+                        status === "PAUSED"
+                          ? palette.nileGreen[500]
+                          : palette.gold[600]
+                      }
+                    />
+                  </View>
+                  <Text className="flex-1 text-base font-bold text-text-primary dark:text-text-primary-dark">
+                    {status === "PAUSED"
+                      ? t("resume_payment")
+                      : t("pause_payment")}
+                  </Text>
+                  <View testID="recurring-payment-pause-chevron">
+                    <Ionicons
+                      name="chevron-forward"
+                      size={18}
+                      color={palette.slate[400]}
+                    />
+                  </View>
                 </View>
-                <Text className="flex-1 text-base font-bold text-text-primary dark:text-text-primary-dark">
-                  {status === "PAUSED"
-                    ? t("resume_payment")
-                    : t("pause_payment")}
-                </Text>
-                <View testID="recurring-payment-pause-chevron">
-                  <Ionicons
-                    name="chevron-forward"
-                    size={18}
-                    color={palette.slate[400]}
-                  />
-                </View>
-              </View>
-            </TouchableOpacity>
-            <View className="h-px mx-4 bg-slate-200 dark:bg-slate-700" />
+              </TouchableOpacity>
+            ) : null}
+            {status !== "COMPLETED" ? (
+              <View className="h-px mx-4 bg-slate-200 dark:bg-slate-700" />
+            ) : null}
             <TouchableOpacity
               testID="recurring-payment-delete-action"
               onPress={() => void onDelete?.()}

@@ -81,6 +81,19 @@ const account = {
   currency: "EGP",
 };
 
+const category = {
+  id: "category-1",
+  displayName: "Subscriptions",
+  systemName: "subscriptions",
+  color: null,
+  icon: "card-outline",
+  iconLibrary: "Ionicons",
+  isHidden: false,
+  isInternal: false,
+  parentId: null,
+  type: "EXPENSE",
+};
+
 describe("recurring payment selector safe areas", () => {
   it("pads the frequency picker above the native bottom bar", () => {
     render(
@@ -117,7 +130,7 @@ describe("recurring payment selector safe areas", () => {
     render(
       <CategorySelectorModal
         visible
-        rootCategories={[]}
+        rootCategories={[category] as unknown as Category[]}
         selectedId={null}
         type="EXPENSE"
         onSelect={jest.fn()}
@@ -125,8 +138,11 @@ describe("recurring payment selector safe areas", () => {
       />
     );
 
-    expect(screen.getByTestId("category-selector-sheet")).toHaveStyle({
-      paddingBottom: 24,
-    });
+    expect(screen.getByTestId("category-selector-list")).toHaveProp(
+      "contentContainerStyle",
+      expect.objectContaining({
+        paddingBottom: 64,
+      })
+    );
   });
 });
