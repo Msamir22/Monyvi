@@ -9,6 +9,7 @@ interface RunSmsSyncJourneysModule {
   getMaestroFlowTimeoutMs(
     env?: Readonly<Record<string, string | undefined>>
   ): number;
+  shouldResetSmsSyncProbeRowsBeforeRetry(flow: string): boolean;
   shouldRelaunchBetweenSmsSyncJourneys(
     env?: Readonly<Record<string, string | undefined>>
   ): boolean;
@@ -77,5 +78,18 @@ describe("run-sms-sync-journeys helpers", () => {
         E2E_MAESTRO_FLOW_TIMEOUT_MS: "1000",
       })
     ).toBe(1000);
+  });
+
+  it("resets side-effecting batch sync flow state before retry", () => {
+    expect(
+      smsSyncJourneys.shouldResetSmsSyncProbeRowsBeforeRetry(
+        "sms-sync-batch-duplicates-atm.yaml"
+      )
+    ).toBe(true);
+    expect(
+      smsSyncJourneys.shouldResetSmsSyncProbeRowsBeforeRetry(
+        "sms-sync-rescan-skips-saved.yaml"
+      )
+    ).toBe(false);
   });
 });

@@ -56,7 +56,7 @@ function grantReadSmsPermission() {
   });
 }
 
-function runFlow(flow) {
+async function runFlow(flow) {
   const maestroBin = resolveMaestroBin();
   if (!maestroBin) {
     throw new Error("Maestro was not found. Install it or set MAESTRO_BIN.");
@@ -75,12 +75,29 @@ function runFlow(flow) {
       console.warn(
         `Retrying SMS sync Maestro flow after ${result.didTimeout ? "timeout" : "transport failure"}: ${flow}`
       );
-      reconnectAndroidDevice();
+      await prepareSmsSyncFlowRetry(flow);
       continue;
     }
 
     throw new Error(`${maestroBin} test ${join(flowDir, flow)} failed`);
   }
+}
+
+async function prepareSmsSyncFlowRetry(flow) {
+  reconnectAndroidDevice();
+
+  if (!shouldResetSmsSyncProbeRowsBeforeRetry(flow)) {
+    return;
+  }
+
+  clearSmsSyncProbeRows();
+  forceStopApp();
+  await ensureE2eAppReady();
+  grantReadSmsPermission();
+}
+
+function shouldResetSmsSyncProbeRowsBeforeRetry(flow) {
+  return flow === "sms-sync-batch-duplicates-atm.yaml";
 }
 
 function getMaestroFlowTimeoutMs(env = process.env) {
@@ -162,7 +179,7 @@ async function bootstrapCleanAuthenticatedSession() {
   process.env.E2E_USER_ID = result.userId;
   adb(["shell", "pm", "clear", appId]);
   await ensureE2eAppReady();
-  runFlow(getAuthBootstrapFlow());
+  await runFlow(getAuthBootstrapFlow());
 }
 
 function queryWatermelonScalar(sql) {
@@ -281,7 +298,7 @@ async function runBatchDuplicatesAndAtm() {
   grantReadSmsPermission();
   clearSmsSyncProbeRows();
   await maybeRelaunchBeforeSmsSyncJourney();
-  runFlow("sms-sync-batch-duplicates-atm.yaml");
+  await runFlow("sms-sync-batch-duplicates-atm.yaml");
   verifyBatchSmsSaved();
   hasSavedSmsSyncBaseline = true;
 }
@@ -293,7 +310,7 @@ async function runRescanSkipsSaved() {
 
   grantReadSmsPermission();
   await maybeRelaunchBeforeSmsSyncJourney();
-  runFlow("sms-sync-rescan-skips-saved.yaml");
+  await runFlow("sms-sync-rescan-skips-saved.yaml");
   verifyBatchSmsSaved();
 }
 
@@ -340,5 +357,6 @@ module.exports = {
   getAuthBootstrapFlow,
   getMaestroFlowTimeoutMs,
   getActiveUserFilter,
+  shouldResetSmsSyncProbeRowsBeforeRetry,
   shouldRelaunchBetweenSmsSyncJourneys,
 };

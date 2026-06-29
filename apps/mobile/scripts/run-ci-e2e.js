@@ -115,6 +115,16 @@ function isDeviceOfflineFailure(output) {
   return isRetryableMaestroTransportFailure(output);
 }
 
+function shouldRetryChildScriptFailure(output, options = {}) {
+  return (
+    options.retryOnDeviceFailure !== false && isDeviceOfflineFailure(output)
+  );
+}
+
+function shouldRetryStabilizationFailure(attempt, maxAttempts) {
+  return attempt < maxAttempts;
+}
+
 function appendOutputTail(
   currentOutput,
   nextChunk,
@@ -228,14 +238,28 @@ async function runNodeScript(script, args, options = {}) {
   const maxAttempts = getDeviceOfflineRetryCount();
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    stabilizeAndroidDevice();
+    try {
+      stabilizeAndroidDevice();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      process.stderr.write(`${message}\n`);
+      if (shouldRetryStabilizationFailure(attempt, maxAttempts)) {
+        reconnectAdb(attempt, maxAttempts);
+        continue;
+      }
+      throw error;
+    }
+
     const result = await runNodeScriptOnce(script, args, options);
 
     if (result.status === 0) {
       return;
     }
 
-    if (attempt < maxAttempts && isDeviceOfflineFailure(result.output)) {
+    if (
+      attempt < maxAttempts &&
+      shouldRetryChildScriptFailure(result.output, options)
+    ) {
       reconnectAdb(attempt, maxAttempts);
       continue;
     }
@@ -292,10 +316,11 @@ function shouldBootstrapBeforeLiveSms(selectedSuites, supabaseMode) {
 
 async function maybeRunAuthBootstrap() {
   if (shouldBootstrapAuth && !hasRunAuthBootstrap) {
-    await runNodeScript("scripts/run-maestro.js", [
-      "test",
-      join("e2e", "maestro", getAuthBootstrapFlow()),
-    ]);
+    await runNodeScript(
+      "scripts/run-maestro.js",
+      ["test", join("e2e", "maestro", getAuthBootstrapFlow())],
+      { retryOnDeviceFailure: false }
+    );
     hasRunAuthBootstrap = true;
   }
 }
@@ -312,10 +337,11 @@ async function runMaestroFlows(flows) {
   await maybeRunAuthBootstrap();
 
   for (const flow of flows) {
-    await runNodeScript("scripts/run-maestro.js", [
-      "test",
-      join("e2e", "maestro", flow),
-    ]);
+    await runNodeScript(
+      "scripts/run-maestro.js",
+      ["test", join("e2e", "maestro", flow)],
+      { retryOnDeviceFailure: false }
+    );
   }
 }
 
@@ -373,5 +399,7 @@ module.exports = {
   getRequestedCiSuites,
   getAuthBootstrapFlow,
   isDeviceOfflineFailure,
+  shouldRetryChildScriptFailure,
+  shouldRetryStabilizationFailure,
   shouldBootstrapBeforeLiveSms,
 };

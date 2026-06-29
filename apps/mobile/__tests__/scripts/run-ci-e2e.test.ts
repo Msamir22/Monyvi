@@ -20,6 +20,14 @@ interface RunCiE2eModule {
     | "helpers/ci-auth-bootstrap.yaml"
     | "helpers/ci-auth-deeplink-bootstrap.yaml";
   isDeviceOfflineFailure(output: string): boolean;
+  shouldRetryChildScriptFailure(
+    output: string,
+    options?: { readonly retryOnDeviceFailure?: boolean }
+  ): boolean;
+  shouldRetryStabilizationFailure(
+    attempt: number,
+    maxAttempts: number
+  ): boolean;
   shouldBootstrapBeforeLiveSms(
     selectedSuites: ReadonlySet<string>,
     supabaseMode: "local" | "remote"
@@ -117,6 +125,20 @@ describe("run-ci-e2e helpers", () => {
         'Assertion is false: "Transactions" is visible'
       )
     ).toBe(false);
+  });
+
+  it("does not retry child script failures when the caller disables retry", () => {
+    expect(
+      runCiE2e.shouldRetryChildScriptFailure(
+        "io.grpc.StatusRuntimeException: UNAVAILABLE",
+        { retryOnDeviceFailure: false }
+      )
+    ).toBe(false);
+  });
+
+  it("keeps stabilization failures inside the bounded retry window", () => {
+    expect(runCiE2e.shouldRetryStabilizationFailure(1, 5)).toBe(true);
+    expect(runCiE2e.shouldRetryStabilizationFailure(5, 5)).toBe(false);
   });
 
   it("bootstraps auth for remote live-SMS-only suites", () => {
