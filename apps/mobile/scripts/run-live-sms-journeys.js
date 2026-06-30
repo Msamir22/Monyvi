@@ -204,7 +204,7 @@ function runMaestroFlowOnce(maestroBin, flow) {
   };
 }
 
-function runFlow(flow) {
+async function runFlow(flow, prepareRetry) {
   const maestroBin = resolveMaestroBin();
   if (!maestroBin) {
     throw new Error("Maestro was not found. Install it or set MAESTRO_BIN.");
@@ -225,6 +225,7 @@ function runFlow(flow) {
         reason: result.didTimeout ? "timeout" : "transport-unavailable",
       });
       reconnectMaestroTransport();
+      await prepareRetry?.();
       continue;
     }
 
@@ -270,7 +271,7 @@ async function bootstrapCleanAuthenticatedSession() {
   process.env.E2E_USER_ID = result.userId;
   adb(["shell", "pm", "clear", appId]);
   await ensureE2eAppReady();
-  runFlow(getAuthBootstrapFlow());
+  await runFlow(getAuthBootstrapFlow());
 }
 
 function getXmlAttribute(nodeText, attribute) {
@@ -727,13 +728,13 @@ function sendBackgroundSms() {
   ]);
 }
 
-function sendForegroundSms() {
+async function sendForegroundSms() {
   sendEmulatorSms(
     "QNB",
     "Purchase EGP 64.32 at FOREGROUND LIVE SMS TEST using card ending 5566"
   );
   wait(1000);
-  runFlow("live-sms-journey-16-foreground-real-sms-verification.yaml");
+  await runFlow("live-sms-journey-16-foreground-real-sms-verification.yaml");
 }
 
 function sendBackgroundConfirmSms() {
@@ -846,7 +847,7 @@ const journeys = {
         "✓ Confirm"
       );
       await ensureE2eAppReady();
-      runFlow("live-sms-journey-09-confirm-verification.yaml");
+      await runFlow("live-sms-journey-09-confirm-verification.yaml");
     },
   },
   10: {
@@ -863,7 +864,7 @@ const journeys = {
         "✗ Discard"
       );
       await ensureE2eAppReady();
-      runFlow("live-sms-journey-10-discard-verification.yaml");
+      await runFlow("live-sms-journey-10-discard-verification.yaml");
     },
   },
   11: {
@@ -897,7 +898,7 @@ const journeys = {
       revokePermission(notificationPermission);
       forceStopApp();
       await ensureE2eAppReady();
-      runFlow("live-sms-journey-13-revoked-permission-verification.yaml");
+      await runFlow("live-sms-journey-13-revoked-permission-verification.yaml");
     },
   },
   14: {
@@ -911,7 +912,7 @@ const journeys = {
     after: async () => {
       sendBackgroundConfirmSms();
       await ensureE2eAppReady();
-      runFlow("live-sms-journey-14-background-confirm-verification.yaml");
+      await runFlow("live-sms-journey-14-background-confirm-verification.yaml");
     },
   },
   15: {
@@ -925,7 +926,7 @@ const journeys = {
     after: async () => {
       sendKilledAppConfirmSms();
       await ensureE2eAppReady();
-      runFlow("live-sms-journey-15-killed-app-confirm-verification.yaml");
+      await runFlow("live-sms-journey-15-killed-app-confirm-verification.yaml");
     },
   },
   16: {
@@ -957,10 +958,20 @@ function normalizeJourneyId(id) {
   return id.padStart(2, "0");
 }
 
+function shouldPrepareLiveSmsFlowBeforeRetry(flow) {
+  return Object.values(journeys).some((journey) => journey.flow === flow);
+}
+
 function logInfo(event, fields) {
   process.stdout.write(
     `${JSON.stringify({ level: "info", event, ...fields })}\n`
   );
+}
+
+async function prepareLiveSmsJourneyRetry(journey) {
+  journey.prepare();
+  forceStopApp();
+  await ensureE2eAppReady();
 }
 
 async function main() {
@@ -984,7 +995,7 @@ async function main() {
     journey.prepare();
     forceStopApp();
     await ensureE2eAppReady();
-    runFlow(journey.flow);
+    await runFlow(journey.flow, () => prepareLiveSmsJourneyRetry(journey));
     await journey.after?.();
     collapseSystemUi();
     logInfo("liveSmsJourney.passed", { id, flow: journey.flow });
@@ -1005,5 +1016,6 @@ module.exports = {
   getMaestroFlowTimeoutMs,
   getActiveUserFilter,
   isRetryableMaestroTransportFailure,
+  shouldPrepareLiveSmsFlowBeforeRetry,
   shouldSkipRunAsProbeCleanup,
 };

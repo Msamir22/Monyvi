@@ -322,7 +322,7 @@ async function prepareCleanMaestroFlowRetry() {
     await runNodeScript(
       "scripts/run-maestro.js",
       ["test", join("e2e", "maestro", getAuthBootstrapFlow())],
-      { retryOnDeviceFailure: false }
+      { retryOnDeviceFailure: true }
     );
     hasRunAuthBootstrap = true;
   } finally {
@@ -371,7 +371,7 @@ async function maybeRunAuthBootstrap() {
     await runNodeScript(
       "scripts/run-maestro.js",
       ["test", join("e2e", "maestro", getAuthBootstrapFlow())],
-      { retryOnDeviceFailure: false }
+      { retryOnDeviceFailure: true }
     );
     hasRunAuthBootstrap = true;
   }

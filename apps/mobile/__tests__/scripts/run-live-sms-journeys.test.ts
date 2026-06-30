@@ -15,6 +15,7 @@ interface RunLiveSmsJourneysModule {
     | "../helpers/ci-auth-bootstrap.yaml"
     | "../helpers/ci-auth-deeplink-bootstrap.yaml";
   isRetryableMaestroTransportFailure(output: string): boolean;
+  shouldPrepareLiveSmsFlowBeforeRetry(flow: string): boolean;
 }
 
 const liveSmsJourneys = jest.requireActual(
@@ -101,6 +102,19 @@ describe("run-live-sms-journeys helpers", () => {
     expect(
       liveSmsJourneys.isRetryableMaestroTransportFailure(
         'Assertion is false: "Transactions" is visible'
+      )
+    ).toBe(false);
+  });
+
+  it("prepares live-SMS journey state again before retrying main journey flows", () => {
+    expect(
+      liveSmsJourneys.shouldPrepareLiveSmsFlowBeforeRetry(
+        "live-sms-journey-01-first-time-enable.yaml"
+      )
+    ).toBe(true);
+    expect(
+      liveSmsJourneys.shouldPrepareLiveSmsFlowBeforeRetry(
+        "live-sms-journey-09-confirm-verification.yaml"
       )
     ).toBe(false);
   });
