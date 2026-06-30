@@ -20,6 +20,13 @@ const payment = {
   status: "ACTIVE",
   deleted: false,
 } as unknown as RecurringPayment;
+const secondPayment = {
+  id: "payment-2",
+  userId: "user-1",
+  status: "PAUSED",
+  deleted: false,
+} as unknown as RecurringPayment;
+let shouldEmitOnSubscribe = true;
 
 jest.mock("@monyvi/db", () => ({
   database: {
@@ -80,18 +87,37 @@ function RecurringPaymentStatusProbe(): React.JSX.Element {
   );
 }
 
+function RecurringPaymentIdProbe({
+  paymentId,
+}: {
+  readonly paymentId: string;
+}): React.JSX.Element {
+  const { payment: observedPayment, isLoading } =
+    useRecurringPayment(paymentId);
+
+  return (
+    <>
+      <Text testID="payment-id">{observedPayment?.id ?? "missing"}</Text>
+      <Text testID="payment-loading">{isLoading ? "loading" : "settled"}</Text>
+    </>
+  );
+}
+
 describe("useRecurringPayment", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     observer = null;
     payment.status = "ACTIVE";
     (payment as unknown as { deleted: boolean }).deleted = false;
+    shouldEmitOnSubscribe = true;
     mockObserveOwnedById.mockReturnValue({
       subscribe: (
         nextObserver: MockObserver<RecurringPayment>
       ): { unsubscribe: jest.Mock } => {
         observer = nextObserver;
-        nextObserver.next(payment);
+        if (shouldEmitOnSubscribe) {
+          nextObserver.next(payment);
+        }
         return { unsubscribe: mockUnsubscribe };
       },
     });
@@ -128,6 +154,47 @@ describe("useRecurringPayment", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("payment-status")).toHaveTextContent("missing");
+    });
+  });
+
+  it("clears stale payment state while a new route id subscription is loading", async () => {
+    mockObserveOwnedById.mockImplementation(
+      (_collection: string, paymentId: string) => ({
+        subscribe: (
+          nextObserver: MockObserver<RecurringPayment>
+        ): { unsubscribe: jest.Mock } => {
+          observer = nextObserver;
+          if (paymentId === "payment-1") {
+            nextObserver.next(payment);
+          }
+          return { unsubscribe: mockUnsubscribe };
+        },
+      })
+    );
+
+    const view = render(<RecurringPaymentIdProbe paymentId="payment-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("payment-id")).toHaveTextContent("payment-1");
+      expect(screen.getByTestId("payment-loading")).toHaveTextContent(
+        "settled"
+      );
+    });
+
+    view.rerender(<RecurringPaymentIdProbe paymentId="payment-2" />);
+
+    expect(screen.getByTestId("payment-id")).toHaveTextContent("missing");
+    expect(screen.getByTestId("payment-loading")).toHaveTextContent("loading");
+
+    act(() => {
+      observer?.next(secondPayment);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("payment-id")).toHaveTextContent("payment-2");
+      expect(screen.getByTestId("payment-loading")).toHaveTextContent(
+        "settled"
+      );
     });
   });
 });

@@ -122,6 +122,18 @@ describe("resolve-ci-e2e-scope", () => {
     });
   });
 
+  it("uses the full fallback for Expo Router index route changes", () => {
+    expect(
+      scopeResolver.resolveCiE2eScope([
+        "apps/mobile/app/index.tsx",
+        "apps/mobile/app/(private)/(tabs)/index.tsx",
+      ])
+    ).toEqual({
+      shouldRun: true,
+      suites: ["accounts", "transactions", "sms-sync", "live-sms"],
+    });
+  });
+
   it("runs account E2E for account locale copy changes", () => {
     expect(
       scopeResolver.resolveCiE2eScope(["apps/mobile/locales/en/accounts.json"])

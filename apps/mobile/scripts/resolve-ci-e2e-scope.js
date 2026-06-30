@@ -47,6 +47,9 @@ function getSuitesForFile(filePath) {
   const suites = [];
   const isScopeResolverFile =
     normalized === "apps/mobile/scripts/resolve-ci-e2e-scope.js";
+  const isBarrelIndexFile =
+    /\/index\.(ts|tsx|js|jsx)$/.test(normalized) &&
+    !normalized.startsWith("apps/mobile/app/");
   const isTestFile =
     normalized.includes("/__tests__/") ||
     normalized.endsWith(".test.ts") ||
@@ -110,7 +113,7 @@ function getSuitesForFile(filePath) {
     normalized.startsWith("apps/mobile/") &&
     !isTestFile &&
     !normalized.startsWith("apps/mobile/locales/") &&
-    !/\/index\.(ts|tsx|js|jsx)$/.test(normalized)
+    !isBarrelIndexFile
   ) {
     return orderedSuites;
   }
