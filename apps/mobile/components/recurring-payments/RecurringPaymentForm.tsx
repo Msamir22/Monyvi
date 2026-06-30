@@ -30,6 +30,7 @@ import React, {
   useEffect,
   useImperativeHandle,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
@@ -156,6 +157,7 @@ export const RecurringPaymentForm = React.forwardRef<
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showFrequencyModal, setShowFrequencyModal] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const isSubmitInFlightRef = useRef(false);
   const nameFieldRef = getFieldRef("name");
   const amountFieldRef = getFieldRef("amount");
   const accountFieldRef = getFieldRef("accountId");
@@ -185,10 +187,12 @@ export const RecurringPaymentForm = React.forwardRef<
   const hasScheduleChanges =
     initialValues.startDate.getTime() !== form.startDate.getTime() ||
     initialValues.frequency !== form.frequency;
-  const displayDueDate =
-    dueDate && !hasScheduleChanges
-      ? dueDate
-      : calculateNextDueDate(form.startDate, form.frequency);
+  const displayDueDate = getDisplayDueDate({
+    dueDate,
+    initialValues,
+    form,
+    hasScheduleChanges,
+  });
 
   useEffect(() => {
     if (form.accountId || !initialValues.accountId) return;
@@ -211,6 +215,8 @@ export const RecurringPaymentForm = React.forwardRef<
   );
 
   const handleSubmit = useCallback(async (): Promise<void> => {
+    if (isSubmitting || isSubmitInFlightRef.current) return;
+
     const result = validateRecurringPaymentForm({
       name: form.name.trim(),
       amount: form.amount,
@@ -224,8 +230,13 @@ export const RecurringPaymentForm = React.forwardRef<
       return;
     }
 
-    await onSubmit(form);
-  }, [form, onSubmit, scrollToFirstError]);
+    isSubmitInFlightRef.current = true;
+    try {
+      await onSubmit(form);
+    } finally {
+      isSubmitInFlightRef.current = false;
+    }
+  }, [form, isSubmitting, onSubmit, scrollToFirstError]);
 
   useImperativeHandle(
     ref,
@@ -628,6 +639,28 @@ function getFrequencyTypeLabel(
   const typeLabel = toTitleCase(t(type === "INCOME" ? "income" : "expense"));
 
   return `${frequencyLabel} ${typeLabel}`;
+}
+
+function getDisplayDueDate({
+  dueDate,
+  initialValues,
+  form,
+  hasScheduleChanges,
+}: {
+  readonly dueDate?: Date;
+  readonly initialValues: RecurringPaymentFormValues;
+  readonly form: RecurringPaymentFormValues;
+  readonly hasScheduleChanges: boolean;
+}): Date {
+  if (dueDate && !hasScheduleChanges) {
+    return dueDate;
+  }
+
+  const didStartDateChange =
+    initialValues.startDate.getTime() !== form.startDate.getTime();
+  const anchor = dueDate && !didStartDateChange ? dueDate : form.startDate;
+
+  return calculateNextDueDate(anchor, form.frequency);
 }
 
 function toTitleCase(value: string): string {

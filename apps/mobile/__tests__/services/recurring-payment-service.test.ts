@@ -232,6 +232,33 @@ describe("recurring-payment-service", () => {
     expect(mockWrite).not.toHaveBeenCalled();
   });
 
+  it("rejects a deleted account reference before creating a recurring payment", async () => {
+    mockFindOwned.mockResolvedValue({
+      id: "account-1",
+      userId: "user-1",
+      currency: "EGP",
+      deleted: true,
+    });
+
+    await expect(
+      createRecurringPayment({
+        name: "Weekly Gym",
+        amount: 250,
+        currency: "EGP",
+        type: "EXPENSE",
+        accountId: "account-1",
+        categoryId: "category-1",
+        frequency: "WEEKLY",
+        startDate: new Date("2026-06-01T00:00:00.000Z"),
+        action: "NOTIFY",
+        notes: "membership",
+      })
+    ).rejects.toThrow(
+      RECURRING_PAYMENT_SERVICE_ERROR_CODES.ACCOUNT_UNAVAILABLE
+    );
+    expect(mockWrite).not.toHaveBeenCalled();
+  });
+
   it("rejects a deleted category reference before updating a recurring payment", async () => {
     mockFindAccessibleCategory.mockResolvedValue({
       id: "category-1",
@@ -254,6 +281,41 @@ describe("recurring-payment-service", () => {
       })
     ).rejects.toThrow(
       RECURRING_PAYMENT_SERVICE_ERROR_CODES.CATEGORY_UNAVAILABLE
+    );
+    expect(mockWrite).not.toHaveBeenCalled();
+  });
+
+  it("rejects a deleted account reference before updating a recurring payment", async () => {
+    mockFindOwned.mockImplementation(
+      (_collection: MockCollection, id: string): Promise<unknown> => {
+        if (id === "account-1") {
+          return Promise.resolve({
+            id,
+            userId: "user-1",
+            currency: "EGP",
+            deleted: true,
+          });
+        }
+
+        return Promise.resolve(createRecurringRecord({ id }));
+      }
+    );
+
+    await expect(
+      updateRecurringPayment("payment-1", {
+        name: "Gym",
+        amount: 450,
+        currency: "EGP",
+        type: "EXPENSE",
+        accountId: "account-1",
+        categoryId: "category-1",
+        frequency: "WEEKLY",
+        startDate: new Date("2026-01-01T00:00:00.000Z"),
+        action: "AUTO_CREATE",
+        notes: undefined,
+      })
+    ).rejects.toThrow(
+      RECURRING_PAYMENT_SERVICE_ERROR_CODES.ACCOUNT_UNAVAILABLE
     );
     expect(mockWrite).not.toHaveBeenCalled();
   });

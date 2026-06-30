@@ -268,7 +268,35 @@ describe("RecurringPaymentForm", () => {
 
     expect(
       screen.getByTestId("recurring-payment-summary-due-value")
-    ).toHaveTextContent("Jun 8, 2026");
+    ).toHaveTextContent("Jul 8, 2026");
+  });
+
+  it("guards against duplicate submissions while a submit is in flight", async () => {
+    const onSubmit = jest.fn((): Promise<void> => new Promise(() => undefined));
+    const ref = React.createRef<RecurringPaymentFormHandle>();
+
+    render(
+      <RecurringPaymentForm
+        ref={ref}
+        mode="create"
+        initialValues={initialValues}
+        accounts={accounts as unknown as readonly Account[]}
+        expenseCategories={categories as unknown as readonly Category[]}
+        incomeCategories={[]}
+        isSubmitting={false}
+        submitLabel="save"
+        onSubmit={onSubmit}
+      />
+    );
+
+    act(() => {
+      ref.current?.submit();
+    });
+    fireEvent.press(screen.getByText("save"));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("shows a selected subcategory from the full category list", () => {

@@ -152,6 +152,15 @@ describe("resolve-ci-e2e-scope", () => {
     });
   });
 
+  it("runs SMS E2E suites for settings locale permission copy changes", () => {
+    expect(
+      scopeResolver.resolveCiE2eScope(["apps/mobile/locales/en/settings.json"])
+    ).toEqual({
+      shouldRun: true,
+      suites: ["sms-sync", "live-sms"],
+    });
+  });
+
   it("diffs the full pushed range on push events", () => {
     expect(
       scopeResolver.getGitDiffArgs({
