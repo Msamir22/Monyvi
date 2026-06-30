@@ -19,8 +19,11 @@ interface RunCiE2eModule {
   ):
     | "helpers/ci-auth-bootstrap.yaml"
     | "helpers/ci-auth-deeplink-bootstrap.yaml";
-  getMaestroSuiteFlowOptions(): { readonly retryOnDeviceFailure: true };
+  getMaestroSuiteFlowOptions(flow: string): {
+    readonly retryOnDeviceFailure: boolean;
+  };
   isDeviceOfflineFailure(output: string): boolean;
+  shouldRetryMaestroSuiteFlow(flow: string): boolean;
   shouldRetryChildScriptFailure(
     output: string,
     options?: { readonly retryOnDeviceFailure?: boolean }
@@ -137,9 +140,30 @@ describe("run-ci-e2e helpers", () => {
     ).toBe(false);
   });
 
-  it("retries normal Maestro suite flows when the emulator disconnects", () => {
-    expect(runCiE2e.getMaestroSuiteFlowOptions()).toEqual({
+  it("retries only explicitly safe Maestro suite flows when the emulator disconnects", () => {
+    expect(
+      runCiE2e.shouldRetryMaestroSuiteFlow(
+        "sms-sync/sms-sync-permission-requestable.yaml"
+      )
+    ).toBe(true);
+    expect(
+      runCiE2e.getMaestroSuiteFlowOptions(
+        "sms-sync/sms-sync-permission-requestable.yaml"
+      )
+    ).toEqual({
       retryOnDeviceFailure: true,
+    });
+    expect(
+      runCiE2e.shouldRetryMaestroSuiteFlow(
+        "transactions/create-transaction.yaml"
+      )
+    ).toBe(false);
+    expect(
+      runCiE2e.getMaestroSuiteFlowOptions(
+        "transactions/create-transaction.yaml"
+      )
+    ).toEqual({
+      retryOnDeviceFailure: false,
     });
   });
 

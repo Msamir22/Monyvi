@@ -86,17 +86,15 @@ async function runFlow(flow) {
 async function prepareSmsSyncFlowRetry(flow) {
   reconnectAndroidDevice();
 
-  if (!shouldResetSmsSyncProbeRowsBeforeRetry(flow)) {
+  if (!shouldResetSmsSyncAppStateBeforeRetry(flow)) {
     return;
   }
 
-  clearSmsSyncProbeRows();
-  forceStopApp();
-  await ensureE2eAppReady();
+  await bootstrapCleanAuthenticatedSession();
   grantReadSmsPermission();
 }
 
-function shouldResetSmsSyncProbeRowsBeforeRetry(flow) {
+function shouldResetSmsSyncAppStateBeforeRetry(flow) {
   return flow === "sms-sync-batch-duplicates-atm.yaml";
 }
 
@@ -357,6 +355,6 @@ module.exports = {
   getAuthBootstrapFlow,
   getMaestroFlowTimeoutMs,
   getActiveUserFilter,
-  shouldResetSmsSyncProbeRowsBeforeRetry,
+  shouldResetSmsSyncAppStateBeforeRetry,
   shouldRelaunchBetweenSmsSyncJourneys,
 };

@@ -125,8 +125,12 @@ function shouldRetryStabilizationFailure(attempt, maxAttempts) {
   return attempt < maxAttempts;
 }
 
-function getMaestroSuiteFlowOptions() {
-  return { retryOnDeviceFailure: true };
+function shouldRetryMaestroSuiteFlow(flow) {
+  return flow === "sms-sync/sms-sync-permission-requestable.yaml";
+}
+
+function getMaestroSuiteFlowOptions(flow) {
+  return { retryOnDeviceFailure: shouldRetryMaestroSuiteFlow(flow) };
 }
 
 function appendOutputTail(
@@ -344,7 +348,7 @@ async function runMaestroFlows(flows) {
     await runNodeScript(
       "scripts/run-maestro.js",
       ["test", join("e2e", "maestro", flow)],
-      getMaestroSuiteFlowOptions()
+      getMaestroSuiteFlowOptions(flow)
     );
   }
 }
@@ -404,6 +408,7 @@ module.exports = {
   getAuthBootstrapFlow,
   getMaestroSuiteFlowOptions,
   isDeviceOfflineFailure,
+  shouldRetryMaestroSuiteFlow,
   shouldRetryChildScriptFailure,
   shouldRetryStabilizationFailure,
   shouldBootstrapBeforeLiveSms,

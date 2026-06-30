@@ -119,6 +119,11 @@ describe("e2e-preflight", () => {
     ).toBe(true);
     expect(
       preflight.isRetryableMaestroTransportFailure(
+        "Timed out while reading the Android view-hierarchy"
+      )
+    ).toBe(true);
+    expect(
+      preflight.isRetryableMaestroTransportFailure(
         'Assertion is false: "Transactions" is visible'
       )
     ).toBe(false);
