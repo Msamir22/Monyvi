@@ -386,6 +386,25 @@ describe("recurring payment header and destructive actions", () => {
     });
   });
 
+  it("shows friendly fallback copy when pause fails with a raw service error", async () => {
+    serviceMocks().pauseRecurringPayment.mockRejectedValueOnce(
+      new Error("Record not found")
+    );
+    render(<EditRecurringPaymentScreen />);
+
+    fireEvent.press(screen.getByTestId("form-pause-toggle"));
+    fireEvent.press(screen.getByTestId("modal-confirm"));
+
+    await waitFor(() => {
+      expect(mockShowToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "failed_to_update_payment",
+          message: "error_generic",
+        })
+      );
+    });
+  });
+
   it("does not render pause or resume for a completed payment", () => {
     mockPaymentStatus = "COMPLETED";
     render(<EditRecurringPaymentScreen />);
@@ -409,6 +428,25 @@ describe("recurring payment header and destructive actions", () => {
         "payment-1"
       );
       expect(router.back).toHaveBeenCalled();
+    });
+  });
+
+  it("shows friendly fallback copy when delete fails with a raw service error", async () => {
+    serviceMocks().deleteRecurringPayment.mockRejectedValueOnce(
+      new Error("OWNERSHIP_FAILED")
+    );
+    render(<EditRecurringPaymentScreen />);
+
+    fireEvent.press(screen.getByTestId("form-delete"));
+    fireEvent.press(screen.getByTestId("modal-confirm"));
+
+    await waitFor(() => {
+      expect(mockShowToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "failed_to_delete_payment",
+          message: "error_generic",
+        })
+      );
     });
   });
 

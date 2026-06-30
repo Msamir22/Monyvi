@@ -141,6 +141,12 @@ appId: com.monyvi.app
     direction: DOWN
     timeout: 60000
     visibilityPercentage: 50
+- openLink:
+    link: monyvi://accounts
+- extendedWaitUntil:
+    visible:
+      id: "accounts-add-button"
+    timeout: 30000
 - waitForAnimationToEnd:
     timeout: 5000
 
@@ -185,6 +191,12 @@ appId: com.monyvi.app
     direction: DOWN
     timeout: 60000
     visibilityPercentage: 50
+- openLink:
+    link: monyvi://accounts
+- extendedWaitUntil:
+    visible:
+      id: "accounts-add-button"
+    timeout: 30000
 - waitForAnimationToEnd:
     timeout: 5000
 

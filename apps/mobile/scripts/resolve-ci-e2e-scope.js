@@ -22,6 +22,17 @@ function requiresFullE2e(filePath) {
     return false;
   }
 
+  if (filePath === ".github/workflows/ci.yml") {
+    return true;
+  }
+
+  if (
+    filePath.startsWith("scripts/") &&
+    filePath !== "scripts/link-worktree-node-modules.ps1"
+  ) {
+    return true;
+  }
+
   return (
     filePath === "package.json" ||
     filePath === "package-lock.json" ||

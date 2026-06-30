@@ -99,20 +99,23 @@ describe("resolve-ci-e2e-scope", () => {
     });
   });
 
-  it("does not expand a recurring payment PR to every suite for CI or developer tooling files", () => {
+  it("runs every suite for workflow changes", () => {
     expect(
       scopeResolver.resolveCiE2eScope([
         ".github/workflows/ci.yml",
-        "AGENTS.md",
-        "scripts/link-worktree-node-modules.ps1",
-        "apps/mobile/app/(private)/create-recurring-payment.tsx",
-        "apps/mobile/components/recurring-payments/RecurringPaymentForm.tsx",
-        "apps/mobile/hooks/useRecurringPayments.ts",
-        "apps/mobile/services/recurring-payment-service.ts",
       ])
     ).toEqual({
       shouldRun: true,
-      suites: ["transactions"],
+      suites: ["accounts", "transactions", "sms-sync", "live-sms"],
+    });
+  });
+
+  it("runs every suite for root E2E harness script changes", () => {
+    expect(
+      scopeResolver.resolveCiE2eScope(["scripts/start-local-supabase.js"])
+    ).toEqual({
+      shouldRun: true,
+      suites: ["accounts", "transactions", "sms-sync", "live-sms"],
     });
   });
 

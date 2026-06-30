@@ -119,12 +119,10 @@ export default function EditRecurringPaymentScreen(): React.JSX.Element {
         await pauseRecurringPayment(payment.id);
       }
     } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : tCommon("error_generic");
       showToast({
         type: "error",
         title: t("failed_to_update_payment"),
-        message,
+        message: getRecurringPaymentErrorMessage(error, t, tCommon),
       });
     }
   };
@@ -136,12 +134,10 @@ export default function EditRecurringPaymentScreen(): React.JSX.Element {
       await deleteRecurringPayment(payment.id);
       router.back();
     } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : tCommon("error_generic");
       showToast({
         type: "error",
         title: t("failed_to_delete_payment"),
-        message,
+        message: getRecurringPaymentErrorMessage(error, t, tCommon),
       });
     }
   };
@@ -266,5 +262,5 @@ function getRecurringPaymentErrorMessage(
     return t("recurring_payment_category_unavailable");
   }
 
-  return message ?? tCommon("error_generic");
+  return tCommon("error_generic");
 }
