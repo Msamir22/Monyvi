@@ -50,7 +50,18 @@ export default function EditRecurringPaymentScreen(): React.JSX.Element {
       action: payment.action,
       notes: payment.notes ?? "",
     };
-  }, [payment]);
+  }, [
+    payment,
+    payment?.accountId,
+    payment?.action,
+    payment?.amount,
+    payment?.categoryId,
+    payment?.frequency,
+    payment?.name,
+    payment?.notes,
+    payment?.startDate,
+    payment?.type,
+  ]);
 
   const handleSubmit = async (
     values: RecurringPaymentFormValues

@@ -158,10 +158,36 @@ export const RecurringPaymentForm = React.forwardRef<
   const [showFrequencyModal, setShowFrequencyModal] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const isSubmitInFlightRef = useRef(false);
+  const isDirtyRef = useRef(false);
   const nameFieldRef = getFieldRef("name");
   const amountFieldRef = getFieldRef("amount");
   const accountFieldRef = getFieldRef("accountId");
   const categoryFieldRef = getFieldRef("categoryId");
+  const initialValuesKey = useMemo(
+    () =>
+      [
+        initialValues.name,
+        initialValues.amount,
+        initialValues.type,
+        initialValues.accountId ?? "",
+        initialValues.categoryId ?? "",
+        initialValues.frequency,
+        initialValues.startDate.getTime(),
+        initialValues.action,
+        initialValues.notes,
+      ].join("|"),
+    [
+      initialValues.accountId,
+      initialValues.action,
+      initialValues.amount,
+      initialValues.categoryId,
+      initialValues.frequency,
+      initialValues.name,
+      initialValues.notes,
+      initialValues.startDate,
+      initialValues.type,
+    ]
+  );
 
   const selectedAccount = useMemo(
     () => accounts.find((account) => account.id === form.accountId) ?? null,
@@ -195,6 +221,13 @@ export const RecurringPaymentForm = React.forwardRef<
   });
 
   useEffect(() => {
+    if (isDirtyRef.current) return;
+
+    setForm(initialValues);
+    setErrors({});
+  }, [initialValues, initialValuesKey]);
+
+  useEffect(() => {
     if (form.accountId || !initialValues.accountId) return;
 
     setForm((prev) => ({ ...prev, accountId: initialValues.accountId }));
@@ -206,6 +239,7 @@ export const RecurringPaymentForm = React.forwardRef<
       field: K,
       value: RecurringPaymentFormValues[K]
     ): void => {
+      isDirtyRef.current = true;
       setForm((prev) => ({ ...prev, [field]: value }));
       if (field in errors) {
         setErrors((prev) => ({ ...prev, [field]: undefined }));

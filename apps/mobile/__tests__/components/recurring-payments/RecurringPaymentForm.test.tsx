@@ -299,6 +299,77 @@ describe("RecurringPaymentForm", () => {
     });
   });
 
+  it("resyncs pristine form state when initial values change", () => {
+    const { rerender } = render(
+      <RecurringPaymentForm
+        mode="edit"
+        initialValues={initialValues}
+        accounts={accounts as unknown as readonly Account[]}
+        expenseCategories={categories as unknown as readonly Category[]}
+        incomeCategories={[]}
+        isSubmitting={false}
+        submitLabel="save"
+        onSubmit={jest.fn()}
+      />
+    );
+
+    rerender(
+      <RecurringPaymentForm
+        mode="edit"
+        initialValues={{
+          ...initialValues,
+          name: "Spotify",
+          amount: "450",
+        }}
+        accounts={accounts as unknown as readonly Account[]}
+        expenseCategories={categories as unknown as readonly Category[]}
+        incomeCategories={[]}
+        isSubmitting={false}
+        submitLabel="save"
+        onSubmit={jest.fn()}
+      />
+    );
+
+    expect(screen.getByDisplayValue("Spotify")).toBeTruthy();
+    expect(screen.getByDisplayValue("450")).toBeTruthy();
+  });
+
+  it("keeps dirty local edits when initial values change", () => {
+    const { rerender } = render(
+      <RecurringPaymentForm
+        mode="edit"
+        initialValues={initialValues}
+        accounts={accounts as unknown as readonly Account[]}
+        expenseCategories={categories as unknown as readonly Category[]}
+        incomeCategories={[]}
+        isSubmitting={false}
+        submitLabel="save"
+        onSubmit={jest.fn()}
+      />
+    );
+
+    fireEvent.changeText(screen.getByDisplayValue("Netflix"), "Local edit");
+    rerender(
+      <RecurringPaymentForm
+        mode="edit"
+        initialValues={{
+          ...initialValues,
+          name: "Spotify",
+          amount: "450",
+        }}
+        accounts={accounts as unknown as readonly Account[]}
+        expenseCategories={categories as unknown as readonly Category[]}
+        incomeCategories={[]}
+        isSubmitting={false}
+        submitLabel="save"
+        onSubmit={jest.fn()}
+      />
+    );
+
+    expect(screen.getByDisplayValue("Local edit")).toBeTruthy();
+    expect(screen.getByDisplayValue("250")).toBeTruthy();
+  });
+
   it("shows a selected subcategory from the full category list", () => {
     renderForm({
       initialValues: {
