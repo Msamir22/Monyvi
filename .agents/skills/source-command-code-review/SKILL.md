@@ -38,7 +38,7 @@ Read every Markdown file under `.agent/rules/`.
 List the rule files read in the review report as proof of compliance. Treat
 these files as implementation standards for all changed files.
 
-### 1.3 Feature Specs
+### 1.3 Feature Specs and Linked Issues
 
 Identify the current branch name, then locate the matching folder under
 `specs/`.
@@ -49,7 +49,26 @@ If there is no exact match, search for the closest active spec folder and state
 the fallback clearly. Read every Markdown file in the selected folder, including
 `spec.md` or `spc.md`, `plan.md`, `tasks.md`, and any additional `.md` files.
 
-Treat specs as the source of truth for feature requirements.
+If no applicable spec folder exists, fetch the issue linked to the pull request
+before reviewing code. Use GitHub metadata, PR body closing keywords, explicit
+issue links, or available GitHub tools to identify the linked issue. Read the
+issue title, body, acceptance criteria, task list, relevant labels, and any
+maintainer comments that clarify scope.
+
+Source-of-truth rules:
+
+- Spec folder only: treat the spec folder as the source of truth for feature
+  requirements.
+- Linked issue only: treat the linked issue as the source of truth for feature
+  requirements and business logic during the review, subject to the
+  constitution and `docs/business/business-decisions.md`.
+- Both spec folder and linked issue: treat both artifacts together as the source
+  of truth. The implementation must satisfy every requirement in both.
+
+If both a spec folder and linked issue exist, compare them before reviewing code.
+Report any gap, contradiction, missing acceptance criterion, or mismatched
+business rule between them as a review finding. Do not approve until the gap is
+resolved or explicitly accepted by Mohamed.
 
 ## 2. Code Analysis
 
@@ -101,11 +120,15 @@ Produce a PASS/FAIL checklist for these eight checks:
 
 Any constitution violation makes the reviewed work not approvable until fixed.
 
-### 2.2 Specs Compliance
+### 2.2 Requirements Compliance
 
-Verify code against `spec.md` or `spc.md`, `plan.md`, and `tasks.md`.
+Verify code against the applicable source-of-truth artifacts:
 
-Go through every task in `tasks.md` line by line and mark it:
+- `spec.md` or `spc.md`, `plan.md`, and `tasks.md` when a spec folder exists.
+- The linked GitHub issue when no spec folder exists.
+- Both the spec folder and the linked GitHub issue when both exist.
+
+When `tasks.md` exists, go through every task line by line and mark it:
 
 ```markdown
 - [x] Task description - IMPLEMENTED in <file>
@@ -113,11 +136,18 @@ Go through every task in `tasks.md` line by line and mark it:
 - [~] Task description - PARTIALLY IMPLEMENTED - <what is missing>
 ```
 
-Check for missing functionality, incomplete tasks, deviations from the plan, and
-changes under the wrong spec folder.
+When the linked issue is part of the source of truth, verify every stated
+requirement, acceptance criterion, checklist item, and clarified business rule
+from the issue. Use the same implemented / not implemented / partially
+implemented format and cite the issue reference.
 
-If any task is not implemented and not explicitly justified, the reviewed work
-is not approvable.
+Check for missing functionality, incomplete tasks, deviations from the plan, and
+changes under the wrong spec folder. Also check for code paths that implement
+behavior not requested by either the spec folder or the linked issue.
+
+If any task, issue requirement, acceptance criterion, or clarified business rule
+is not implemented and not explicitly justified, the reviewed work is not
+approvable.
 
 ### 2.3 Rules Compliance
 
@@ -135,15 +165,20 @@ inconsistencies, and bypassed project standards.
 Review the specs themselves, not only the implementation.
 
 Detect missing requirements, undocumented edge cases, implicit behavior that
-appears in code but not in specs, UX gaps, validation gaps, error-handling gaps,
-data constraints, and performance requirements that should have been specified.
+appears in code but not in the applicable spec or linked issue, UX gaps,
+validation gaps, error-handling gaps, data constraints, and performance
+requirements that should have been specified.
 
-Also compare spec, plan, and tasks for:
+Also compare the spec folder and linked issue, when both exist, plus spec, plan,
+and tasks for:
 
 1. Spec to plan gaps.
 2. Plan to tasks gaps.
 3. Spec to tasks gaps.
-4. Conflicting names, data structures, flows, or definitions.
+4. Spec to issue gaps.
+5. Issue to tasks gaps.
+6. Conflicting names, data structures, flows, acceptance criteria, business
+   rules, or definitions.
 
 Use this format for spec-level issues:
 
@@ -152,6 +187,11 @@ Use this format for spec-level issues:
   - Files: `spec.md` / `plan.md` / `tasks.md`
   - Issue: <inconsistency or missing linkage>
   - Fix: <required alignment>
+
+- Spec/Issue Gap: <title>
+  - Files: `specs/<feature>/*` / `GitHub issue #<number>`
+  - Issue: <gap or contradiction between the spec folder and issue>
+  - Fix: <required alignment or owner decision>
 
 - Missing Requirement: <title>
   - File: `spec.md`
@@ -239,7 +279,8 @@ Use these report sections:
 
 - Constitution: `.specify/memory/constitution.md`
 - Rules read: <list>
-- Spec folder: `specs/<branch-name>`
+- Spec folder: `specs/<branch-name>` or N/A
+- Linked issue: `#<number>` or N/A
 - Target diff: <branch or PR>
 
 ## Constitution Checklist
@@ -276,7 +317,7 @@ Use these report sections:
 ### Specs Violations
 
 - Violation: <title>
-  - Spec: `spec.md` / `plan.md` / `tasks.md`
+  - Spec: `spec.md` / `plan.md` / `tasks.md` / GitHub issue `#<number>`
   - Location: <file + line>
   - Issue: <missing or incorrect implementation>
   - Fix: <required implementation>
@@ -297,7 +338,8 @@ Use these report sections:
 
 ## Task Verification
 
-<line-by-line task status from `tasks.md`>
+<line-by-line task status from `tasks.md` and linked issue acceptance criteria,
+or N/A with reason>
 
 ## Automated Comments
 
@@ -353,7 +395,9 @@ The reviewed work is not approvable if any of these remain:
 
 - Constitution violations.
 - Missing or incomplete tasks from `tasks.md`.
-- Spec deviations.
+- Missing or incomplete linked issue requirements or acceptance criteria.
+- Spec or linked issue deviations.
+- Unresolved gaps or contradictions between the spec folder and linked issue.
 - Type-safety violations.
 - Incorrect architecture or layering.
 - Broken monorepo boundaries.
@@ -361,5 +405,5 @@ The reviewed work is not approvable if any of these remain:
 - Mockup deviations.
 
 Success means the code fully matches the constitution, `.agent/rules/*.md`, the
-selected spec folder, and any approved mockups, with no missing functionality or
-architectural violations.
+selected spec folder, the linked issue when present, and any approved mockups,
+with no missing functionality or architectural violations.
