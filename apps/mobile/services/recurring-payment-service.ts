@@ -27,16 +27,23 @@ export interface RecurringPaymentData {
 
 export type UpdateRecurringPaymentData = RecurringPaymentData;
 
+export const RECURRING_PAYMENT_SERVICE_ERROR_CODES = {
+  CATEGORY_UNAVAILABLE: "RECURRING_PAYMENT_CATEGORY_UNAVAILABLE",
+} as const;
+
 async function resolveRecurringPaymentReferences(
   scope: Awaited<ReturnType<typeof getCurrentUserDataScope>>,
   accountId: string,
   categoryId: string
 ): Promise<void> {
   await scope.findOwned(database.get<Account>("accounts"), accountId);
-  await scope.findAccessibleCategory(
+  const category = await scope.findAccessibleCategory(
     database.get<Category>("categories"),
     categoryId
   );
+  if (category.deleted) {
+    throw new Error(RECURRING_PAYMENT_SERVICE_ERROR_CODES.CATEGORY_UNAVAILABLE);
+  }
 }
 
 /**

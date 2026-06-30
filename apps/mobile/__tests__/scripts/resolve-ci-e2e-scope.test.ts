@@ -140,6 +140,18 @@ describe("resolve-ci-e2e-scope", () => {
     });
   });
 
+  it("runs all Android E2E suites for auth and onboarding locale copy changes", () => {
+    expect(
+      scopeResolver.resolveCiE2eScope([
+        "apps/mobile/locales/en/auth.json",
+        "apps/mobile/locales/en/onboarding.json",
+      ])
+    ).toEqual({
+      shouldRun: true,
+      suites: ["accounts", "transactions", "sms-sync", "live-sms"],
+    });
+  });
+
   it("diffs the full pushed range on push events", () => {
     expect(
       scopeResolver.getGitDiffArgs({

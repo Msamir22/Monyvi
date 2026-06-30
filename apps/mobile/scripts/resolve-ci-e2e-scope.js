@@ -88,6 +88,10 @@ function getSuitesForFile(filePath) {
     suites.push(...orderedSuites);
   }
 
+  if (/locales\/(?:ar|en)\/(?:auth|onboarding)\.json/i.test(normalized)) {
+    suites.push(...orderedSuites);
+  }
+
   if (
     /transaction|category|transfer|recurring-payment|recurringPayment|budget|AccountSelectorModal|FrequencyPickerModal|ConfirmationModal|useFormScroll|locales\/(?:ar|en)\/transactions\.json/i.test(
       normalized
