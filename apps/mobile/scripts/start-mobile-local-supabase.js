@@ -84,6 +84,27 @@ function shouldShowSetupOutput(env = process.env) {
   return env.MONYVI_LOCAL_SUPABASE_VERBOSE_SETUP === "1";
 }
 
+function shouldWarnAboutMissingWatchman(env = process.env, options = {}) {
+  const platform = options.platform ?? process.platform;
+  if (platform !== "win32") return false;
+  if (env.MONYVI_SUPPRESS_WATCHMAN_WARNING === "1") return false;
+
+  const findCommandOnPath = options.findOnPath ?? findOnPath;
+  return !findCommandOnPath("watchman");
+}
+
+function warnIfMissingWatchman(env = process.env) {
+  if (!shouldWarnAboutMissingWatchman(env)) return;
+
+  console.warn(
+    [
+      "Watchman was not found on PATH.",
+      "Metro can fall back to the Windows file watcher, but this monorepo may start very slowly or fail watch mode without Watchman.",
+      "Install Watchman or set MONYVI_SUPPRESS_WATCHMAN_WARNING=1 to hide this warning.",
+    ].join("\n")
+  );
+}
+
 function parseCliArgs(args) {
   let shouldUseWirelessDeviceTunnel = false;
   let password = null;
@@ -275,9 +296,10 @@ function resolveLocalSupabaseDeviceConfig(env = process.env) {
 
 function buildLocalSupabaseExpoEnv(anonKey, baseEnv = process.env) {
   const config = resolveLocalSupabaseDeviceConfig(baseEnv);
+  const { EXPO_NO_METRO_WORKSPACE_ROOT, ...metroEnv } = baseEnv;
 
   return {
-    ...baseEnv,
+    ...metroEnv,
     EXPO_PUBLIC_SUPABASE_URL:
       baseEnv.EXPO_PUBLIC_SUPABASE_URL ?? config.supabaseUrl,
     EXPO_PUBLIC_SUPABASE_ANON_KEY:
@@ -285,7 +307,6 @@ function buildLocalSupabaseExpoEnv(anonKey, baseEnv = process.env) {
     EXPO_PUBLIC_MONYVI_TEST_MODE: "off",
     EXPO_PUBLIC_AI_SMS_PARSER_MODE: "edge",
     EXPO_PUBLIC_SENTRY_DSN: baseEnv.EXPO_PUBLIC_SENTRY_DSN ?? "",
-    EXPO_NO_METRO_WORKSPACE_ROOT: baseEnv.EXPO_NO_METRO_WORKSPACE_ROOT ?? "1",
     EXPO_NO_TELEMETRY: "1",
   };
 }
@@ -459,7 +480,9 @@ function startDefaultLocalSupabase(expoArgs) {
     reverseLocalSupabasePort();
   }
 
-  runExpoSync(buildLocalSupabaseExpoEnv(anonKey), expoArgs);
+  const env = buildLocalSupabaseExpoEnv(anonKey);
+  warnIfMissingWatchman(env);
+  runExpoSync(env, expoArgs);
 }
 
 async function startWirelessDeviceLocalSupabase(password, expoArgs) {
@@ -534,6 +557,7 @@ async function startWirelessDeviceLocalSupabase(password, expoArgs) {
     ...process.env,
     MONYVI_LOCAL_SUPABASE_DEVICE_URL: tunnelUrl,
   });
+  warnIfMissingWatchman(env);
   const expo = startExpoProcess(env, expoArgs);
   expo.once("exit", (code) => {
     stopNgrok();
@@ -570,5 +594,6 @@ module.exports = {
   resolveLocalSupabaseDeviceConfig,
   resolveNgrokCommand,
   resolveNgrokTunnelUrl,
+  shouldWarnAboutMissingWatchman,
   shouldShowSetupOutput,
 };

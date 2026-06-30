@@ -18,9 +18,10 @@ function buildE2eFixtureEnv(baseEnv = process.env) {
         ...baseEnv,
         E2E_SUPABASE_MODE: "local",
       });
+  const { EXPO_NO_METRO_WORKSPACE_ROOT, ...metroEnv } = baseEnv;
 
   return {
-    ...baseEnv,
+    ...metroEnv,
     E2E_SUPABASE_MODE: "local",
     EXPO_PUBLIC_MONYVI_TEST_MODE: "e2e",
     EXPO_PUBLIC_AI_SMS_PARSER_MODE: "fixture",
@@ -29,7 +30,6 @@ function buildE2eFixtureEnv(baseEnv = process.env) {
     EXPO_PUBLIC_SUPABASE_ANON_KEY:
       baseEnv.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? config.anonKey,
     EXPO_PUBLIC_SENTRY_DSN: baseEnv.EXPO_PUBLIC_SENTRY_DSN ?? "",
-    EXPO_NO_METRO_WORKSPACE_ROOT: baseEnv.EXPO_NO_METRO_WORKSPACE_ROOT ?? "1",
     EXPO_NO_TELEMETRY: "1",
     CI: baseEnv.CI ?? "1",
   };
