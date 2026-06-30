@@ -334,7 +334,8 @@ describe("RecurringPaymentForm", () => {
     expect(screen.getByDisplayValue("450")).toBeTruthy();
   });
 
-  it("keeps dirty local edits when initial values change", () => {
+  it("keeps dirty local edits while merging untouched initial value changes", async () => {
+    const onSubmit = jest.fn();
     const { rerender } = render(
       <RecurringPaymentForm
         mode="edit"
@@ -344,7 +345,7 @@ describe("RecurringPaymentForm", () => {
         incomeCategories={[]}
         isSubmitting={false}
         submitLabel="save"
-        onSubmit={jest.fn()}
+        onSubmit={onSubmit}
       />
     );
 
@@ -362,12 +363,23 @@ describe("RecurringPaymentForm", () => {
         incomeCategories={[]}
         isSubmitting={false}
         submitLabel="save"
-        onSubmit={jest.fn()}
+        onSubmit={onSubmit}
       />
     );
 
     expect(screen.getByDisplayValue("Local edit")).toBeTruthy();
-    expect(screen.getByDisplayValue("250")).toBeTruthy();
+    expect(screen.getByDisplayValue("450")).toBeTruthy();
+
+    fireEvent.press(screen.getByText("save"));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          amount: "450",
+          name: "Local edit",
+        })
+      );
+    });
   });
 
   it("shows a selected subcategory from the full category list", () => {

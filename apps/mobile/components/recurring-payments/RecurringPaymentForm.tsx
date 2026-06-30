@@ -81,6 +81,7 @@ type FormErrors = Partial<
   Record<"name" | "amount" | "accountId" | "categoryId", string>
 >;
 type FormFieldName = keyof FormErrors;
+type RecurringPaymentFormField = keyof RecurringPaymentFormValues;
 
 const TYPE_OPTIONS: ReadonlyArray<{
   readonly value: TransactionType;
@@ -114,6 +115,17 @@ const ERROR_FIELD_ORDER: readonly FormFieldName[] = [
   "amount",
   "accountId",
   "categoryId",
+];
+const FORM_VALUE_FIELDS: readonly RecurringPaymentFormField[] = [
+  "name",
+  "amount",
+  "type",
+  "accountId",
+  "categoryId",
+  "frequency",
+  "startDate",
+  "action",
+  "notes",
 ];
 
 export const RecurringPaymentForm = React.forwardRef<
@@ -158,7 +170,7 @@ export const RecurringPaymentForm = React.forwardRef<
   const [showFrequencyModal, setShowFrequencyModal] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const isSubmitInFlightRef = useRef(false);
-  const isDirtyRef = useRef(false);
+  const dirtyFieldsRef = useRef<Set<RecurringPaymentFormField>>(new Set());
   const nameFieldRef = getFieldRef("name");
   const amountFieldRef = getFieldRef("amount");
   const accountFieldRef = getFieldRef("accountId");
@@ -221,7 +233,13 @@ export const RecurringPaymentForm = React.forwardRef<
   });
 
   useEffect(() => {
-    if (isDirtyRef.current) return;
+    const dirtyFields = dirtyFieldsRef.current;
+    if (dirtyFields.size > 0) {
+      setForm((prev) =>
+        mergePristineInitialValues(prev, initialValues, dirtyFields)
+      );
+      return;
+    }
 
     setForm(initialValues);
     setErrors({});
@@ -229,6 +247,7 @@ export const RecurringPaymentForm = React.forwardRef<
 
   useEffect(() => {
     if (form.accountId || !initialValues.accountId) return;
+    if (dirtyFieldsRef.current.has("accountId")) return;
 
     setForm((prev) => ({ ...prev, accountId: initialValues.accountId }));
     setErrors((prev) => ({ ...prev, accountId: undefined }));
@@ -239,7 +258,7 @@ export const RecurringPaymentForm = React.forwardRef<
       field: K,
       value: RecurringPaymentFormValues[K]
     ): void => {
-      isDirtyRef.current = true;
+      dirtyFieldsRef.current = new Set([...dirtyFieldsRef.current, field]);
       setForm((prev) => ({ ...prev, [field]: value }));
       if (field in errors) {
         setErrors((prev) => ({ ...prev, [field]: undefined }));
@@ -267,6 +286,7 @@ export const RecurringPaymentForm = React.forwardRef<
     isSubmitInFlightRef.current = true;
     try {
       await onSubmit(form);
+      dirtyFieldsRef.current = new Set();
     } finally {
       isSubmitInFlightRef.current = false;
     }
@@ -695,6 +715,20 @@ function getDisplayDueDate({
   const anchor = dueDate && !didStartDateChange ? dueDate : form.startDate;
 
   return calculateNextDueDate(anchor, form.frequency);
+}
+
+function mergePristineInitialValues(
+  currentForm: RecurringPaymentFormValues,
+  initialValues: RecurringPaymentFormValues,
+  dirtyFields: ReadonlySet<RecurringPaymentFormField>
+): RecurringPaymentFormValues {
+  return FORM_VALUE_FIELDS.reduce<RecurringPaymentFormValues>(
+    (nextForm, field) =>
+      dirtyFields.has(field)
+        ? nextForm
+        : { ...nextForm, [field]: initialValues[field] },
+    currentForm
+  );
 }
 
 function toTitleCase(value: string): string {
