@@ -101,9 +101,7 @@ describe("resolve-ci-e2e-scope", () => {
 
   it("runs every suite for workflow changes", () => {
     expect(
-      scopeResolver.resolveCiE2eScope([
-        ".github/workflows/ci.yml",
-      ])
+      scopeResolver.resolveCiE2eScope([".github/workflows/ci.yml"])
     ).toEqual({
       shouldRun: true,
       suites: ["accounts", "transactions", "sms-sync", "live-sms"],
