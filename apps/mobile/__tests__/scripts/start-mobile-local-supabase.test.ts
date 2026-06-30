@@ -31,6 +31,13 @@ interface StartMobileLocalSupabaseModule {
   shouldShowSetupOutput(
     env?: Readonly<Record<string, string | undefined>>
   ): boolean;
+  shouldWarnAboutMissingWatchman(
+    env?: Readonly<Record<string, string | undefined>>,
+    options?: {
+      readonly findOnPath?: (command: string) => string | null;
+      readonly platform?: NodeJS.Platform;
+    }
+  ): boolean;
 }
 
 const startMobileLocalSupabase = jest.requireActual(
@@ -205,6 +212,40 @@ describe("start-mobile-local-supabase script helpers", () => {
     ).toBe(true);
   });
 
+  it("warns Windows developers when Watchman is missing", () => {
+    expect(
+      startMobileLocalSupabase.shouldWarnAboutMissingWatchman(
+        {},
+        {
+          findOnPath: () => null,
+          platform: "win32",
+        }
+      )
+    ).toBe(true);
+  });
+
+  it("does not warn about Watchman when it is available or suppressed", () => {
+    expect(
+      startMobileLocalSupabase.shouldWarnAboutMissingWatchman(
+        {},
+        {
+          findOnPath: () => "C:\\Users\\Mohamed\\scoop\\shims\\watchman.exe",
+          platform: "win32",
+        }
+      )
+    ).toBe(false);
+
+    expect(
+      startMobileLocalSupabase.shouldWarnAboutMissingWatchman(
+        { MONYVI_SUPPRESS_WATCHMAN_WARNING: "1" },
+        {
+          findOnPath: () => null,
+          platform: "win32",
+        }
+      )
+    ).toBe(false);
+  });
+
   it("keeps an explicitly provided Expo Supabase URL", () => {
     const env = startMobileLocalSupabase.buildLocalSupabaseExpoEnv(
       "local-anon-key",
@@ -219,6 +260,17 @@ describe("start-mobile-local-supabase script helpers", () => {
       "https://custom-supabase.example.dev"
     );
     expect(env.EXPO_PUBLIC_SUPABASE_ANON_KEY).toBe("custom-anon-key");
+  });
+
+  it("does not opt out of Expo monorepo root detection", () => {
+    const env = startMobileLocalSupabase.buildLocalSupabaseExpoEnv(
+      "local-anon-key",
+      {
+        EXPO_NO_METRO_WORKSPACE_ROOT: "1",
+      }
+    );
+
+    expect(env.EXPO_NO_METRO_WORKSPACE_ROOT).toBeUndefined();
   });
 
   it("parses quoted Supabase status env output", () => {
