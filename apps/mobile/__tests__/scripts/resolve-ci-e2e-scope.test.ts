@@ -99,6 +99,35 @@ describe("resolve-ci-e2e-scope", () => {
     });
   });
 
+  it("does not expand a recurring payment PR to every suite for CI or developer tooling files", () => {
+    expect(
+      scopeResolver.resolveCiE2eScope([
+        ".github/workflows/ci.yml",
+        "AGENTS.md",
+        "scripts/link-worktree-node-modules.ps1",
+        "apps/mobile/app/(private)/create-recurring-payment.tsx",
+        "apps/mobile/components/recurring-payments/RecurringPaymentForm.tsx",
+        "apps/mobile/hooks/useRecurringPayments.ts",
+        "apps/mobile/services/recurring-payment-service.ts",
+      ])
+    ).toEqual({
+      shouldRun: true,
+      suites: ["transactions"],
+    });
+  });
+
+  it("skips Android E2E for developer workflow-only files", () => {
+    expect(
+      scopeResolver.resolveCiE2eScope([
+        "AGENTS.md",
+        "scripts/link-worktree-node-modules.ps1",
+      ])
+    ).toEqual({
+      shouldRun: false,
+      suites: [],
+    });
+  });
+
   it("does not run Android E2E for unrelated mobile test-only changes", () => {
     expect(
       scopeResolver.resolveCiE2eScope([

@@ -23,7 +23,6 @@ function requiresFullE2e(filePath) {
   }
 
   return (
-    filePath === ".github/workflows/ci.yml" ||
     filePath === "package.json" ||
     filePath === "package-lock.json" ||
     filePath === "apps/mobile/package.json" ||
@@ -32,7 +31,6 @@ function requiresFullE2e(filePath) {
     filePath.startsWith("apps/mobile/config/e2e") ||
     filePath.startsWith("packages/db/") ||
     filePath.startsWith("packages/logic/") ||
-    filePath.startsWith("scripts/") ||
     filePath.startsWith("supabase/")
   );
 }
