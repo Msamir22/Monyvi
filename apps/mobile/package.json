@@ -7,7 +7,7 @@
     "start": "expo start",
     "start:clear": "expo start --clear",
     "android": "expo run:android",
-    "android:release": "npx expo run:android --variant release",
+    "android:release": "cross-env EXPO_NO_METRO_WORKSPACE_ROOT=false npx expo run:android --variant release",
     "ios": "expo run:ios",
     "web": "expo start --web",
     "android-local-build": "npm run prebuild && npx expo run:android --device",

@@ -18,6 +18,11 @@ const workspaceNodeModules = path.resolve(workspaceRoot, "node_modules");
 const packageLogicRoot = path.resolve(workspaceRoot, "packages/logic");
 const packageDbRoot = path.resolve(workspaceRoot, "packages/db");
 
+function readWorkspaceOptOut(): string | undefined {
+  const value: unknown = process.env.EXPO_NO_METRO_WORKSPACE_ROOT;
+  return typeof value === "string" ? value : undefined;
+}
+
 function loadMetroConfig(): MetroConfigShape {
   jest.resetModules();
 
@@ -53,7 +58,7 @@ function loadMetroConfig(): MetroConfigShape {
 }
 
 describe("metro config", () => {
-  const originalWorkspaceOptOut = process.env.EXPO_NO_METRO_WORKSPACE_ROOT;
+  const originalWorkspaceOptOut = readWorkspaceOptOut();
 
   afterEach(() => {
     if (originalWorkspaceOptOut === undefined) {
