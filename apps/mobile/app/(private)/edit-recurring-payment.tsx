@@ -26,7 +26,7 @@ export default function EditRecurringPaymentScreen(): React.JSX.Element {
   const { t } = useTranslation("transactions");
   const { t: tCommon } = useTranslation("common");
   const { payment, isLoading } = useRecurringPayment(id);
-  const { accounts } = useAccounts();
+  const { accounts, isLoading: isAccountsLoading } = useAccounts();
   const { expenseCategories, incomeCategories } = useCategories();
   const { categories: allCategories } = useCategories({ topLevelOnly: false });
   const { showToast } = useToast();
@@ -136,7 +136,7 @@ export default function EditRecurringPaymentScreen(): React.JSX.Element {
     }
   };
 
-  if (isLoading) {
+  if (isLoading || isAccountsLoading) {
     return (
       <View className="flex-1 bg-background dark:bg-background-dark">
         <PageHeader title={t("edit_payment")} showBackButton />

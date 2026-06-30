@@ -277,10 +277,10 @@ describe("recurring-payment-service", () => {
     expect(payment.nextDueDate).toEqual(new Date("2026-06-22T00:00:00.000Z"));
   });
 
-  it("recomputes next due date when only the frequency changes", async () => {
+  it("recomputes next due date from the current due date when only the frequency changes", async () => {
     const payment = createRecurringRecord({
       frequency: "MONTHLY",
-      startDate: new Date("2026-06-01T00:00:00.000Z"),
+      startDate: new Date("2026-01-01T00:00:00.000Z"),
       nextDueDate: new Date("2026-07-01T00:00:00.000Z"),
     });
     mockFindOwned.mockImplementation(
@@ -301,12 +301,12 @@ describe("recurring-payment-service", () => {
       accountId: "account-1",
       categoryId: "category-1",
       frequency: "WEEKLY",
-      startDate: new Date("2026-06-01T00:00:00.000Z"),
+      startDate: new Date("2026-01-01T00:00:00.000Z"),
       action: "AUTO_CREATE",
       notes: undefined,
     });
 
-    expect(payment.nextDueDate).toEqual(new Date("2026-06-08T00:00:00.000Z"));
+    expect(payment.nextDueDate).toEqual(new Date("2026-07-08T00:00:00.000Z"));
   });
 
   it("pauses, resumes, and soft-deletes an owned recurring payment", async () => {

@@ -7,6 +7,7 @@ import {
 import React from "react";
 
 let mockPaymentStatus: "ACTIVE" | "PAUSED" | "COMPLETED" = "ACTIVE";
+let mockAccountsLoading = false;
 
 jest.mock("expo-router", () => ({
   router: { back: jest.fn() },
@@ -171,6 +172,7 @@ jest.mock("@/components/ui/Toast", () => ({
 
 jest.mock("@/hooks/useAccounts", () => ({
   useAccounts: (): {
+    readonly isLoading: boolean;
     readonly accounts: readonly [
       {
         readonly id: "account-1";
@@ -179,6 +181,7 @@ jest.mock("@/hooks/useAccounts", () => ({
       },
     ];
   } => ({
+    isLoading: mockAccountsLoading,
     accounts: [{ id: "account-1", name: "Cash", currency: "EGP" }],
   }),
 }));
@@ -259,6 +262,7 @@ describe("recurring payment header and destructive actions", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockPaymentStatus = "ACTIVE";
+    mockAccountsLoading = false;
   });
 
   it("submits the add payment form from the header save action", async () => {
@@ -284,6 +288,14 @@ describe("recurring payment header and destructive actions", () => {
         expect.objectContaining({ name: "Netflix", amount: 250 })
       );
     });
+  });
+
+  it("waits for linked account data before rendering edit save actions", () => {
+    mockAccountsLoading = true;
+    render(<EditRecurringPaymentScreen />);
+
+    expect(screen.queryByTestId("header-save")).toBeNull();
+    expect(screen.queryByTestId("form-submit")).toBeNull();
   });
 
   it("confirms before pausing an active payment", async () => {
