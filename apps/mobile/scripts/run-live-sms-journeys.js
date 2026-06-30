@@ -149,6 +149,10 @@ function blockSmsPermissions() {
   }
 }
 
+function clearDeliveredNotifications() {
+  adb(["shell", "cmd", "notification", "cancel-all"], { allowFailure: true });
+}
+
 function resetNotificationPermission() {
   revokePermission(notificationPermission);
   clearPermissionFlags(notificationPermission);
@@ -204,7 +208,7 @@ function runMaestroFlowOnce(maestroBin, flow) {
   };
 }
 
-async function runFlow(flow, prepareRetry) {
+async function runFlow(flow, prepareRetry, retryOnTransportFailure = true) {
   const maestroBin = resolveMaestroBin();
   if (!maestroBin) {
     throw new Error("Maestro was not found. Install it or set MAESTRO_BIN.");
@@ -217,6 +221,7 @@ async function runFlow(flow, prepareRetry) {
     }
 
     if (
+      retryOnTransportFailure &&
       attempt === 1 &&
       (result.didTimeout || isRetryableMaestroTransportFailure(result.output))
     ) {
@@ -962,6 +967,16 @@ function shouldPrepareLiveSmsFlowBeforeRetry(flow) {
   return Object.values(journeys).some((journey) => journey.flow === flow);
 }
 
+function shouldResetLiveSmsSideEffectsBeforeRetry(
+  flow,
+  env = process.env
+) {
+  return (
+    env.E2E_SUPABASE_MODE === "local" &&
+    shouldPrepareLiveSmsFlowBeforeRetry(flow)
+  );
+}
+
 function logInfo(event, fields) {
   process.stdout.write(
     `${JSON.stringify({ level: "info", event, ...fields })}\n`
@@ -969,6 +984,8 @@ function logInfo(event, fields) {
 }
 
 async function prepareLiveSmsJourneyRetry(journey) {
+  await bootstrapCleanAuthenticatedSession();
+  clearDeliveredNotifications();
   journey.prepare();
   forceStopApp();
   await ensureE2eAppReady();
@@ -995,7 +1012,16 @@ async function main() {
     journey.prepare();
     forceStopApp();
     await ensureE2eAppReady();
-    await runFlow(journey.flow, () => prepareLiveSmsJourneyRetry(journey));
+    const canResetSideEffects = shouldResetLiveSmsSideEffectsBeforeRetry(
+      journey.flow
+    );
+    await runFlow(
+      journey.flow,
+      canResetSideEffects
+        ? () => prepareLiveSmsJourneyRetry(journey)
+        : undefined,
+      canResetSideEffects
+    );
     await journey.after?.();
     collapseSystemUi();
     logInfo("liveSmsJourney.passed", { id, flow: journey.flow });
@@ -1017,5 +1043,6 @@ module.exports = {
   getActiveUserFilter,
   isRetryableMaestroTransportFailure,
   shouldPrepareLiveSmsFlowBeforeRetry,
+  shouldResetLiveSmsSideEffectsBeforeRetry,
   shouldSkipRunAsProbeCleanup,
 };
