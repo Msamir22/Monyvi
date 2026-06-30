@@ -190,13 +190,17 @@ jest.mock("@/hooks/useAccounts", () => ({
 }));
 
 jest.mock("@/hooks/useCategories", () => ({
-  useCategories: (): {
-    readonly expenseCategories: readonly [];
-    readonly incomeCategories: readonly [];
-  } => ({
-    expenseCategories: [],
-    incomeCategories: [],
-  }),
+  useCategories: jest.fn(
+    (): {
+      readonly categories: readonly [];
+      readonly expenseCategories: readonly [];
+      readonly incomeCategories: readonly [];
+    } => ({
+      categories: [],
+      expenseCategories: [],
+      incomeCategories: [],
+    })
+  ),
 }));
 
 jest.mock("@/hooks/useRecurringPayment", () => ({
@@ -265,6 +269,16 @@ function serviceMocks(): RecurringPaymentServiceMocks {
   );
 }
 
+function categoryHookMock(): jest.MockedFunction<
+  typeof import("@/hooks/useCategories").useCategories
+> {
+  return jest.requireMock<{
+    readonly useCategories: jest.MockedFunction<
+      typeof import("@/hooks/useCategories").useCategories
+    >;
+  }>("@/hooks/useCategories").useCategories;
+}
+
 describe("recurring payment header and destructive actions", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -311,6 +325,15 @@ describe("recurring payment header and destructive actions", () => {
         "payment-1",
         expect.objectContaining({ name: "Netflix", amount: 250 })
       );
+    });
+  });
+
+  it("includes hidden categories in the edit display lookup", () => {
+    render(<EditRecurringPaymentScreen />);
+
+    expect(categoryHookMock()).toHaveBeenCalledWith({
+      topLevelOnly: false,
+      includeHidden: true,
     });
   });
 

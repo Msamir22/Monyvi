@@ -29,7 +29,10 @@ export default function EditRecurringPaymentScreen(): React.JSX.Element {
   const { payment, isLoading } = useRecurringPayment(id);
   const { accounts, isLoading: isAccountsLoading } = useAccounts();
   const { expenseCategories, incomeCategories } = useCategories();
-  const { categories: allCategories } = useCategories({ topLevelOnly: false });
+  const { categories: allCategories } = useCategories({
+    topLevelOnly: false,
+    includeHidden: true,
+  });
   const { showToast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleteVisible, setIsDeleteVisible] = useState(false);
