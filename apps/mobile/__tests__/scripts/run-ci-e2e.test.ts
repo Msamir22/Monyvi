@@ -19,11 +19,22 @@ interface RunCiE2eModule {
   ):
     | "helpers/ci-auth-bootstrap.yaml"
     | "helpers/ci-auth-deeplink-bootstrap.yaml";
-  getMaestroSuiteFlowOptions(flow: string): {
+  getMaestroSuiteFlowOptions(
+    flow: string,
+    env?: Readonly<Record<string, string | undefined>>
+  ): {
+    readonly prepareRetry?: () => Promise<void>;
     readonly retryOnDeviceFailure: boolean;
   };
   isDeviceOfflineFailure(output: string): boolean;
-  shouldRetryMaestroSuiteFlow(flow: string): boolean;
+  shouldResetMaestroFlowBeforeRetry(
+    flow: string,
+    env?: Readonly<Record<string, string | undefined>>
+  ): boolean;
+  shouldRetryMaestroSuiteFlow(
+    flow: string,
+    env?: Readonly<Record<string, string | undefined>>
+  ): boolean;
   shouldRetryChildScriptFailure(
     output: string,
     options?: { readonly retryOnDeviceFailure?: boolean }
@@ -150,19 +161,73 @@ describe("run-ci-e2e helpers", () => {
       runCiE2e.getMaestroSuiteFlowOptions(
         "sms-sync/sms-sync-permission-requestable.yaml"
       )
-    ).toEqual({
+    ).toMatchObject({
       retryOnDeviceFailure: true,
     });
     expect(
+      runCiE2e.getMaestroSuiteFlowOptions(
+        "sms-sync/sms-sync-permission-requestable.yaml"
+      ).prepareRetry
+    ).toBeUndefined();
+    expect(
       runCiE2e.shouldRetryMaestroSuiteFlow(
-        "transactions/create-transaction.yaml"
+        "transactions/create-transaction.yaml",
+        { E2E_SUPABASE_MODE: "local" }
+      )
+    ).toBe(true);
+    expect(
+      runCiE2e.getMaestroSuiteFlowOptions(
+        "transactions/create-transaction.yaml",
+        { E2E_SUPABASE_MODE: "local" }
+      )
+    ).toMatchObject({
+      retryOnDeviceFailure: true,
+    });
+    expect(
+      runCiE2e.getMaestroSuiteFlowOptions(
+        "transactions/create-transaction.yaml",
+        { E2E_SUPABASE_MODE: "local" }
+      ).prepareRetry
+    ).toEqual(expect.any(Function));
+  });
+
+  it("does not retry side-effecting Maestro flows when clean local reset is unavailable", () => {
+    expect(
+      runCiE2e.shouldResetMaestroFlowBeforeRetry(
+        "transactions/create-transaction.yaml",
+        { E2E_SUPABASE_MODE: "remote" }
+      )
+    ).toBe(false);
+    expect(
+      runCiE2e.shouldResetMaestroFlowBeforeRetry(
+        "accounts/egyptian-institution-presets.yaml",
+        { E2E_SUPABASE_MODE: "remote" }
+      )
+    ).toBe(false);
+    expect(
+      runCiE2e.shouldResetMaestroFlowBeforeRetry(
+        "transactions/create-transaction.yaml",
+        { E2E_SUPABASE_MODE: "local" }
+      )
+    ).toBe(true);
+    expect(
+      runCiE2e.shouldResetMaestroFlowBeforeRetry(
+        "sms-sync/sms-sync-permission-requestable.yaml",
+        { E2E_SUPABASE_MODE: "local" }
+      )
+    ).toBe(false);
+    expect(
+      runCiE2e.shouldRetryMaestroSuiteFlow(
+        "transactions/create-transaction.yaml",
+        { E2E_SUPABASE_MODE: "remote" }
       )
     ).toBe(false);
     expect(
       runCiE2e.getMaestroSuiteFlowOptions(
-        "transactions/create-transaction.yaml"
+        "live-sms/live-sms-foreground.yaml",
+        { E2E_SUPABASE_MODE: "local" }
       )
-    ).toEqual({
+    ).toMatchObject({
       retryOnDeviceFailure: false,
     });
   });

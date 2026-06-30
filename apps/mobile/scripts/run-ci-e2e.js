@@ -125,12 +125,30 @@ function shouldRetryStabilizationFailure(attempt, maxAttempts) {
   return attempt < maxAttempts;
 }
 
-function shouldRetryMaestroSuiteFlow(flow) {
-  return flow === "sms-sync/sms-sync-permission-requestable.yaml";
+function isLocalSupabaseMode(env = process.env) {
+  return (env.E2E_SUPABASE_MODE ?? "local") === "local";
 }
 
-function getMaestroSuiteFlowOptions(flow) {
-  return { retryOnDeviceFailure: shouldRetryMaestroSuiteFlow(flow) };
+function shouldResetMaestroFlowBeforeRetry(flow, env = process.env) {
+  if (!isLocalSupabaseMode(env)) return false;
+
+  return flow.startsWith("accounts/") || flow.startsWith("transactions/");
+}
+
+function shouldRetryMaestroSuiteFlow(flow, env = process.env) {
+  return (
+    flow === "sms-sync/sms-sync-permission-requestable.yaml" ||
+    shouldResetMaestroFlowBeforeRetry(flow, env)
+  );
+}
+
+function getMaestroSuiteFlowOptions(flow, env = process.env) {
+  return {
+    prepareRetry: shouldResetMaestroFlowBeforeRetry(flow, env)
+      ? prepareCleanMaestroFlowRetry
+      : undefined,
+    retryOnDeviceFailure: shouldRetryMaestroSuiteFlow(flow, env),
+  };
 }
 
 function appendOutputTail(
@@ -269,6 +287,9 @@ async function runNodeScript(script, args, options = {}) {
       shouldRetryChildScriptFailure(result.output, options)
     ) {
       reconnectAdb(attempt, maxAttempts);
+      if (typeof options.prepareRetry === "function") {
+        await options.prepareRetry();
+      }
       continue;
     }
 
@@ -288,6 +309,29 @@ async function maybeSeedE2eData() {
   console.log(
     `Seeded E2E data for ${config.email} (${result.userId}) on ${config.mode} Supabase`
   );
+}
+
+async function prepareCleanMaestroFlowRetry() {
+  if (!isLocalSupabaseMode()) return;
+
+  await maybeSeedE2eData();
+  const previousClearAppState = process.env.E2E_CLEAR_APP_STATE;
+  process.env.E2E_CLEAR_APP_STATE = "1";
+
+  try {
+    await runNodeScript(
+      "scripts/run-maestro.js",
+      ["test", join("e2e", "maestro", getAuthBootstrapFlow())],
+      { retryOnDeviceFailure: false }
+    );
+    hasRunAuthBootstrap = true;
+  } finally {
+    if (previousClearAppState === undefined) {
+      delete process.env.E2E_CLEAR_APP_STATE;
+    } else {
+      process.env.E2E_CLEAR_APP_STATE = previousClearAppState;
+    }
+  }
 }
 
 function isFixtureE2eMode() {
@@ -408,6 +452,7 @@ module.exports = {
   getAuthBootstrapFlow,
   getMaestroSuiteFlowOptions,
   isDeviceOfflineFailure,
+  shouldResetMaestroFlowBeforeRetry,
   shouldRetryMaestroSuiteFlow,
   shouldRetryChildScriptFailure,
   shouldRetryStabilizationFailure,
