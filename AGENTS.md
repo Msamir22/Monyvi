@@ -344,6 +344,15 @@ chore, perf, ci.
 
 ## Pull Request Review Comments
 
+- During PR code review, first look for the matching feature folder under
+  `specs/`. If no matching spec folder exists, fetch and read the GitHub issue
+  linked to the PR before reviewing code. Treat that issue as the feature
+  requirements source of truth and the business-logic source of truth for the
+  review, subject to the constitution and `docs/business/business-decisions.md`.
+- If both a spec folder and linked issue exist, review against both. Treat them
+  together as the feature source of truth, verify the implementation satisfies
+  everything in both artifacts, and call out any gaps or contradictions between
+  the spec and issue as review findings before approving.
 - Before addressing a PR review comment, verify it against the current branch
   and current code. Treat outdated, already-resolved, duplicated, or no-longer
   applicable comments as non-actionable, and state why instead of changing code.
