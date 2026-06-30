@@ -6,6 +6,7 @@ let mockTransactionByIdResult: {
   readonly transaction: Record<string, unknown> | null;
   readonly isLoading: boolean;
 };
+let mockAccounts: Array<Record<string, unknown>>;
 
 const mockView = (testID: string): React.JSX.Element => {
   const ReactNative =
@@ -47,15 +48,7 @@ jest.mock("@/hooks/useAccounts", () => ({
   useAccounts: (): {
     readonly accounts: ReadonlyArray<Record<string, unknown>>;
   } => ({
-    accounts: [
-      {
-        id: "account-1",
-        name: "Cash",
-        type: "CASH",
-        balance: 1000,
-        currency: "EGP",
-      },
-    ],
+    accounts: mockAccounts,
   }),
 }));
 
@@ -139,6 +132,15 @@ import EditTransaction from "@/app/(private)/edit-transaction";
 
 describe("EditTransaction dark theme styling", () => {
   beforeEach(() => {
+    mockAccounts = [
+      {
+        id: "account-1",
+        name: "Cash",
+        type: "CASH",
+        balance: 1000,
+        currency: "EGP",
+      },
+    ];
     mockTransactionByIdResult = {
       transaction: {
         id: "tx-1",
@@ -195,5 +197,62 @@ describe("EditTransaction dark theme styling", () => {
       "className",
       expect.stringContaining("bg-background dark:bg-background-dark")
     );
+  });
+
+  it("does not show a balance warning for an unchanged expense already reflected in the account balance", async () => {
+    mockTransactionByIdResult = {
+      transaction: {
+        id: "tx-1",
+        amount: 1100,
+        type: "EXPENSE",
+        categoryId: "cat-food",
+        accountId: "account-1",
+        counterparty: undefined,
+        note: undefined,
+        date: new Date("2026-05-01T12:00:00.000Z"),
+      },
+      isLoading: false,
+    };
+
+    render(<EditTransaction />);
+
+    await screen.findByTestId("edit-transaction-screen");
+
+    expect(screen.queryByText(/will put your balance/i)).toBeNull();
+    expect(screen.queryByText(/warning_negative_balance/i)).toBeNull();
+  });
+
+  it("recomputes the balance warning when an observed account balance changes", async () => {
+    const account = {
+      id: "account-1",
+      name: "Cash",
+      type: "CASH",
+      balance: 100,
+      currency: "EGP",
+    };
+    mockAccounts = [account];
+    mockTransactionByIdResult = {
+      transaction: {
+        id: "tx-1",
+        amount: 1100,
+        type: "EXPENSE",
+        categoryId: "cat-food",
+        accountId: "account-1",
+        counterparty: undefined,
+        note: undefined,
+        date: new Date("2026-05-01T12:00:00.000Z"),
+      },
+      isLoading: false,
+    };
+
+    const { rerender } = render(<EditTransaction />);
+
+    await screen.findByTestId("edit-transaction-screen");
+    expect(screen.queryByText(/warning_negative_balance/i)).toBeNull();
+
+    account.balance = -100;
+    rerender(<EditTransaction />);
+
+    expect(await screen.findByText(/warning_negative_balance/i)).toBeTruthy();
   });
 });

@@ -38,7 +38,10 @@ import {
 } from "@/validation/transaction-validation";
 import { Ionicons } from "@expo/vector-icons";
 import type { TransactionType } from "@monyvi/db";
-import { formatAmountInput } from "@monyvi/logic";
+import {
+  calculateEditedTransactionBalanceProjection,
+  formatAmountInput,
+} from "@monyvi/logic";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -240,6 +243,42 @@ export default function EditTransaction(): React.ReactNode {
       return 0;
     }
   };
+
+  const balanceProjection = (() => {
+    const projectionAccount = isTransferMode
+      ? accounts.find((account) => account.id === transaction?.accountId)
+      : selectedAccount;
+
+    if (!transaction || !projectionAccount || !amount) {
+      return null;
+    }
+
+    const parsedAmount = calculateResult(amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      return null;
+    }
+
+    const projectedEditedAmount = isTransferMode
+      ? transaction.amount
+      : parsedAmount;
+
+    return calculateEditedTransactionBalanceProjection({
+      currentAccountBalances: accounts.map((account) => ({
+        accountId: account.id,
+        balance: account.balance,
+      })),
+      originalAmount: transaction.amount,
+      originalType: transaction.type,
+      originalAccountId: transaction.accountId,
+      editedAmount: projectedEditedAmount,
+      editedType: type,
+      editedAccountId: projectionAccount.id,
+    });
+  })();
+  const balanceWarning = balanceProjection?.warningAccountProjection ?? null;
+  const balanceWarningAccount = balanceWarning
+    ? accounts.find((account) => account.id === balanceWarning.accountId)
+    : null;
 
   // ---------------------------------------------------------------------------
   // Handle Save
@@ -510,20 +549,16 @@ export default function EditTransaction(): React.ReactNode {
         {/* Amount Display */}
         <>
           {/* Insufficient balance warning */}
-          {type === "EXPENSE" &&
-            selectedAccount &&
-            amount &&
-            !isNaN(parseFloat(amount)) &&
-            parseFloat(amount) > selectedAccount.balance && (
-              <Text className="text-amber-500 text-xs font-medium text-center mb-1">
-                ⚠️ This will put your balance at -
-                {formatAmountInput(
-                  (parseFloat(amount) - selectedAccount.balance).toFixed(2),
-                  "0"
-                )}{" "}
-                {selectedAccount.currency}
-              </Text>
-            )}
+          {balanceWarning && balanceWarningAccount && (
+            <Text className="text-amber-500 text-xs font-medium text-center mb-1">
+              {t("warning_negative_balance")}{" "}
+              {formatAmountInput(
+                balanceWarning.projectedBalance.toFixed(2),
+                "0"
+              )}{" "}
+              {balanceWarningAccount.currency}
+            </Text>
+          )}
           <AmountDisplay
             amount={amount}
             currency={selectedAccount?.currency || "EGP"}
