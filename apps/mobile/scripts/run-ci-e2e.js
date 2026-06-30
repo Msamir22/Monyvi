@@ -125,6 +125,10 @@ function shouldRetryStabilizationFailure(attempt, maxAttempts) {
   return attempt < maxAttempts;
 }
 
+function getMaestroSuiteFlowOptions() {
+  return { retryOnDeviceFailure: true };
+}
+
 function appendOutputTail(
   currentOutput,
   nextChunk,
@@ -340,7 +344,7 @@ async function runMaestroFlows(flows) {
     await runNodeScript(
       "scripts/run-maestro.js",
       ["test", join("e2e", "maestro", flow)],
-      { retryOnDeviceFailure: false }
+      getMaestroSuiteFlowOptions()
     );
   }
 }
@@ -398,6 +402,7 @@ module.exports = {
   getLiveSmsTimeoutMs,
   getRequestedCiSuites,
   getAuthBootstrapFlow,
+  getMaestroSuiteFlowOptions,
   isDeviceOfflineFailure,
   shouldRetryChildScriptFailure,
   shouldRetryStabilizationFailure,

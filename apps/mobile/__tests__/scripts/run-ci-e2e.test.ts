@@ -19,6 +19,7 @@ interface RunCiE2eModule {
   ):
     | "helpers/ci-auth-bootstrap.yaml"
     | "helpers/ci-auth-deeplink-bootstrap.yaml";
+  getMaestroSuiteFlowOptions(): { readonly retryOnDeviceFailure: true };
   isDeviceOfflineFailure(output: string): boolean;
   shouldRetryChildScriptFailure(
     output: string,
@@ -134,6 +135,12 @@ describe("run-ci-e2e helpers", () => {
         { retryOnDeviceFailure: false }
       )
     ).toBe(false);
+  });
+
+  it("retries normal Maestro suite flows when the emulator disconnects", () => {
+    expect(runCiE2e.getMaestroSuiteFlowOptions()).toEqual({
+      retryOnDeviceFailure: true,
+    });
   });
 
   it("keeps stabilization failures inside the bounded retry window", () => {
