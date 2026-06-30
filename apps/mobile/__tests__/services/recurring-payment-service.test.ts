@@ -259,6 +259,50 @@ describe("recurring-payment-service", () => {
     expect(mockWrite).not.toHaveBeenCalled();
   });
 
+  it("normalizes missing account references before creating a recurring payment", async () => {
+    mockFindOwned.mockRejectedValue(new Error("Record not found"));
+
+    await expect(
+      createRecurringPayment({
+        name: "Weekly Gym",
+        amount: 250,
+        currency: "EGP",
+        type: "EXPENSE",
+        accountId: "missing-account",
+        categoryId: "category-1",
+        frequency: "WEEKLY",
+        startDate: new Date("2026-06-01T00:00:00.000Z"),
+        action: "NOTIFY",
+        notes: "membership",
+      })
+    ).rejects.toThrow(
+      RECURRING_PAYMENT_SERVICE_ERROR_CODES.ACCOUNT_UNAVAILABLE
+    );
+    expect(mockWrite).not.toHaveBeenCalled();
+  });
+
+  it("normalizes missing category references before creating a recurring payment", async () => {
+    mockFindAccessibleCategory.mockRejectedValue(new Error("Record not found"));
+
+    await expect(
+      createRecurringPayment({
+        name: "Weekly Gym",
+        amount: 250,
+        currency: "EGP",
+        type: "EXPENSE",
+        accountId: "account-1",
+        categoryId: "missing-category",
+        frequency: "WEEKLY",
+        startDate: new Date("2026-06-01T00:00:00.000Z"),
+        action: "NOTIFY",
+        notes: "membership",
+      })
+    ).rejects.toThrow(
+      RECURRING_PAYMENT_SERVICE_ERROR_CODES.CATEGORY_UNAVAILABLE
+    );
+    expect(mockWrite).not.toHaveBeenCalled();
+  });
+
   it("rejects a deleted category reference before updating a recurring payment", async () => {
     mockFindAccessibleCategory.mockResolvedValue({
       id: "category-1",

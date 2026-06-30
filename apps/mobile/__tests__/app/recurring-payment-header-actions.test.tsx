@@ -8,6 +8,7 @@ import React from "react";
 
 let mockPaymentStatus: "ACTIVE" | "PAUSED" | "COMPLETED" = "ACTIVE";
 let mockAccountsLoading = false;
+const mockShowToast = jest.fn();
 
 jest.mock("expo-router", () => ({
   router: { back: jest.fn() },
@@ -167,7 +168,9 @@ jest.mock("@/components/ui/Skeleton", () => ({
 }));
 
 jest.mock("@/components/ui/Toast", () => ({
-  useToast: (): { readonly showToast: jest.Mock } => ({ showToast: jest.fn() }),
+  useToast: (): { readonly showToast: jest.Mock } => ({
+    showToast: mockShowToast,
+  }),
 }));
 
 jest.mock("@/hooks/useAccounts", () => ({
@@ -238,6 +241,10 @@ jest.mock("@/services/recurring-payment-service", () => ({
   pauseRecurringPayment: jest.fn().mockResolvedValue(undefined),
   resumeRecurringPayment: jest.fn().mockResolvedValue(undefined),
   deleteRecurringPayment: jest.fn().mockResolvedValue(undefined),
+  RECURRING_PAYMENT_SERVICE_ERROR_CODES: {
+    ACCOUNT_UNAVAILABLE: "RECURRING_PAYMENT_ACCOUNT_UNAVAILABLE",
+    CATEGORY_UNAVAILABLE: "RECURRING_PAYMENT_CATEGORY_UNAVAILABLE",
+  },
 }));
 
 import CreateRecurringPaymentScreen from "@/app/(private)/create-recurring-payment";
@@ -277,6 +284,23 @@ describe("recurring payment header and destructive actions", () => {
     });
   });
 
+  it("maps recurring create service codes to friendly toast messages", async () => {
+    serviceMocks().createRecurringPayment.mockRejectedValueOnce(
+      new Error("RECURRING_PAYMENT_CATEGORY_UNAVAILABLE")
+    );
+    render(<CreateRecurringPaymentScreen />);
+
+    fireEvent.press(screen.getByTestId("header-save"));
+
+    await waitFor(() => {
+      expect(mockShowToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: "recurring_payment_category_unavailable",
+        })
+      );
+    });
+  });
+
   it("submits the edit payment form from the header save action", async () => {
     render(<EditRecurringPaymentScreen />);
 
@@ -286,6 +310,23 @@ describe("recurring payment header and destructive actions", () => {
       expect(serviceMocks().updateRecurringPayment).toHaveBeenCalledWith(
         "payment-1",
         expect.objectContaining({ name: "Netflix", amount: 250 })
+      );
+    });
+  });
+
+  it("maps recurring edit service codes to friendly toast messages", async () => {
+    serviceMocks().updateRecurringPayment.mockRejectedValueOnce(
+      new Error("RECURRING_PAYMENT_ACCOUNT_UNAVAILABLE")
+    );
+    render(<EditRecurringPaymentScreen />);
+
+    fireEvent.press(screen.getByTestId("header-save"));
+
+    await waitFor(() => {
+      expect(mockShowToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: "recurring_payment_account_unavailable",
+        })
       );
     });
   });

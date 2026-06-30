@@ -132,6 +132,8 @@
   "failed_to_delete_payment": "Failed to delete payment",
   "recurring_payment_not_found": "Recurring payment not found",
   "account_not_found": "Account not found",
+  "recurring_payment_account_unavailable": "This account is no longer available. Please choose another account.",
+  "recurring_payment_category_unavailable": "This category is no longer available. Please choose another category.",
   "cancel": "Cancel",
   "save_partial": "Saved {{saved}} of {{failed}} transactions. Errors: {{errors}}",
   "saved_from_sms": "{{count}} transaction(s) saved from SMS",

@@ -7,7 +7,10 @@ import { PageHeader } from "@/components/navigation/PageHeader";
 import { useToast } from "@/components/ui/Toast";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useCategories } from "@/hooks/useCategories";
-import { createRecurringPayment } from "@/services/recurring-payment-service";
+import {
+  createRecurringPayment,
+  RECURRING_PAYMENT_SERVICE_ERROR_CODES,
+} from "@/services/recurring-payment-service";
 import { router } from "expo-router";
 import React, { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -69,12 +72,10 @@ export default function CreateRecurringPaymentScreen(): React.JSX.Element {
       });
       router.back();
     } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : tCommon("error_generic");
       showToast({
         type: "error",
         title: t("failed_to_create_payment"),
-        message,
+        message: getRecurringPaymentErrorMessage(error, t, tCommon),
       });
     } finally {
       setIsSubmitting(false);
@@ -111,4 +112,22 @@ export default function CreateRecurringPaymentScreen(): React.JSX.Element {
       />
     </View>
   );
+}
+
+function getRecurringPaymentErrorMessage(
+  error: unknown,
+  t: (key: string) => string,
+  tCommon: (key: string) => string
+): string {
+  const message = error instanceof Error ? error.message : undefined;
+
+  if (message === RECURRING_PAYMENT_SERVICE_ERROR_CODES.ACCOUNT_UNAVAILABLE) {
+    return t("recurring_payment_account_unavailable");
+  }
+
+  if (message === RECURRING_PAYMENT_SERVICE_ERROR_CODES.CATEGORY_UNAVAILABLE) {
+    return t("recurring_payment_category_unavailable");
+  }
+
+  return message ?? tCommon("error_generic");
 }

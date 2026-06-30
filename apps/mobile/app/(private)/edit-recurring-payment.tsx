@@ -13,6 +13,7 @@ import { useRecurringPayment } from "@/hooks/useRecurringPayment";
 import {
   deleteRecurringPayment,
   pauseRecurringPayment,
+  RECURRING_PAYMENT_SERVICE_ERROR_CODES,
   resumeRecurringPayment,
   updateRecurringPayment,
 } from "@/services/recurring-payment-service";
@@ -87,12 +88,10 @@ export default function EditRecurringPaymentScreen(): React.JSX.Element {
       });
       router.back();
     } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : tCommon("error_generic");
       showToast({
         type: "error",
         title: t("failed_to_update_payment"),
-        message,
+        message: getRecurringPaymentErrorMessage(error, t, tCommon),
       });
     } finally {
       setIsSubmitting(false);
@@ -239,4 +238,22 @@ export default function EditRecurringPaymentScreen(): React.JSX.Element {
       />
     </View>
   );
+}
+
+function getRecurringPaymentErrorMessage(
+  error: unknown,
+  t: (key: string) => string,
+  tCommon: (key: string) => string
+): string {
+  const message = error instanceof Error ? error.message : undefined;
+
+  if (message === RECURRING_PAYMENT_SERVICE_ERROR_CODES.ACCOUNT_UNAVAILABLE) {
+    return t("recurring_payment_account_unavailable");
+  }
+
+  if (message === RECURRING_PAYMENT_SERVICE_ERROR_CODES.CATEGORY_UNAVAILABLE) {
+    return t("recurring_payment_category_unavailable");
+  }
+
+  return message ?? tCommon("error_generic");
 }

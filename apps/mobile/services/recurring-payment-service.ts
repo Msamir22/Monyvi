@@ -37,17 +37,28 @@ async function resolveRecurringPaymentReferences(
   accountId: string,
   categoryId: string
 ): Promise<void> {
-  const account = await scope.findOwned(
-    database.get<Account>("accounts"),
-    accountId
-  );
+  let account: Account;
+  try {
+    account = await scope.findOwned(
+      database.get<Account>("accounts"),
+      accountId
+    );
+  } catch {
+    throw new Error(RECURRING_PAYMENT_SERVICE_ERROR_CODES.ACCOUNT_UNAVAILABLE);
+  }
   if (account.deleted) {
     throw new Error(RECURRING_PAYMENT_SERVICE_ERROR_CODES.ACCOUNT_UNAVAILABLE);
   }
-  const category = await scope.findAccessibleCategory(
-    database.get<Category>("categories"),
-    categoryId
-  );
+
+  let category: Category;
+  try {
+    category = await scope.findAccessibleCategory(
+      database.get<Category>("categories"),
+      categoryId
+    );
+  } catch {
+    throw new Error(RECURRING_PAYMENT_SERVICE_ERROR_CODES.CATEGORY_UNAVAILABLE);
+  }
   if (category.deleted) {
     throw new Error(RECURRING_PAYMENT_SERVICE_ERROR_CODES.CATEGORY_UNAVAILABLE);
   }
