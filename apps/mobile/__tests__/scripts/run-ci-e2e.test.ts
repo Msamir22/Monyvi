@@ -217,9 +217,27 @@ describe("run-ci-e2e helpers", () => {
       )
     ).toBe(false);
     expect(
+      runCiE2e.shouldResetMaestroFlowBeforeRetry(
+        "transactions/create-transaction.yaml",
+        {
+          E2E_SKIP_AUTH_BOOTSTRAP: "1",
+          E2E_SUPABASE_MODE: "local",
+        }
+      )
+    ).toBe(false);
+    expect(
       runCiE2e.shouldRetryMaestroSuiteFlow(
         "transactions/create-transaction.yaml",
         { E2E_SUPABASE_MODE: "remote" }
+      )
+    ).toBe(false);
+    expect(
+      runCiE2e.shouldRetryMaestroSuiteFlow(
+        "transactions/create-transaction.yaml",
+        {
+          E2E_SKIP_AUTH_BOOTSTRAP: "1",
+          E2E_SUPABASE_MODE: "local",
+        }
       )
     ).toBe(false);
     expect(

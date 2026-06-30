@@ -129,8 +129,13 @@ function isLocalSupabaseMode(env = process.env) {
   return (env.E2E_SUPABASE_MODE ?? "local") === "local";
 }
 
+function shouldBootstrapAuthForEnv(env = process.env) {
+  return env.E2E_SKIP_AUTH_BOOTSTRAP !== "1";
+}
+
 function shouldResetMaestroFlowBeforeRetry(flow, env = process.env) {
   if (!isLocalSupabaseMode(env)) return false;
+  if (!shouldBootstrapAuthForEnv(env)) return false;
 
   return flow.startsWith("accounts/") || flow.startsWith("transactions/");
 }
