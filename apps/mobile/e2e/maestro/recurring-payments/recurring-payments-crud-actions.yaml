@@ -1,0 +1,175 @@
+appId: com.monyvi.app
+
+---
+# Recurring payments: create, read/list, edit, pause, resume, delete.
+# Preconditions: CI auth bootstrap has signed in and the E2E seed created accounts/categories.
+
+- runFlow: ../helpers/setup.yaml
+
+- openLink: monyvi://recurring-payments
+- extendedWaitUntil:
+    visible:
+      id: "recurring-payments-screen"
+    timeout: 120000
+
+- tapOn:
+    id: "recurring-payments-add-button"
+- extendedWaitUntil:
+    visible:
+      id: "create-recurring-payment-screen"
+    timeout: 120000
+
+- tapOn:
+    id: "recurring-payment-name-input"
+- inputText: "E2E Subscription"
+- hideKeyboard
+
+- tapOn:
+    id: "recurring-payment-amount-input"
+- eraseText: 12
+- inputText: "4250"
+- hideKeyboard
+
+- tapOn:
+    id: "recurring-payment-category-row"
+- extendedWaitUntil:
+    visible:
+      id: "category-selector-sheet"
+    timeout: 120000
+- tapOn: "Shopping"
+- waitForAnimationToEnd
+
+- scrollUntilVisible:
+    element:
+      id: "recurring-payment-action-AUTO_CREATE"
+    direction: DOWN
+    centerElement: true
+    timeout: 30000
+- tapOn:
+    id: "recurring-payment-action-AUTO_CREATE"
+
+- tapOn:
+    id: "header-save"
+- extendedWaitUntil:
+    visible:
+      id: "recurring-payments-screen"
+    timeout: 120000
+- assertVisible: "E2E Subscription"
+
+- tapOn:
+    id: "recurring-payments-sort-chip"
+- extendedWaitUntil:
+    visible:
+      id: "recurring-payments-sort-name_a_z"
+    timeout: 120000
+- tapOn:
+    id: "recurring-payments-sort-name_a_z"
+- waitForAnimationToEnd
+- assertVisible: "E2E Subscription"
+
+- tapOn: "E2E Subscription"
+- extendedWaitUntil:
+    visible:
+      id: "recurring-payment-name-input"
+    timeout: 120000
+- assertVisible: "Edit Payment"
+
+- tapOn:
+    id: "recurring-payment-name-input"
+- eraseText: 40
+- inputText: "E2E Subscription Updated"
+- hideKeyboard
+
+- tapOn:
+    id: "recurring-payment-amount-input"
+- eraseText: 12
+- inputText: "4300"
+- hideKeyboard
+
+- tapOn:
+    id: "header-save"
+- extendedWaitUntil:
+    visible:
+      id: "recurring-payments-screen"
+    timeout: 120000
+- assertVisible: "E2E Subscription Updated"
+
+- tapOn: "E2E Subscription Updated"
+- scrollUntilVisible:
+    element:
+      id: "recurring-payment-pause-action"
+    direction: DOWN
+    centerElement: true
+    timeout: 30000
+- tapOn:
+    id: "recurring-payment-pause-action"
+- extendedWaitUntil:
+    visible: "Pause Payment"
+    timeout: 120000
+- tapOn:
+    id: "modal-confirm"
+- extendedWaitUntil:
+    visible: "Resume Payment"
+    timeout: 120000
+- tapOn:
+    id: "header-back"
+
+- extendedWaitUntil:
+    visible:
+      id: "recurring-payments-screen"
+    timeout: 120000
+- tapOn:
+    id: "recurring-status-tab-PAUSED"
+- extendedWaitUntil:
+    visible: "E2E Subscription Updated"
+    timeout: 120000
+
+- tapOn: "E2E Subscription Updated"
+- scrollUntilVisible:
+    element:
+      id: "recurring-payment-pause-action"
+    direction: DOWN
+    centerElement: true
+    timeout: 30000
+- tapOn:
+    id: "recurring-payment-pause-action"
+- extendedWaitUntil:
+    visible: "Resume Payment"
+    timeout: 120000
+- tapOn:
+    id: "modal-confirm"
+- extendedWaitUntil:
+    visible: "Pause Payment"
+    timeout: 120000
+- tapOn:
+    id: "header-back"
+
+- extendedWaitUntil:
+    visible:
+      id: "recurring-payments-screen"
+    timeout: 120000
+- tapOn:
+    id: "recurring-status-tab-ACTIVE"
+- extendedWaitUntil:
+    visible: "E2E Subscription Updated"
+    timeout: 120000
+
+- tapOn: "E2E Subscription Updated"
+- scrollUntilVisible:
+    element:
+      id: "recurring-payment-delete-action"
+    direction: DOWN
+    centerElement: true
+    timeout: 30000
+- tapOn:
+    id: "recurring-payment-delete-action"
+- extendedWaitUntil:
+    visible: "Delete Payment"
+    timeout: 120000
+- tapOn:
+    id: "modal-confirm"
+- extendedWaitUntil:
+    visible:
+      id: "recurring-payments-screen"
+    timeout: 120000
+- assertNotVisible: "E2E Subscription Updated"
