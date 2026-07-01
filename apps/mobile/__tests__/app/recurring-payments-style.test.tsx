@@ -253,6 +253,30 @@ describe("RecurringPaymentsScreen dashboard", () => {
     expect(screen.getByText("Jul 3")).toBeTruthy();
   });
 
+  it("includes the year in due groups outside the current year", () => {
+    const currentYearPayment = createPayment({
+      id: "payment-current-year",
+      name: "Current Year",
+      nextDueDate: new Date("2026-07-01T00:00:00.000Z"),
+    });
+    const nextYearPayment = createPayment({
+      id: "payment-next-year",
+      name: "Next Year",
+      nextDueDate: new Date("2027-07-01T00:00:00.000Z"),
+    });
+    mockRecurringPaymentsState = {
+      ...mockRecurringPaymentsState,
+      allPayments: [currentYearPayment, nextYearPayment],
+      filteredPayments: [currentYearPayment, nextYearPayment],
+      counts: { ACTIVE: 2, PAUSED: 0, COMPLETED: 0 },
+    };
+
+    render(<RecurringPaymentsScreen />);
+
+    expect(screen.getByText("Jul 1")).toBeTruthy();
+    expect(screen.getByText("Jul 1, 2027")).toBeTruthy();
+  });
+
   it("opens a sort sheet that clearly labels sorting, not filtering", () => {
     render(<RecurringPaymentsScreen />);
 

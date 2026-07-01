@@ -1,6 +1,6 @@
 import type { CurrencyType, MarketRate, RecurringPayment } from "@monyvi/db";
 import { convertCurrency } from "@monyvi/logic";
-import { formatDate, getDaysUntil, getDueText } from "@/utils/dateHelpers";
+import { getRecurringPaymentDueGroupTitle } from "@/utils/recurring-payment-due-labels";
 
 export type SortOption =
   | "next_due"
@@ -45,7 +45,7 @@ export function groupPaymentsByDueDate(
   payments: readonly RecurringPayment[]
 ): PaymentSection[] {
   return payments.reduce<PaymentSection[]>((sections, payment) => {
-    const title = getDueGroupTitle(payment);
+    const title = getRecurringPaymentDueGroupTitle(payment);
     const existingSection = sections.find((section) => section.title === title);
 
     if (existingSection) {
@@ -74,18 +74,4 @@ function getComparableAmount(
     options.preferredCurrency,
     options.latestRates ?? null
   );
-}
-
-function getDueGroupTitle(payment: RecurringPayment): string {
-  const daysUntilDue = getDaysUntil(payment.nextDueDate);
-
-  if (payment.isCompleted && payment.isOverdue) {
-    return formatDate(payment.nextDueDate, "MMM d");
-  }
-
-  if (daysUntilDue <= 1) {
-    return getDueText(payment.nextDueDate);
-  }
-
-  return formatDate(payment.nextDueDate, "MMM d");
 }

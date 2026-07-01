@@ -6,7 +6,8 @@ import { useCategoryLookup } from "@/context/CategoriesContext";
 import { useTheme } from "@/context/ThemeContext";
 import type { SortOption } from "@/services/recurring-payments-dashboard-read-model";
 import { getCategoryIconConfig } from "@/utils/category-icon-config";
-import { formatDate, getDueText } from "@/utils/dateHelpers";
+import { getDueText } from "@/utils/dateHelpers";
+import { getRecurringPaymentDueLabel } from "@/utils/recurring-payment-due-labels";
 import { getPaymentIcon } from "@/utils/recurring-helpers";
 import { Ionicons } from "@expo/vector-icons";
 import type {
@@ -248,7 +249,7 @@ export function PaymentRow({
   const category = categoryMap.get(payment.categoryId);
   const iconConfig = category ? getCategoryIconConfig(category) : undefined;
   const typeLabel = payment.isIncome ? t("income") : t("expense");
-  const dueLabel = getPaymentDueLabel(payment);
+  const dueLabel = getRecurringPaymentDueLabel(payment);
   const isOverdueLabel = payment.isOverdue && !payment.isCompleted;
 
   return (
@@ -501,14 +502,6 @@ function StatusPill({
       </Text>
     </View>
   );
-}
-
-function getPaymentDueLabel(payment: RecurringPayment): string {
-  if (payment.isCompleted && payment.isOverdue) {
-    return formatDate(payment.nextDueDate, "MMM d");
-  }
-
-  return getDueText(payment.nextDueDate);
 }
 
 function getStatusLabelKey(status: RecurringStatus): string {

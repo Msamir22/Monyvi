@@ -722,15 +722,15 @@ describe("RecurringPaymentForm", () => {
 
   it("uses the same green schedule icon styling for all schedule rows", () => {
     renderForm();
-
-    expect(
-      screen.getAllByTestId("recurring-payment-schedule-icon")
-    ).toHaveLength(4);
-    screen.getAllByTestId("recurring-payment-schedule-icon").forEach((icon) => {
-      expect(icon).toHaveProp(
+    [
+      "recurring-payment-account-row-icon",
+      "recurring-payment-category-row-icon",
+      "recurring-payment-frequency-row-icon",
+      "recurring-payment-start-date-row-icon",
+    ].forEach((testID: string) => {
+      expect(screen.getByTestId(testID)).toHaveProp(
         "className",
-        expect.stringContaining("bg-nileGreen-100")
-      );
+        expect.stringContaining("bg-nileGreen-100"));
     });
   });
 

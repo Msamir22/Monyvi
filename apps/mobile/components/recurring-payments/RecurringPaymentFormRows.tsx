@@ -29,7 +29,7 @@ export function FormRow({
       onPress={onPress}
     >
       <View
-        testID="recurring-payment-schedule-icon"
+        testID={`${testID}-icon`}
         className={`w-8 h-8 rounded-xl items-center justify-center me-3 ${iconContainerClassName}`}
       >
         <Ionicons name={icon} size={17} color={iconColor} />
