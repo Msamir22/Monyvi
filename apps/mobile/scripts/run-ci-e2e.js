@@ -16,7 +16,13 @@ const defaultLiveSmsTimeoutMs = 45 * 60 * 1000;
 const defaultDeviceOfflineRetryCount = 5;
 
 const shouldBootstrapAuth = process.env.E2E_SKIP_AUTH_BOOTSTRAP !== "1";
-const allCiSuites = ["accounts", "transactions", "sms-sync", "live-sms"];
+const allCiSuites = [
+  "accounts",
+  "transactions",
+  "recurring-payments",
+  "sms-sync",
+  "live-sms",
+];
 let hasRunAuthBootstrap = false;
 
 const uiAuthBootstrapFlow = "helpers/ci-auth-bootstrap.yaml";
@@ -31,6 +37,9 @@ const transactionMaestroFlows = [
   "transactions/change-type.yaml",
   "transactions/search-filter.yaml",
   "transactions/delete-transaction.yaml",
+];
+const recurringPaymentMaestroFlows = [
+  "recurring-payments/recurring-payments-crud-actions.yaml",
 ];
 const smsSyncMaestroFlows = ["sms-sync/sms-sync-permission-requestable.yaml"];
 const defaultLiveSmsJourneys = [
@@ -138,7 +147,11 @@ function shouldResetMaestroFlowBeforeRetry(flow, env = process.env) {
   if (!shouldBootstrapAuthForEnv(env)) return false;
   if (env.E2E_SKIP_SEED === "1") return false;
 
-  return flow.startsWith("accounts/") || flow.startsWith("transactions/");
+  return (
+    flow.startsWith("accounts/") ||
+    flow.startsWith("transactions/") ||
+    flow.startsWith("recurring-payments/")
+  );
 }
 
 function shouldRetryMaestroSuiteFlow(flow, env = process.env) {
@@ -422,6 +435,10 @@ async function main() {
 
   if (selectedSuites.has("transactions")) {
     await runMaestroFlows(transactionMaestroFlows);
+  }
+
+  if (selectedSuites.has("recurring-payments")) {
+    await runMaestroFlows(recurringPaymentMaestroFlows);
   }
 
   if (selectedSuites.has("sms-sync")) {

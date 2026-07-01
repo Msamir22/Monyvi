@@ -130,6 +130,7 @@ import {
   type RecurringPaymentFormHandle,
   type RecurringPaymentFormValues,
 } from "@/components/recurring-payments/RecurringPaymentForm";
+import { palette } from "@/constants/colors";
 import type { Account, Category } from "@monyvi/db";
 
 const initialValues: RecurringPaymentFormValues = {
@@ -721,15 +722,15 @@ describe("RecurringPaymentForm", () => {
 
   it("uses the same green schedule icon styling for all schedule rows", () => {
     renderForm();
-
-    expect(
-      screen.getAllByTestId("recurring-payment-schedule-icon")
-    ).toHaveLength(4);
-    screen.getAllByTestId("recurring-payment-schedule-icon").forEach((icon) => {
-      expect(icon).toHaveProp(
+    [
+      "recurring-payment-account-row-icon",
+      "recurring-payment-category-row-icon",
+      "recurring-payment-frequency-row-icon",
+      "recurring-payment-start-date-row-icon",
+    ].forEach((testID: string) => {
+      expect(screen.getByTestId(testID)).toHaveProp(
         "className",
-        expect.stringContaining("bg-nileGreen-100")
-      );
+        expect.stringContaining("bg-nileGreen-100"));
     });
   });
 
@@ -881,7 +882,7 @@ describe("RecurringPaymentForm", () => {
     );
 
     expect(screen.getByTestId("icon-pause-circle-outline")).toHaveTextContent(
-      "#D97706"
+      palette.gold[600]
     );
 
     rerender(
@@ -901,7 +902,7 @@ describe("RecurringPaymentForm", () => {
     );
 
     expect(screen.getByTestId("icon-play-circle-outline")).toHaveTextContent(
-      "#10B981"
+      palette.nileGreen[500]
     );
   });
 

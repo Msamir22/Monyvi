@@ -6,6 +6,7 @@ import {
 } from "@/components/modals/FrequencyPickerModal";
 import { RecurringPaymentEditActions } from "./RecurringPaymentEditActions";
 import { RecurringPaymentSummaryCard } from "./RecurringPaymentSummaryCard";
+import { Divider, ErrorText, FormRow } from "./RecurringPaymentFormRows";
 import { TextField } from "@/components/ui/TextField";
 import { palette } from "@/constants/colors";
 import { useTheme } from "@/context/ThemeContext";
@@ -367,6 +368,7 @@ export const RecurringPaymentForm = React.forwardRef<
         <View testID="recurring-payment-details-section" className="mb-2">
           <View ref={nameFieldRef}>
             <TextField
+              testID="recurring-payment-name-input"
               label={t("name")}
               value={form.name}
               onChangeText={(name) => updateField("name", name)}
@@ -434,7 +436,7 @@ export const RecurringPaymentForm = React.forwardRef<
                 icon="calendar-outline"
                 label={t("start_date")}
                 value={formatDate(form.startDate, "MMM d, yyyy")}
-                onPress={() => setShowDatePicker(true)}
+                onPress={() => setShowDatePicker((current) => !current)}
                 iconColor={palette.nileGreen[500]}
                 iconContainerClassName="bg-nileGreen-100 dark:bg-slate-700"
               />
@@ -490,6 +492,7 @@ export const RecurringPaymentForm = React.forwardRef<
 
         <View testID="recurring-payment-notes-section">
           <TextField
+            testID="recurring-payment-notes-input"
             label={t("notes_optional")}
             value={form.notes}
             onChangeText={(notes) => updateField("notes", notes)}
@@ -516,6 +519,7 @@ export const RecurringPaymentForm = React.forwardRef<
         ) : null}
 
         <TouchableOpacity
+          testID="recurring-payment-save-button"
           className={`rounded-2xl py-4 items-center ${
             isSubmitting ? "bg-slate-600" : "bg-nileGreen-500"
           }`}
@@ -733,65 +737,4 @@ function TypeTabs({ value, onChange }: TypeTabsProps): React.JSX.Element {
       })}
     </View>
   );
-}
-
-interface FormRowProps {
-  readonly testID: string;
-  readonly icon: keyof typeof Ionicons.glyphMap;
-  readonly label: string;
-  readonly value: string;
-  readonly iconColor: string;
-  readonly iconContainerClassName: string;
-  readonly onPress: () => void;
-}
-
-function FormRow({
-  testID,
-  icon,
-  label,
-  value,
-  iconColor,
-  iconContainerClassName,
-  onPress,
-}: FormRowProps): React.JSX.Element {
-  return (
-    <TouchableOpacity
-      testID={testID}
-      className="flex-row items-center px-4 py-3"
-      onPress={onPress}
-    >
-      <View
-        testID="recurring-payment-schedule-icon"
-        className={`w-8 h-8 rounded-xl items-center justify-center me-3 ${iconContainerClassName}`}
-      >
-        <Ionicons name={icon} size={17} color={iconColor} />
-      </View>
-      <View className="flex-1">
-        <Text className="text-[11px] font-semibold text-text-muted dark:text-text-muted-dark">
-          {label}
-        </Text>
-        <Text className="text-sm font-bold text-text-primary dark:text-text-primary-dark">
-          {value}
-        </Text>
-      </View>
-      <Ionicons name="chevron-forward" size={18} color={palette.slate[400]} />
-    </TouchableOpacity>
-  );
-}
-
-function Divider({ index }: { readonly index: number }): React.JSX.Element {
-  return (
-    <View
-      testID={`recurring-payment-divider-${index}`}
-      className="h-px mx-4 bg-slate-200 dark:bg-slate-700"
-    />
-  );
-}
-
-function ErrorText({
-  children,
-}: {
-  readonly children: string;
-}): React.JSX.Element {
-  return <Text className="input-error">{children}</Text>;
 }

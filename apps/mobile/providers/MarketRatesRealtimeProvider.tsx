@@ -34,6 +34,7 @@ import {
 } from "react";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../services/supabase";
+import { logger } from "../utils/logger";
 import { useSync } from "./SyncProvider";
 
 // =============================================================================
@@ -51,6 +52,28 @@ interface MarketRatesRealtimeContextValue {
 
 const MarketRatesRealtimeContext =
   createContext<MarketRatesRealtimeContextValue | null>(null);
+
+const MARKET_RATES_REALTIME_TOPIC = "market-rates-realtime";
+
+let marketRatesRealtimeTeardown: Promise<void> = Promise.resolve();
+
+function enqueueMarketRatesRealtimeRemoval(channel: RealtimeChannel): void {
+  marketRatesRealtimeTeardown = marketRatesRealtimeTeardown
+    .catch(() => undefined)
+    .then(() => supabase.removeChannel(channel))
+    .then(
+      (status) => {
+        if (status !== "ok") {
+          logger.error("marketRatesRealtime.removeChannel.failed", undefined, {
+            status,
+          });
+        }
+      },
+      (error: unknown) => {
+        logger.error("marketRatesRealtime.removeChannel.failed", error);
+      }
+    );
+}
 
 // =============================================================================
 // Provider
@@ -79,39 +102,62 @@ export function MarketRatesRealtimeProvider({
   }, []);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      // Tear down channel when logged out
-      if (channelRef.current) {
-        void supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
+    let isCancelled = false;
+
+    const removeCurrentChannel = (shouldUpdateConnection: boolean): void => {
+      if (shouldUpdateConnection) {
         setIsConnected(false);
       }
+
+      const channel = channelRef.current;
+      if (!channel) {
+        return;
+      }
+
+      channelRef.current = null;
+      enqueueMarketRatesRealtimeRemoval(channel);
+    };
+
+    if (!isAuthenticated) {
+      // Tear down channel when logged out
+      removeCurrentChannel(true);
       return;
     }
 
-    const channel = supabase
-      .channel("market-rates-realtime")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "market_rates",
-        },
-        handleInsert
-      )
-      .subscribe((status) => {
-        setIsConnected(status === REALTIME_SUBSCRIBE_STATES.SUBSCRIBED);
-      });
+    void (async (): Promise<void> => {
+      await marketRatesRealtimeTeardown.catch(() => undefined);
+      if (isCancelled) {
+        return;
+      }
 
-    channelRef.current = channel;
+      const channel = supabase
+        .channel(MARKET_RATES_REALTIME_TOPIC)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "market_rates",
+          },
+          handleInsert
+        )
+        .subscribe((status) => {
+          if (!isCancelled) {
+            setIsConnected(status === REALTIME_SUBSCRIBE_STATES.SUBSCRIBED);
+          }
+        });
+
+      if (isCancelled) {
+        enqueueMarketRatesRealtimeRemoval(channel);
+        return;
+      }
+
+      channelRef.current = channel;
+    })();
 
     return () => {
-      if (channelRef.current) {
-        void supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-        setIsConnected(false);
-      }
+      isCancelled = true;
+      removeCurrentChannel(true);
     };
   }, [isAuthenticated, handleInsert]);
 

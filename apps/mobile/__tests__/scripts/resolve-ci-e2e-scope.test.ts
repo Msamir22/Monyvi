@@ -31,6 +31,63 @@ describe("resolve-ci-e2e-scope", () => {
     });
   });
 
+  it("selects recurring payment E2E for recurring payment module changes", () => {
+    expect(
+      scopeResolver.resolveCiE2eScope([
+        "apps/mobile/__tests__/components/recurring-payments/RecurringPaymentForm.test.tsx",
+        "apps/mobile/app/(private)/create-recurring-payment.tsx",
+        "apps/mobile/app/(private)/edit-recurring-payment.tsx",
+        "apps/mobile/components/modals/FrequencyPickerModal.tsx",
+        "apps/mobile/components/recurring-payments/RecurringPaymentForm.tsx",
+        "apps/mobile/hooks/useRecurringPayment.ts",
+        "apps/mobile/hooks/useRecurringPayments.ts",
+        "apps/mobile/services/recurring-payment-service.ts",
+        "apps/mobile/validation/recurring-payment-validation.ts",
+      ])
+    ).toEqual({
+      shouldRun: true,
+      suites: ["recurring-payments"],
+    });
+  });
+
+  it("selects recurring payment E2E for recurring payment Maestro flow changes", () => {
+    expect(
+      scopeResolver.resolveCiE2eScope([
+        "apps/mobile/e2e/maestro/recurring-payments/recurring-payments-crud-actions.yaml",
+      ])
+    ).toEqual({
+      shouldRun: true,
+      suites: ["recurring-payments"],
+    });
+  });
+
+  it("selects only recurring payment E2E for recurring dashboard code changes", () => {
+    expect(
+      scopeResolver.resolveCiE2eScope([
+        "apps/mobile/__tests__/app/recurring-payments-style.test.tsx",
+        "apps/mobile/app/(private)/recurring-payments.tsx",
+        "apps/mobile/components/recurring-payments/RecurringPaymentsDashboard.tsx",
+        "apps/mobile/e2e/maestro/recurring-payments/recurring-payments-crud-actions.yaml",
+        "apps/mobile/hooks/useRecurringPayments.ts",
+        "apps/mobile/i18n/translation-schema.ts",
+        "apps/mobile/services/recurring-payments-dashboard-read-model.ts",
+        "apps/mobile/utils/recurring-payment-due-labels.ts",
+      ])
+    ).toEqual({
+      shouldRun: true,
+      suites: ["recurring-payments"],
+    });
+  });
+
+  it("ignores global mobile files that do not directly affect E2E journeys", () => {
+    expect(
+      scopeResolver.resolveCiE2eScope(["apps/mobile/i18n/translation-schema.ts"])
+    ).toEqual({
+      shouldRun: false,
+      suites: [],
+    });
+  });
+
   it("selects SMS sync E2E for batch SMS scan changes", () => {
     expect(
       scopeResolver.resolveCiE2eScope([
@@ -58,7 +115,13 @@ describe("resolve-ci-e2e-scope", () => {
       scopeResolver.resolveCiE2eScope(["apps/mobile/scripts/e2e-preflight.js"])
     ).toEqual({
       shouldRun: true,
-      suites: ["accounts", "transactions", "sms-sync", "live-sms"],
+      suites: [
+        "accounts",
+        "transactions",
+        "recurring-payments",
+        "sms-sync",
+        "live-sms",
+      ],
     });
   });
 
@@ -73,18 +136,7 @@ describe("resolve-ci-e2e-scope", () => {
     });
   });
 
-  it("selects transaction and SMS sync E2E for transaction locale changes", () => {
-    expect(
-      scopeResolver.resolveCiE2eScope([
-        "apps/mobile/locales/en/transactions.json",
-      ])
-    ).toEqual({
-      shouldRun: true,
-      suites: ["transactions", "sms-sync"],
-    });
-  });
-
-  it("selects only transaction E2E for recurring payment and budget form changes", () => {
+  it("selects transaction and recurring payment E2E for shared payment form changes", () => {
     expect(
       scopeResolver.resolveCiE2eScope([
         "apps/mobile/__tests__/app/budget-screens-style.test.tsx",
@@ -105,7 +157,35 @@ describe("resolve-ci-e2e-scope", () => {
       ])
     ).toEqual({
       shouldRun: true,
-      suites: ["transactions"],
+      suites: ["transactions", "recurring-payments"],
+    });
+  });
+
+  it("selects suites that assert shared transaction locale copy", () => {
+    expect(
+      scopeResolver.resolveCiE2eScope([
+        "apps/mobile/locales/en/transactions.json",
+      ])
+    ).toEqual({
+      shouldRun: true,
+      suites: ["transactions", "recurring-payments", "sms-sync"],
+    });
+  });
+
+  it("runs every suite for private provider runtime changes", () => {
+    expect(
+      scopeResolver.resolveCiE2eScope([
+        "apps/mobile/providers/MarketRatesRealtimeProvider.tsx",
+      ])
+    ).toEqual({
+      shouldRun: true,
+      suites: [
+        "accounts",
+        "transactions",
+        "recurring-payments",
+        "sms-sync",
+        "live-sms",
+      ],
     });
   });
 
@@ -114,7 +194,13 @@ describe("resolve-ci-e2e-scope", () => {
       scopeResolver.resolveCiE2eScope([".github/workflows/ci.yml"])
     ).toEqual({
       shouldRun: true,
-      suites: ["accounts", "transactions", "sms-sync", "live-sms"],
+      suites: [
+        "accounts",
+        "transactions",
+        "recurring-payments",
+        "sms-sync",
+        "live-sms",
+      ],
     });
   });
 
@@ -123,7 +209,13 @@ describe("resolve-ci-e2e-scope", () => {
       scopeResolver.resolveCiE2eScope(["scripts/start-local-supabase.js"])
     ).toEqual({
       shouldRun: true,
-      suites: ["accounts", "transactions", "sms-sync", "live-sms"],
+      suites: [
+        "accounts",
+        "transactions",
+        "recurring-payments",
+        "sms-sync",
+        "live-sms",
+      ],
     });
   });
 
@@ -170,7 +262,13 @@ describe("resolve-ci-e2e-scope", () => {
       ])
     ).toEqual({
       shouldRun: true,
-      suites: ["accounts", "transactions", "sms-sync", "live-sms"],
+      suites: [
+        "accounts",
+        "transactions",
+        "recurring-payments",
+        "sms-sync",
+        "live-sms",
+      ],
     });
   });
 
@@ -188,7 +286,13 @@ describe("resolve-ci-e2e-scope", () => {
       scopeResolver.resolveCiE2eScope(["apps/mobile/locales/en/common.json"])
     ).toEqual({
       shouldRun: true,
-      suites: ["accounts", "transactions", "sms-sync", "live-sms"],
+      suites: [
+        "accounts",
+        "transactions",
+        "recurring-payments",
+        "sms-sync",
+        "live-sms",
+      ],
     });
   });
 
@@ -200,7 +304,13 @@ describe("resolve-ci-e2e-scope", () => {
       ])
     ).toEqual({
       shouldRun: true,
-      suites: ["accounts", "transactions", "sms-sync", "live-sms"],
+      suites: [
+        "accounts",
+        "transactions",
+        "recurring-payments",
+        "sms-sync",
+        "live-sms",
+      ],
     });
   });
 

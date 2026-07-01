@@ -167,6 +167,9 @@ export function useRecurringPayments(
         setIsLoading(false);
       },
       onAuthenticated: (currentUserId) => {
+        setAllPayments([]);
+        setIsLoading(true);
+
         const subscription = queryOwned(
           database.get<RecurringPayment>("recurring_payments"),
           currentUserId,

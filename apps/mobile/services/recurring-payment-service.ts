@@ -35,7 +35,8 @@ export const RECURRING_PAYMENT_SERVICE_ERROR_CODES = {
 async function resolveRecurringPaymentReferences(
   scope: Awaited<ReturnType<typeof getCurrentUserDataScope>>,
   accountId: string,
-  categoryId: string
+  categoryId: string,
+  paymentType: TransactionType
 ): Promise<void> {
   let account: Account;
   try {
@@ -59,7 +60,7 @@ async function resolveRecurringPaymentReferences(
   } catch {
     throw new Error(RECURRING_PAYMENT_SERVICE_ERROR_CODES.CATEGORY_UNAVAILABLE);
   }
-  if (category.deleted) {
+  if (category.deleted || category.type !== paymentType) {
     throw new Error(RECURRING_PAYMENT_SERVICE_ERROR_CODES.CATEGORY_UNAVAILABLE);
   }
 }
@@ -74,7 +75,8 @@ export async function createRecurringPayment(
   await resolveRecurringPaymentReferences(
     scope,
     data.accountId,
-    data.categoryId
+    data.categoryId,
+    data.type
   );
 
   const recurringCollection =
@@ -108,7 +110,8 @@ export async function updateRecurringPayment(
   await resolveRecurringPaymentReferences(
     scope,
     data.accountId,
-    data.categoryId
+    data.categoryId,
+    data.type
   );
 
   const recurringCollection =

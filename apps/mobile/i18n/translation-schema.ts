@@ -232,13 +232,38 @@ interface TransactionsTranslations {
   // Recurring payments / bills
   readonly my_bills: string;
   readonly upcoming_expenses: string;
+  readonly due_this_month: string;
   readonly next_7_days: string;
   readonly this_month: string;
+  readonly overdue: string;
+  readonly renews_next: string;
+  readonly upcoming: string;
+  readonly sort_by: string;
+  readonly sort_payments: string;
+  readonly sort_payments_description: string;
+  readonly highest_amount: string;
+  readonly lowest_amount: string;
+  readonly name_a_z: string;
   readonly tap_to_add_recurring: string;
   readonly no_status_payments: string;
+  readonly new_payment: string;
   readonly new_recurring_payment: string;
+  readonly edit_payment: string;
   readonly add_recurring_payment: string;
   readonly payment_details: string;
+  readonly payment_schedule: string;
+  readonly payment_action: string;
+  readonly payment_action_description: string;
+  readonly notify_me: string;
+  readonly notify_me_description: string;
+  readonly auto_create: string;
+  readonly auto_create_description: string;
+  readonly pause_payment: string;
+  readonly pause_payment_message: string;
+  readonly resume_payment: string;
+  readonly resume_payment_message: string;
+  readonly delete_payment: string;
+  readonly delete_payment_message: string;
   readonly schedule: string;
   readonly frequency: string;
   readonly linked_account: string;
@@ -248,9 +273,26 @@ interface TransactionsTranslations {
   readonly add_notes_placeholder: string;
   readonly start_date: string;
   readonly failed_to_create_payment: string;
+  readonly failed_to_update_payment: string;
+  readonly failed_to_delete_payment: string;
+  readonly recurring_payment_not_found: string;
   readonly account_not_found: string;
+  readonly recurring_payment_account_unavailable: string;
+  readonly recurring_payment_category_unavailable: string;
   readonly cancel: string;
   readonly received_currency: string;
+  readonly pay_name: string;
+  readonly amount_currency: string;
+  readonly deduct_from: string;
+  readonly select_account: string;
+  readonly original_amount: string;
+  readonly due_label: string;
+  readonly next_due: string;
+  readonly payment_confirmation_text: string;
+  readonly payment_for_name: string;
+  readonly payment_failed: string;
+  readonly payment_failed_message: string;
+  readonly balance_warning: string;
 }
 
 /** Accounts namespace */
