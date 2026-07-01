@@ -1,4 +1,5 @@
 const { join } = require("node:path");
+const { spawnSync } = require("node:child_process");
 const { createClient } = require("@supabase/supabase-js");
 const {
   adb,
@@ -6,14 +7,16 @@ const {
   collapseSystemUi,
   ensureE2eAppReady,
   forceStopApp,
+  isRetryableMaestroTransportFailure,
+  reconnectAndroidDevice,
   resolveMaestroBin,
-  run,
 } = require("./e2e-preflight");
 const { applyE2eAuthDeepLink } = require("./e2e-auth-deeplink");
 const { getE2eSeedConfig, seedE2eData } = require("./e2e-seed");
 
 const mobileRoot = join(__dirname, "..");
 const flowDir = join("e2e", "maestro", "sms-sync");
+const defaultMaestroFlowTimeoutMs = 10 * 60 * 1000;
 const uiAuthBootstrapFlow = "../helpers/ci-auth-bootstrap.yaml";
 const deeplinkAuthBootstrapFlow = "../helpers/ci-auth-deeplink-bootstrap.yaml";
 
@@ -53,13 +56,95 @@ function grantReadSmsPermission() {
   });
 }
 
-function runFlow(flow) {
+async function runFlow(flow) {
   const maestroBin = resolveMaestroBin();
   if (!maestroBin) {
     throw new Error("Maestro was not found. Install it or set MAESTRO_BIN.");
   }
 
-  run(maestroBin, ["test", join(flowDir, flow)], { cwd: mobileRoot });
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const result = runMaestroFlowOnce(maestroBin, flow);
+    if (result.status === 0) {
+      return;
+    }
+
+    if (
+      attempt === 1 &&
+      (result.didTimeout ||
+        isRetryableMaestroTransportFailure(result.output)) &&
+      shouldRetrySmsSyncFlowAfterTransportFailure(flow)
+    ) {
+      console.warn(
+        `Retrying SMS sync Maestro flow after ${result.didTimeout ? "timeout" : "transport failure"}: ${flow}`
+      );
+      await prepareSmsSyncFlowRetry(flow);
+      continue;
+    }
+
+    throw new Error(`${maestroBin} test ${join(flowDir, flow)} failed`);
+  }
+}
+
+async function prepareSmsSyncFlowRetry(flow) {
+  reconnectAndroidDevice();
+
+  if (!shouldResetSmsSyncAppStateBeforeRetry(flow)) {
+    return;
+  }
+
+  await bootstrapCleanAuthenticatedSession();
+  grantReadSmsPermission();
+}
+
+function shouldResetSmsSyncAppStateBeforeRetry(flow, env = process.env) {
+  return (
+    flow === "sms-sync-batch-duplicates-atm.yaml" &&
+    env.E2E_SUPABASE_MODE === "local" &&
+    env.E2E_SKIP_AUTH_BOOTSTRAP !== "1" &&
+    env.E2E_SKIP_SEED !== "1"
+  );
+}
+
+function shouldRetrySmsSyncFlowAfterTransportFailure(flow, env = process.env) {
+  return (
+    flow !== "sms-sync-batch-duplicates-atm.yaml" ||
+    shouldResetSmsSyncAppStateBeforeRetry(flow, env)
+  );
+}
+
+function getMaestroFlowTimeoutMs(env = process.env) {
+  const parsed = Number(env.E2E_MAESTRO_FLOW_TIMEOUT_MS);
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : defaultMaestroFlowTimeoutMs;
+}
+
+function runMaestroFlowOnce(maestroBin, flow) {
+  const result = spawnSync(maestroBin, ["test", join(flowDir, flow)], {
+    encoding: "utf8",
+    cwd: mobileRoot,
+    maxBuffer: 16 * 1024 * 1024,
+    shell: process.platform === "win32" && maestroBin.endsWith(".bat"),
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: getMaestroFlowTimeoutMs(),
+  });
+  const stdout = result.stdout || "";
+  const stderr = result.stderr || "";
+  const errorMessage = result.error?.message ?? "";
+
+  if (stdout) {
+    process.stdout.write(stdout);
+  }
+  if (stderr) {
+    process.stderr.write(stderr);
+  }
+
+  return {
+    didTimeout:
+      result.error?.code === "ETIMEDOUT" || result.signal === "SIGTERM",
+    output: `${stdout}${stderr}${errorMessage}`,
+    status: result.error ? 1 : (result.status ?? 1),
+  };
 }
 
 function getAuthBootstrapFlow(env = process.env) {
@@ -106,7 +191,7 @@ async function bootstrapCleanAuthenticatedSession() {
   process.env.E2E_USER_ID = result.userId;
   adb(["shell", "pm", "clear", appId]);
   await ensureE2eAppReady();
-  runFlow(getAuthBootstrapFlow());
+  await runFlow(getAuthBootstrapFlow());
 }
 
 function queryWatermelonScalar(sql) {
@@ -225,7 +310,7 @@ async function runBatchDuplicatesAndAtm() {
   grantReadSmsPermission();
   clearSmsSyncProbeRows();
   await maybeRelaunchBeforeSmsSyncJourney();
-  runFlow("sms-sync-batch-duplicates-atm.yaml");
+  await runFlow("sms-sync-batch-duplicates-atm.yaml");
   verifyBatchSmsSaved();
   hasSavedSmsSyncBaseline = true;
 }
@@ -237,7 +322,7 @@ async function runRescanSkipsSaved() {
 
   grantReadSmsPermission();
   await maybeRelaunchBeforeSmsSyncJourney();
-  runFlow("sms-sync-rescan-skips-saved.yaml");
+  await runFlow("sms-sync-rescan-skips-saved.yaml");
   verifyBatchSmsSaved();
 }
 
@@ -282,6 +367,9 @@ module.exports = {
   buildBatchSmsSavedVerificationQueries,
   buildSmsSyncProbeCleanupSql,
   getAuthBootstrapFlow,
+  getMaestroFlowTimeoutMs,
   getActiveUserFilter,
+  shouldResetSmsSyncAppStateBeforeRetry,
+  shouldRetrySmsSyncFlowAfterTransportFailure,
   shouldRelaunchBetweenSmsSyncJourneys,
 };

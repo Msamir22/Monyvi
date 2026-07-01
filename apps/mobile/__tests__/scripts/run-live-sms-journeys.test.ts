@@ -15,6 +15,11 @@ interface RunLiveSmsJourneysModule {
     | "../helpers/ci-auth-bootstrap.yaml"
     | "../helpers/ci-auth-deeplink-bootstrap.yaml";
   isRetryableMaestroTransportFailure(output: string): boolean;
+  shouldPrepareLiveSmsFlowBeforeRetry(flow: string): boolean;
+  shouldResetLiveSmsSideEffectsBeforeRetry(
+    flow: string,
+    env?: Readonly<Record<string, string | undefined>>
+  ): boolean;
 }
 
 const liveSmsJourneys = jest.requireActual(
@@ -90,12 +95,60 @@ describe("run-live-sms-journeys helpers", () => {
         "Caused by: java.io.IOException: Command failed (host:transport:emulator-5554): device offline"
       )
     ).toBe(true);
+    expect(
+      liveSmsJourneys.isRetryableMaestroTransportFailure(
+        "Maestro timed out while reading the Android view hierarchy"
+      )
+    ).toBe(true);
   });
 
   it("does not retry normal Maestro assertion failures", () => {
     expect(
       liveSmsJourneys.isRetryableMaestroTransportFailure(
         'Assertion is false: "Transactions" is visible'
+      )
+    ).toBe(false);
+  });
+
+  it("prepares live-SMS journey state again before retrying main journey flows", () => {
+    expect(
+      liveSmsJourneys.shouldPrepareLiveSmsFlowBeforeRetry(
+        "live-sms-journey-01-first-time-enable.yaml"
+      )
+    ).toBe(true);
+    expect(
+      liveSmsJourneys.shouldPrepareLiveSmsFlowBeforeRetry(
+        "live-sms-journey-09-confirm-verification.yaml"
+      )
+    ).toBe(false);
+  });
+
+  it("retries main live-SMS flows only when side effects can be reset", () => {
+    expect(
+      liveSmsJourneys.shouldResetLiveSmsSideEffectsBeforeRetry(
+        "live-sms-journey-12-auto-confirm.yaml",
+        { E2E_SUPABASE_MODE: "local" }
+      )
+    ).toBe(true);
+    expect(
+      liveSmsJourneys.shouldResetLiveSmsSideEffectsBeforeRetry(
+        "live-sms-journey-12-auto-confirm.yaml",
+        {
+          E2E_SKIP_AUTH_BOOTSTRAP: "1",
+          E2E_SUPABASE_MODE: "local",
+        }
+      )
+    ).toBe(false);
+    expect(
+      liveSmsJourneys.shouldResetLiveSmsSideEffectsBeforeRetry(
+        "live-sms-journey-12-auto-confirm.yaml",
+        { E2E_SUPABASE_MODE: "remote" }
+      )
+    ).toBe(false);
+    expect(
+      liveSmsJourneys.shouldResetLiveSmsSideEffectsBeforeRetry(
+        "live-sms-journey-09-confirm-verification.yaml",
+        { E2E_SUPABASE_MODE: "local" }
       )
     ).toBe(false);
   });

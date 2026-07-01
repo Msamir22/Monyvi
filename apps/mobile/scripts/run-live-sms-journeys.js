@@ -8,8 +8,9 @@ const {
   dumpVisibleText,
   ensureE2eAppReady,
   forceStopApp,
+  isRetryableMaestroTransportFailure,
+  reconnectAndroidDevice,
   resolveMaestroBin,
-  run,
   wait,
 } = require("./e2e-preflight");
 const { applyE2eAuthDeepLink } = require("./e2e-auth-deeplink");
@@ -148,6 +149,10 @@ function blockSmsPermissions() {
   }
 }
 
+function clearDeliveredNotifications() {
+  adb(["shell", "cmd", "notification", "cancel-all"], { allowFailure: true });
+}
+
 function resetNotificationPermission() {
   revokePermission(notificationPermission);
   clearPermissionFlags(notificationPermission);
@@ -156,12 +161,6 @@ function resetNotificationPermission() {
 
 function grantNotificationPermission() {
   grantPermission(notificationPermission);
-}
-
-function isRetryableMaestroTransportFailure(output) {
-  return /StatusRuntimeException:\s*UNAVAILABLE(?::\s*End of stream or IOException)?|host:transport:.*device offline|device offline/i.test(
-    output
-  );
 }
 
 function getMaestroFlowTimeoutMs(env = process.env) {
@@ -178,13 +177,7 @@ function getAuthBootstrapFlow(env = process.env) {
 }
 
 function reconnectMaestroTransport() {
-  run("adb", ["kill-server"], { allowFailure: true, timeout: 30000 });
-  run("adb", ["start-server"], { timeout: 30000 });
-  run("adb", ["wait-for-device"], { timeout: 60000 });
-
-  if (!isReleaseRun) {
-    adb(["reverse", "tcp:8081", "tcp:8081"], { allowFailure: true });
-  }
+  reconnectAndroidDevice();
 }
 
 function runMaestroFlowOnce(maestroBin, flow) {
@@ -215,7 +208,7 @@ function runMaestroFlowOnce(maestroBin, flow) {
   };
 }
 
-function runFlow(flow) {
+async function runFlow(flow, prepareRetry, retryOnTransportFailure = false) {
   const maestroBin = resolveMaestroBin();
   if (!maestroBin) {
     throw new Error("Maestro was not found. Install it or set MAESTRO_BIN.");
@@ -228,6 +221,7 @@ function runFlow(flow) {
     }
 
     if (
+      retryOnTransportFailure &&
       attempt === 1 &&
       (result.didTimeout || isRetryableMaestroTransportFailure(result.output))
     ) {
@@ -236,6 +230,7 @@ function runFlow(flow) {
         reason: result.didTimeout ? "timeout" : "transport-unavailable",
       });
       reconnectMaestroTransport();
+      await prepareRetry?.();
       continue;
     }
 
@@ -281,7 +276,7 @@ async function bootstrapCleanAuthenticatedSession() {
   process.env.E2E_USER_ID = result.userId;
   adb(["shell", "pm", "clear", appId]);
   await ensureE2eAppReady();
-  runFlow(getAuthBootstrapFlow());
+  await runFlow(getAuthBootstrapFlow(), undefined, true);
 }
 
 function getXmlAttribute(nodeText, attribute) {
@@ -738,13 +733,13 @@ function sendBackgroundSms() {
   ]);
 }
 
-function sendForegroundSms() {
+async function sendForegroundSms() {
   sendEmulatorSms(
     "QNB",
     "Purchase EGP 64.32 at FOREGROUND LIVE SMS TEST using card ending 5566"
   );
   wait(1000);
-  runFlow("live-sms-journey-16-foreground-real-sms-verification.yaml");
+  await runFlow("live-sms-journey-16-foreground-real-sms-verification.yaml");
 }
 
 function sendBackgroundConfirmSms() {
@@ -857,7 +852,7 @@ const journeys = {
         "✓ Confirm"
       );
       await ensureE2eAppReady();
-      runFlow("live-sms-journey-09-confirm-verification.yaml");
+      await runFlow("live-sms-journey-09-confirm-verification.yaml");
     },
   },
   10: {
@@ -874,7 +869,7 @@ const journeys = {
         "✗ Discard"
       );
       await ensureE2eAppReady();
-      runFlow("live-sms-journey-10-discard-verification.yaml");
+      await runFlow("live-sms-journey-10-discard-verification.yaml");
     },
   },
   11: {
@@ -908,7 +903,7 @@ const journeys = {
       revokePermission(notificationPermission);
       forceStopApp();
       await ensureE2eAppReady();
-      runFlow("live-sms-journey-13-revoked-permission-verification.yaml");
+      await runFlow("live-sms-journey-13-revoked-permission-verification.yaml");
     },
   },
   14: {
@@ -922,7 +917,7 @@ const journeys = {
     after: async () => {
       sendBackgroundConfirmSms();
       await ensureE2eAppReady();
-      runFlow("live-sms-journey-14-background-confirm-verification.yaml");
+      await runFlow("live-sms-journey-14-background-confirm-verification.yaml");
     },
   },
   15: {
@@ -936,7 +931,7 @@ const journeys = {
     after: async () => {
       sendKilledAppConfirmSms();
       await ensureE2eAppReady();
-      runFlow("live-sms-journey-15-killed-app-confirm-verification.yaml");
+      await runFlow("live-sms-journey-15-killed-app-confirm-verification.yaml");
     },
   },
   16: {
@@ -968,10 +963,30 @@ function normalizeJourneyId(id) {
   return id.padStart(2, "0");
 }
 
+function shouldPrepareLiveSmsFlowBeforeRetry(flow) {
+  return Object.values(journeys).some((journey) => journey.flow === flow);
+}
+
+function shouldResetLiveSmsSideEffectsBeforeRetry(flow, env = process.env) {
+  return (
+    env.E2E_SUPABASE_MODE === "local" &&
+    env.E2E_SKIP_AUTH_BOOTSTRAP !== "1" &&
+    shouldPrepareLiveSmsFlowBeforeRetry(flow)
+  );
+}
+
 function logInfo(event, fields) {
   process.stdout.write(
     `${JSON.stringify({ level: "info", event, ...fields })}\n`
   );
+}
+
+async function prepareLiveSmsJourneyRetry(journey) {
+  await bootstrapCleanAuthenticatedSession();
+  clearDeliveredNotifications();
+  journey.prepare();
+  forceStopApp();
+  await ensureE2eAppReady();
 }
 
 async function main() {
@@ -995,7 +1010,16 @@ async function main() {
     journey.prepare();
     forceStopApp();
     await ensureE2eAppReady();
-    runFlow(journey.flow);
+    const canResetSideEffects = shouldResetLiveSmsSideEffectsBeforeRetry(
+      journey.flow
+    );
+    await runFlow(
+      journey.flow,
+      canResetSideEffects
+        ? () => prepareLiveSmsJourneyRetry(journey)
+        : undefined,
+      canResetSideEffects
+    );
     await journey.after?.();
     collapseSystemUi();
     logInfo("liveSmsJourney.passed", { id, flow: journey.flow });
@@ -1016,5 +1040,7 @@ module.exports = {
   getMaestroFlowTimeoutMs,
   getActiveUserFilter,
   isRetryableMaestroTransportFailure,
+  shouldPrepareLiveSmsFlowBeforeRetry,
+  shouldResetLiveSmsSideEffectsBeforeRetry,
   shouldSkipRunAsProbeCleanup,
 };
