@@ -73,6 +73,17 @@ describe("resolve-ci-e2e-scope", () => {
     });
   });
 
+  it("selects transaction and SMS sync E2E for transaction locale changes", () => {
+    expect(
+      scopeResolver.resolveCiE2eScope([
+        "apps/mobile/locales/en/transactions.json",
+      ])
+    ).toEqual({
+      shouldRun: true,
+      suites: ["transactions", "sms-sync"],
+    });
+  });
+
   it("selects only transaction E2E for recurring payment and budget form changes", () => {
     expect(
       scopeResolver.resolveCiE2eScope([
@@ -88,7 +99,6 @@ describe("resolve-ci-e2e-scope", () => {
         "apps/mobile/hooks/index.ts",
         "apps/mobile/hooks/useRecurringPayment.ts",
         "apps/mobile/hooks/useRecurringPayments.ts",
-        "apps/mobile/locales/en/transactions.json",
         "apps/mobile/services/index.ts",
         "apps/mobile/services/recurring-payment-service.ts",
         "apps/mobile/validation/recurring-payment-validation.ts",
