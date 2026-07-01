@@ -62,7 +62,13 @@ function enqueueMarketRatesRealtimeRemoval(channel: RealtimeChannel): void {
     .catch(() => undefined)
     .then(() => supabase.removeChannel(channel))
     .then(
-      () => undefined,
+      (status) => {
+        if (status !== "ok") {
+          logger.error("marketRatesRealtime.removeChannel.failed", undefined, {
+            status,
+          });
+        }
+      },
       (error: unknown) => {
         logger.error("marketRatesRealtime.removeChannel.failed", error);
       }
@@ -99,15 +105,16 @@ export function MarketRatesRealtimeProvider({
     let isCancelled = false;
 
     const removeCurrentChannel = (shouldUpdateConnection: boolean): void => {
+      if (shouldUpdateConnection) {
+        setIsConnected(false);
+      }
+
       const channel = channelRef.current;
       if (!channel) {
         return;
       }
 
       channelRef.current = null;
-      if (shouldUpdateConnection) {
-        setIsConnected(false);
-      }
       enqueueMarketRatesRealtimeRemoval(channel);
     };
 
@@ -150,7 +157,7 @@ export function MarketRatesRealtimeProvider({
 
     return () => {
       isCancelled = true;
-      removeCurrentChannel(false);
+      removeCurrentChannel(true);
     };
   }, [isAuthenticated, handleInsert]);
 

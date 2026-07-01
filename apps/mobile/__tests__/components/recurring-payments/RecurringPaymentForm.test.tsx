@@ -130,6 +130,7 @@ import {
   type RecurringPaymentFormHandle,
   type RecurringPaymentFormValues,
 } from "@/components/recurring-payments/RecurringPaymentForm";
+import { palette } from "@/constants/colors";
 import type { Account, Category } from "@monyvi/db";
 
 const initialValues: RecurringPaymentFormValues = {
@@ -881,7 +882,7 @@ describe("RecurringPaymentForm", () => {
     );
 
     expect(screen.getByTestId("icon-pause-circle-outline")).toHaveTextContent(
-      "#D97706"
+      palette.gold[600]
     );
 
     rerender(
@@ -901,7 +902,7 @@ describe("RecurringPaymentForm", () => {
     );
 
     expect(screen.getByTestId("icon-play-circle-outline")).toHaveTextContent(
-      "#10B981"
+      palette.nileGreen[500]
     );
   });
 

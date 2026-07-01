@@ -20,10 +20,10 @@
 
 ## Emulator Evidence
 
-| Screenshot                         | Path                                                                     | Notes                                                                                                     |
-| ---------------------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
-| Light implementation before polish | `C:\Users\Mohamed\AppData\Local\Temp\monyvi-style-bills-light-clean.png` | Captured on `emulator-5554`; showed broad structure but several style mismatches.                         |
-| Dark implementation attempt        | `C:\Users\Mohamed\AppData\Local\Temp\monyvi-style-bills-dark.png`        | The drawer toggle attempt did not switch theme, so dark mode could not be visually verified in this pass. |
+| Evidence                         | Reference                      | Notes                                                                                                     |
+| -------------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| Light implementation QA pass     | PR #697 manual emulator review | Captured on `emulator-5554`; showed broad structure but several style mismatches before polish.           |
+| Dark implementation QA attempt   | PR #697 manual emulator review | The drawer toggle attempt did not switch theme, so dark mode could not be visually verified in this pass. |
 
 ## Mockup 1: Concept A Light
 

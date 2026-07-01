@@ -149,6 +149,7 @@ describe("recurring-payment-service", () => {
     mockFindAccessibleCategory.mockResolvedValue({
       id: "category-1",
       userId: null,
+      type: "EXPENSE",
     });
     mockGetCurrentUserDataScope.mockResolvedValue({
       userId: "user-1",
@@ -211,6 +212,33 @@ describe("recurring-payment-service", () => {
       id: "category-1",
       userId: null,
       deleted: true,
+    });
+
+    await expect(
+      createRecurringPayment({
+        name: "Weekly Gym",
+        amount: 250,
+        currency: "EGP",
+        type: "EXPENSE",
+        accountId: "account-1",
+        categoryId: "category-1",
+        frequency: "WEEKLY",
+        startDate: new Date("2026-06-01T00:00:00.000Z"),
+        action: "NOTIFY",
+        notes: "membership",
+      })
+    ).rejects.toThrow(
+      RECURRING_PAYMENT_SERVICE_ERROR_CODES.CATEGORY_UNAVAILABLE
+    );
+    expect(mockWrite).not.toHaveBeenCalled();
+  });
+
+  it("rejects a mismatched category type before creating a recurring payment", async () => {
+    mockFindAccessibleCategory.mockResolvedValue({
+      id: "category-1",
+      userId: null,
+      type: "INCOME",
+      deleted: false,
     });
 
     await expect(
@@ -308,6 +336,33 @@ describe("recurring-payment-service", () => {
       id: "category-1",
       userId: null,
       deleted: true,
+    });
+
+    await expect(
+      updateRecurringPayment("payment-1", {
+        name: "Gym",
+        amount: 450,
+        currency: "EGP",
+        type: "EXPENSE",
+        accountId: "account-1",
+        categoryId: "category-1",
+        frequency: "WEEKLY",
+        startDate: new Date("2026-01-01T00:00:00.000Z"),
+        action: "AUTO_CREATE",
+        notes: undefined,
+      })
+    ).rejects.toThrow(
+      RECURRING_PAYMENT_SERVICE_ERROR_CODES.CATEGORY_UNAVAILABLE
+    );
+    expect(mockWrite).not.toHaveBeenCalled();
+  });
+
+  it("rejects a mismatched category type before updating a recurring payment", async () => {
+    mockFindAccessibleCategory.mockResolvedValue({
+      id: "category-1",
+      userId: null,
+      type: "INCOME",
+      deleted: false,
     });
 
     await expect(

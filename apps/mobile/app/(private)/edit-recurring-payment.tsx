@@ -116,6 +116,8 @@ export default function EditRecurringPaymentScreen(): React.JSX.Element {
   const handlePauseToggle = async (): Promise<void> => {
     if (!payment) return;
 
+    setIsPauseResumeVisible(false);
+
     try {
       if (payment.status === "PAUSED") {
         await resumeRecurringPayment(payment.id);

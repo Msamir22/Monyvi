@@ -4,23 +4,26 @@
  */
 
 import {
-  groupPaymentsByDueDate,
   HeroSummary,
   NextPaymentInsight,
   PaymentRow,
   RecurringPaymentsSkeleton,
   SortControl,
   SortPaymentsModal,
-  sortPayments,
   StatusTabs,
-  type PaymentSection,
-  type SortOption,
 } from "@/components/recurring-payments/RecurringPaymentsDashboard";
 import { EmptyStateCard } from "@/components/ui/EmptyStateCard";
 import { PageHeader } from "@/components/navigation/PageHeader";
 import { palette } from "@/constants/colors";
+import { useMarketRates } from "@/hooks/useMarketRates";
 import { usePreferredCurrency } from "@/hooks/usePreferredCurrency";
 import { useRecurringPayments } from "@/hooks/useRecurringPayments";
+import {
+  groupPaymentsByDueDate,
+  sortPayments,
+  type PaymentSection,
+  type SortOption,
+} from "@/services/recurring-payments-dashboard-read-model";
 import { Ionicons } from "@expo/vector-icons";
 import type { RecurringPayment, RecurringStatus } from "@monyvi/db";
 import { router } from "expo-router";
@@ -45,21 +48,32 @@ export default function RecurringPaymentsScreen(): React.JSX.Element {
     setStatusFilter,
   } = useRecurringPayments();
   const { preferredCurrency } = usePreferredCurrency();
+  const { latestRates } = useMarketRates();
+
+  const sortOptions = useMemo(
+    () => ({ preferredCurrency, latestRates }),
+    [latestRates, preferredCurrency]
+  );
 
   const sortedPayments = useMemo(
-    () => sortPayments(filteredPayments, selectedSort),
-    [filteredPayments, selectedSort]
+    () => sortPayments(filteredPayments, selectedSort, sortOptions),
+    [filteredPayments, selectedSort, sortOptions]
   );
 
-  const paymentSections = useMemo(
-    () => groupPaymentsByDueDate(sortedPayments),
-    [sortedPayments]
-  );
+  const paymentSections = useMemo((): PaymentSection[] => {
+    if (selectedSort === "next_due") {
+      return groupPaymentsByDueDate(sortedPayments);
+    }
+
+    return [{ title: "", data: sortedPayments }];
+  }, [selectedSort, sortedPayments]);
 
   const nextPayment = useMemo(
     () =>
       sortPayments(
-        allPayments.filter((payment) => payment.isActive),
+        allPayments.filter(
+          (payment) => payment.isActive && !payment.isOverdue
+        ),
         "next_due"
       )[0] ?? null,
     [allPayments]
@@ -102,11 +116,12 @@ export default function RecurringPaymentsScreen(): React.JSX.Element {
   );
 
   const renderSectionHeader = useCallback(
-    ({ section }: { readonly section: PaymentSection }) => (
-      <Text className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-4 mb-2">
-        {section.title}
-      </Text>
-    ),
+    ({ section }: { readonly section: PaymentSection }) =>
+      section.title ? (
+        <Text className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-4 mb-2">
+          {section.title}
+        </Text>
+      ) : null,
     []
   );
 
@@ -120,11 +135,6 @@ export default function RecurringPaymentsScreen(): React.JSX.Element {
         centerTitle={true}
         showBackButton={true}
         showDrawer={false}
-        rightAction={{
-          icon: "add-outline",
-          onPress: handleCreatePress,
-          testID: "recurring-payments-header-add",
-        }}
       />
 
       <View className="flex-1 px-5 pt-4">

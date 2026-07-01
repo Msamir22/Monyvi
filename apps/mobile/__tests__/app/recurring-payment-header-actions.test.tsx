@@ -292,9 +292,18 @@ describe("recurring payment header and destructive actions", () => {
     fireEvent.press(screen.getByTestId("header-save"));
 
     await waitFor(() => {
-      expect(serviceMocks().createRecurringPayment).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "Netflix", amount: 250 })
-      );
+      expect(serviceMocks().createRecurringPayment).toHaveBeenCalledWith({
+        name: "Netflix",
+        amount: 250,
+        currency: "EGP",
+        type: "EXPENSE",
+        frequency: "MONTHLY",
+        startDate: new Date("2026-06-01T00:00:00.000Z"),
+        accountId: "account-1",
+        categoryId: "category-1",
+        action: "NOTIFY",
+        notes: undefined,
+      });
     });
   });
 
@@ -323,7 +332,18 @@ describe("recurring payment header and destructive actions", () => {
     await waitFor(() => {
       expect(serviceMocks().updateRecurringPayment).toHaveBeenCalledWith(
         "payment-1",
-        expect.objectContaining({ name: "Netflix", amount: 250 })
+        {
+          name: "Netflix",
+          amount: 250,
+          currency: "EGP",
+          type: "EXPENSE",
+          frequency: "MONTHLY",
+          startDate: new Date("2026-06-01T00:00:00.000Z"),
+          accountId: "account-1",
+          categoryId: "category-1",
+          action: "NOTIFY",
+          notes: undefined,
+        }
       );
     });
   });
@@ -383,6 +403,7 @@ describe("recurring payment header and destructive actions", () => {
         "payment-1"
       );
     });
+    expect(screen.queryByText("pause_payment")).toBeNull();
   });
 
   it("confirms before resuming a paused payment", async () => {
@@ -407,6 +428,7 @@ describe("recurring payment header and destructive actions", () => {
         "payment-1"
       );
     });
+    expect(screen.queryByText("resume_payment")).toBeNull();
   });
 
   it("shows friendly fallback copy when pause fails with a raw service error", async () => {

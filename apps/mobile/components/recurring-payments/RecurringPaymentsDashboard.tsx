@@ -4,8 +4,9 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { palette } from "@/constants/colors";
 import { useCategoryLookup } from "@/context/CategoriesContext";
 import { useTheme } from "@/context/ThemeContext";
+import type { SortOption } from "@/services/recurring-payments-dashboard-read-model";
 import { getCategoryIconConfig } from "@/utils/category-icon-config";
-import { formatDate, getDaysUntil, getDueText } from "@/utils/dateHelpers";
+import { formatDate, getDueText } from "@/utils/dateHelpers";
 import { getPaymentIcon } from "@/utils/recurring-helpers";
 import { Ionicons } from "@expo/vector-icons";
 import type {
@@ -24,17 +25,6 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-export type SortOption =
-  | "next_due"
-  | "highest_amount"
-  | "lowest_amount"
-  | "name_a_z";
-
-export interface PaymentSection {
-  readonly title: string;
-  readonly data: readonly RecurringPayment[];
-}
 
 interface StatusTabsProps {
   readonly activeTab: RecurringStatus;
@@ -468,43 +458,6 @@ export function RecurringPaymentsSkeleton(): React.JSX.Element {
   );
 }
 
-export function sortPayments(
-  payments: readonly RecurringPayment[],
-  sort: SortOption
-): RecurringPayment[] {
-  return [...payments].sort((a, b) => {
-    switch (sort) {
-      case "highest_amount":
-        return b.amount - a.amount;
-      case "lowest_amount":
-        return a.amount - b.amount;
-      case "name_a_z":
-        return a.name.localeCompare(b.name);
-      case "next_due":
-        return a.nextDueDate.getTime() - b.nextDueDate.getTime();
-    }
-  });
-}
-
-export function groupPaymentsByDueDate(
-  payments: readonly RecurringPayment[]
-): PaymentSection[] {
-  return payments.reduce<PaymentSection[]>((sections, payment) => {
-    const title = getDueGroupTitle(payment);
-    const existingSection = sections.find((section) => section.title === title);
-
-    if (existingSection) {
-      return sections.map((section) =>
-        section.title === title
-          ? { ...section, data: [...section.data, payment] }
-          : section
-      );
-    }
-
-    return [...sections, { title, data: [payment] }];
-  }, []);
-}
-
 function MetricText({
   label,
   value,
@@ -556,20 +509,6 @@ function getPaymentDueLabel(payment: RecurringPayment): string {
   }
 
   return getDueText(payment.nextDueDate);
-}
-
-function getDueGroupTitle(payment: RecurringPayment): string {
-  const daysUntilDue = getDaysUntil(payment.nextDueDate);
-
-  if (payment.isCompleted && payment.isOverdue) {
-    return formatDate(payment.nextDueDate, "MMM d");
-  }
-
-  if (daysUntilDue <= 1) {
-    return getDueText(payment.nextDueDate);
-  }
-
-  return formatDate(payment.nextDueDate, "MMM d");
 }
 
 function getStatusLabelKey(status: RecurringStatus): string {
