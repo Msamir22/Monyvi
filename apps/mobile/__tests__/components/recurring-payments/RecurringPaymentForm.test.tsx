@@ -176,8 +176,8 @@ const childCategory = {
 
 function renderForm(
   overrides: Partial<React.ComponentProps<typeof RecurringPaymentForm>> = {}
-): void {
-  render(
+): ReturnType<typeof render> {
+  return render(
     <RecurringPaymentForm
       mode="create"
       initialValues={initialValues}
@@ -380,6 +380,40 @@ describe("RecurringPaymentForm", () => {
         })
       );
     });
+  });
+
+  it("keeps dirty local edits when submit reports failure", async () => {
+    const onSubmit = jest.fn((): Promise<false> => Promise.resolve(false));
+    const { rerender } = renderForm({ mode: "edit", onSubmit });
+
+    fireEvent.changeText(screen.getByDisplayValue("Netflix"), "Local edit");
+    fireEvent.press(screen.getByText("save"));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "Local edit" })
+      );
+    });
+
+    rerender(
+      <RecurringPaymentForm
+        mode="edit"
+        initialValues={{
+          ...initialValues,
+          name: "Remote update",
+          amount: "450",
+        }}
+        accounts={accounts as unknown as readonly Account[]}
+        expenseCategories={categories as unknown as readonly Category[]}
+        incomeCategories={[]}
+        isSubmitting={false}
+        submitLabel="save"
+        onSubmit={onSubmit}
+      />
+    );
+
+    expect(screen.getByDisplayValue("Local edit")).toBeTruthy();
+    expect(screen.getByDisplayValue("450")).toBeTruthy();
   });
 
   it("shows a selected subcategory from the full category list", () => {

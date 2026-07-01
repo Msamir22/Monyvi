@@ -43,7 +43,7 @@ export default function CreateRecurringPaymentScreen(): React.JSX.Element {
 
   const handleSubmit = async (
     values: RecurringPaymentFormValues
-  ): Promise<void> => {
+  ): Promise<void | false> => {
     const selectedAccount =
       accounts.find((account) => account.id === values.accountId) ?? null;
 
@@ -53,7 +53,7 @@ export default function CreateRecurringPaymentScreen(): React.JSX.Element {
         message: t("account_not_found"),
         type: "error",
       });
-      return;
+      return false;
     }
 
     setIsSubmitting(true);
@@ -77,6 +77,7 @@ export default function CreateRecurringPaymentScreen(): React.JSX.Element {
         title: t("failed_to_create_payment"),
         message: getRecurringPaymentErrorMessage(error, t, tCommon),
       });
+      return false;
     } finally {
       setIsSubmitting(false);
     }

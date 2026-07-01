@@ -57,6 +57,8 @@ export interface RecurringPaymentFormValues {
   readonly notes: string;
 }
 
+type SubmitResult = Promise<void | false>;
+
 interface RecurringPaymentFormProps {
   readonly mode: "create" | "edit";
   readonly initialValues: RecurringPaymentFormValues;
@@ -68,7 +70,7 @@ interface RecurringPaymentFormProps {
   readonly submitLabel: string;
   readonly status?: RecurringStatus;
   readonly dueDate?: Date;
-  readonly onSubmit: (values: RecurringPaymentFormValues) => Promise<void>;
+  readonly onSubmit: (values: RecurringPaymentFormValues) => SubmitResult;
   readonly onPauseToggle?: () => Promise<void>;
   readonly onDelete?: () => Promise<void>;
 }
@@ -285,8 +287,8 @@ export const RecurringPaymentForm = React.forwardRef<
 
     isSubmitInFlightRef.current = true;
     try {
-      await onSubmit(form);
-      dirtyFieldsRef.current = new Set();
+      const didSubmit = await onSubmit(form);
+      if (didSubmit !== false) dirtyFieldsRef.current = new Set();
     } finally {
       isSubmitInFlightRef.current = false;
     }
