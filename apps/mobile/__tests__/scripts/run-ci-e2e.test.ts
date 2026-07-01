@@ -226,6 +226,15 @@ describe("run-ci-e2e helpers", () => {
       )
     ).toBe(false);
     expect(
+      runCiE2e.shouldResetMaestroFlowBeforeRetry(
+        "transactions/create-transaction.yaml",
+        {
+          E2E_SKIP_SEED: "1",
+          E2E_SUPABASE_MODE: "local",
+        }
+      )
+    ).toBe(false);
+    expect(
       runCiE2e.shouldRetryMaestroSuiteFlow(
         "transactions/create-transaction.yaml",
         { E2E_SUPABASE_MODE: "remote" }
@@ -241,10 +250,18 @@ describe("run-ci-e2e helpers", () => {
       )
     ).toBe(false);
     expect(
-      runCiE2e.getMaestroSuiteFlowOptions(
-        "live-sms/live-sms-foreground.yaml",
-        { E2E_SUPABASE_MODE: "local" }
+      runCiE2e.shouldRetryMaestroSuiteFlow(
+        "transactions/create-transaction.yaml",
+        {
+          E2E_SKIP_SEED: "1",
+          E2E_SUPABASE_MODE: "local",
+        }
       )
+    ).toBe(false);
+    expect(
+      runCiE2e.getMaestroSuiteFlowOptions("live-sms/live-sms-foreground.yaml", {
+        E2E_SUPABASE_MODE: "local",
+      })
     ).toMatchObject({
       retryOnDeviceFailure: false,
     });

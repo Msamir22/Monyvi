@@ -133,6 +133,15 @@ describe("run-live-sms-journeys helpers", () => {
     expect(
       liveSmsJourneys.shouldResetLiveSmsSideEffectsBeforeRetry(
         "live-sms-journey-12-auto-confirm.yaml",
+        {
+          E2E_SKIP_AUTH_BOOTSTRAP: "1",
+          E2E_SUPABASE_MODE: "local",
+        }
+      )
+    ).toBe(false);
+    expect(
+      liveSmsJourneys.shouldResetLiveSmsSideEffectsBeforeRetry(
+        "live-sms-journey-12-auto-confirm.yaml",
         { E2E_SUPABASE_MODE: "remote" }
       )
     ).toBe(false);

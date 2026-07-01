@@ -70,7 +70,9 @@ async function runFlow(flow) {
 
     if (
       attempt === 1 &&
-      (result.didTimeout || isRetryableMaestroTransportFailure(result.output))
+      (result.didTimeout ||
+        isRetryableMaestroTransportFailure(result.output)) &&
+      shouldRetrySmsSyncFlowAfterTransportFailure(flow)
     ) {
       console.warn(
         `Retrying SMS sync Maestro flow after ${result.didTimeout ? "timeout" : "transport failure"}: ${flow}`
@@ -94,8 +96,20 @@ async function prepareSmsSyncFlowRetry(flow) {
   grantReadSmsPermission();
 }
 
-function shouldResetSmsSyncAppStateBeforeRetry(flow) {
-  return flow === "sms-sync-batch-duplicates-atm.yaml";
+function shouldResetSmsSyncAppStateBeforeRetry(flow, env = process.env) {
+  return (
+    flow === "sms-sync-batch-duplicates-atm.yaml" &&
+    env.E2E_SUPABASE_MODE === "local" &&
+    env.E2E_SKIP_AUTH_BOOTSTRAP !== "1" &&
+    env.E2E_SKIP_SEED !== "1"
+  );
+}
+
+function shouldRetrySmsSyncFlowAfterTransportFailure(flow, env = process.env) {
+  return (
+    flow !== "sms-sync-batch-duplicates-atm.yaml" ||
+    shouldResetSmsSyncAppStateBeforeRetry(flow, env)
+  );
 }
 
 function getMaestroFlowTimeoutMs(env = process.env) {
@@ -356,5 +370,6 @@ module.exports = {
   getMaestroFlowTimeoutMs,
   getActiveUserFilter,
   shouldResetSmsSyncAppStateBeforeRetry,
+  shouldRetrySmsSyncFlowAfterTransportFailure,
   shouldRelaunchBetweenSmsSyncJourneys,
 };

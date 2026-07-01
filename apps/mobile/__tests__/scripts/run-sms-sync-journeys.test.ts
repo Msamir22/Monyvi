@@ -9,7 +9,14 @@ interface RunSmsSyncJourneysModule {
   getMaestroFlowTimeoutMs(
     env?: Readonly<Record<string, string | undefined>>
   ): number;
-  shouldResetSmsSyncAppStateBeforeRetry(flow: string): boolean;
+  shouldResetSmsSyncAppStateBeforeRetry(
+    flow: string,
+    env?: Readonly<Record<string, string | undefined>>
+  ): boolean;
+  shouldRetrySmsSyncFlowAfterTransportFailure(
+    flow: string,
+    env?: Readonly<Record<string, string | undefined>>
+  ): boolean;
   shouldRelaunchBetweenSmsSyncJourneys(
     env?: Readonly<Record<string, string | undefined>>
   ): boolean;
@@ -78,18 +85,92 @@ describe("run-sms-sync-journeys helpers", () => {
         E2E_MAESTRO_FLOW_TIMEOUT_MS: "1000",
       })
     ).toBe(1000);
+    expect(
+      smsSyncJourneys.getMaestroFlowTimeoutMs({
+        E2E_MAESTRO_FLOW_TIMEOUT_MS: "not-a-number",
+      })
+    ).toBe(10 * 60 * 1000);
+    expect(
+      smsSyncJourneys.getMaestroFlowTimeoutMs({
+        E2E_MAESTRO_FLOW_TIMEOUT_MS: "0",
+      })
+    ).toBe(10 * 60 * 1000);
+    expect(
+      smsSyncJourneys.getMaestroFlowTimeoutMs({
+        E2E_MAESTRO_FLOW_TIMEOUT_MS: "-1",
+      })
+    ).toBe(10 * 60 * 1000);
   });
 
   it("resets the seeded app state before retrying side-effecting SMS saves", () => {
     expect(
       smsSyncJourneys.shouldResetSmsSyncAppStateBeforeRetry(
-        "sms-sync-batch-duplicates-atm.yaml"
+        "sms-sync-batch-duplicates-atm.yaml",
+        { E2E_SUPABASE_MODE: "local" }
       )
     ).toBe(true);
     expect(
       smsSyncJourneys.shouldResetSmsSyncAppStateBeforeRetry(
-        "sms-sync-rescan-skips-saved.yaml"
+        "sms-sync-batch-duplicates-atm.yaml",
+        {
+          E2E_SKIP_AUTH_BOOTSTRAP: "1",
+          E2E_SUPABASE_MODE: "local",
+        }
       )
     ).toBe(false);
+    expect(
+      smsSyncJourneys.shouldResetSmsSyncAppStateBeforeRetry(
+        "sms-sync-batch-duplicates-atm.yaml",
+        {
+          E2E_SKIP_SEED: "1",
+          E2E_SUPABASE_MODE: "local",
+        }
+      )
+    ).toBe(false);
+    expect(
+      smsSyncJourneys.shouldResetSmsSyncAppStateBeforeRetry(
+        "sms-sync-batch-duplicates-atm.yaml",
+        { E2E_SUPABASE_MODE: "remote" }
+      )
+    ).toBe(false);
+    expect(
+      smsSyncJourneys.shouldResetSmsSyncAppStateBeforeRetry(
+        "sms-sync-rescan-skips-saved.yaml",
+        { E2E_SUPABASE_MODE: "local" }
+      )
+    ).toBe(false);
+  });
+
+  it("retries SMS save flows only when a clean reset can run", () => {
+    expect(
+      smsSyncJourneys.shouldRetrySmsSyncFlowAfterTransportFailure(
+        "sms-sync-batch-duplicates-atm.yaml",
+        { E2E_SUPABASE_MODE: "local" }
+      )
+    ).toBe(true);
+    expect(
+      smsSyncJourneys.shouldRetrySmsSyncFlowAfterTransportFailure(
+        "sms-sync-batch-duplicates-atm.yaml",
+        {
+          E2E_SKIP_AUTH_BOOTSTRAP: "1",
+          E2E_SUPABASE_MODE: "local",
+        }
+      )
+    ).toBe(false);
+    expect(
+      smsSyncJourneys.shouldRetrySmsSyncFlowAfterTransportFailure(
+        "sms-sync-batch-duplicates-atm.yaml",
+        {
+          E2E_SKIP_SEED: "1",
+          E2E_SUPABASE_MODE: "local",
+        }
+      )
+    ).toBe(false);
+    expect(
+      smsSyncJourneys.shouldRetrySmsSyncFlowAfterTransportFailure(
+        "sms-sync-rescan-skips-saved.yaml",
+        { E2E_SUPABASE_MODE: "remote" }
+      )
+    ).toBe(true);
   });
 });

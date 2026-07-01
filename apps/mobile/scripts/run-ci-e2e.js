@@ -136,6 +136,7 @@ function shouldBootstrapAuthForEnv(env = process.env) {
 function shouldResetMaestroFlowBeforeRetry(flow, env = process.env) {
   if (!isLocalSupabaseMode(env)) return false;
   if (!shouldBootstrapAuthForEnv(env)) return false;
+  if (env.E2E_SKIP_SEED === "1") return false;
 
   return flow.startsWith("accounts/") || flow.startsWith("transactions/");
 }

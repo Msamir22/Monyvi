@@ -208,7 +208,7 @@ function runMaestroFlowOnce(maestroBin, flow) {
   };
 }
 
-async function runFlow(flow, prepareRetry, retryOnTransportFailure = true) {
+async function runFlow(flow, prepareRetry, retryOnTransportFailure = false) {
   const maestroBin = resolveMaestroBin();
   if (!maestroBin) {
     throw new Error("Maestro was not found. Install it or set MAESTRO_BIN.");
@@ -276,7 +276,7 @@ async function bootstrapCleanAuthenticatedSession() {
   process.env.E2E_USER_ID = result.userId;
   adb(["shell", "pm", "clear", appId]);
   await ensureE2eAppReady();
-  await runFlow(getAuthBootstrapFlow());
+  await runFlow(getAuthBootstrapFlow(), undefined, true);
 }
 
 function getXmlAttribute(nodeText, attribute) {
@@ -967,12 +967,10 @@ function shouldPrepareLiveSmsFlowBeforeRetry(flow) {
   return Object.values(journeys).some((journey) => journey.flow === flow);
 }
 
-function shouldResetLiveSmsSideEffectsBeforeRetry(
-  flow,
-  env = process.env
-) {
+function shouldResetLiveSmsSideEffectsBeforeRetry(flow, env = process.env) {
   return (
     env.E2E_SUPABASE_MODE === "local" &&
+    env.E2E_SKIP_AUTH_BOOTSTRAP !== "1" &&
     shouldPrepareLiveSmsFlowBeforeRetry(flow)
   );
 }
