@@ -20,7 +20,10 @@ import { useAccounts } from "@/hooks/useAccounts";
 import { useCategories } from "@/hooks/useCategories";
 import { useCategoryChildren } from "@/hooks/useCategoryChildren";
 import { useMarketRates } from "@/hooks/useMarketRates";
-import { createRecurringPayment } from "@/services/recurring-payment-service";
+import {
+  createRecurringPayment,
+  RECURRING_PAYMENT_SERVICE_ERROR_CODES,
+} from "@/services/recurring-payment-service";
 import { createTransaction } from "@/services/transaction-service";
 import { createTransfer } from "@/services/transfer-service";
 import { resolveInitialTransactionAccountSelection } from "@/utils/account-selection";
@@ -437,9 +440,25 @@ export default function AddTransaction(): React.ReactNode {
       if (!alertTriggered) {
         router.back();
       }
-    } catch (error) {
-      console.error(error);
-      // Error is already logged above; validation errors are shown inline
+    } catch (error: unknown) {
+      const recurringPaymentErrorMessage = getRecurringPaymentErrorMessage(
+        error,
+        t
+      );
+
+      if (recurringPaymentErrorMessage) {
+        showToast({
+          type: "error",
+          title: t("transaction_creation_failed"),
+          message: recurringPaymentErrorMessage,
+        });
+      } else if (type !== "TRANSFER") {
+        showToast({
+          type: "error",
+          title: t("update_error"),
+          message: t("transaction_creation_failed"),
+        });
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -801,4 +820,21 @@ export default function AddTransaction(): React.ReactNode {
       />
     </View>
   );
+}
+
+function getRecurringPaymentErrorMessage(
+  error: unknown,
+  t: (key: string) => string
+): string | null {
+  const message = error instanceof Error ? error.message : undefined;
+
+  if (message === RECURRING_PAYMENT_SERVICE_ERROR_CODES.ACCOUNT_UNAVAILABLE) {
+    return t("recurring_payment_account_unavailable");
+  }
+
+  if (message === RECURRING_PAYMENT_SERVICE_ERROR_CODES.CATEGORY_UNAVAILABLE) {
+    return t("recurring_payment_category_unavailable");
+  }
+
+  return null;
 }

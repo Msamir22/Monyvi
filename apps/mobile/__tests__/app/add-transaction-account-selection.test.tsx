@@ -19,6 +19,7 @@ let mockAccounts: readonly MockAccount[] = [];
 
 const mockBack = jest.fn();
 const mockPush = jest.fn();
+const mockShowToast = jest.fn();
 
 const mockView = (testID: string): React.JSX.Element => {
   const ReactNative =
@@ -102,7 +103,9 @@ jest.mock("@/hooks/useBudgetAlert", () => ({
 }));
 
 jest.mock("@/components/ui/Toast", () => ({
-  useToast: (): { readonly showToast: jest.Mock } => ({ showToast: jest.fn() }),
+  useToast: (): { readonly showToast: jest.Mock } => ({
+    showToast: mockShowToast,
+  }),
 }));
 
 jest.mock("@/context/ThemeContext", () => ({
@@ -134,7 +137,29 @@ jest.mock("@/components/add-transaction/AmountDisplay", () => ({
 }));
 
 jest.mock("@/components/add-transaction/CalculatorKeypad", () => ({
-  CalculatorKeypad: (): React.JSX.Element => mockView("calculator"),
+  CalculatorKeypad: (props: {
+    readonly onKeyPress: (key: string) => Promise<void>;
+  }): React.JSX.Element => {
+    const ReactNative =
+      jest.requireActual<typeof import("react-native")>("react-native");
+
+    return (
+      <ReactNative.View testID="calculator">
+        <ReactNative.Pressable
+          testID="key-1"
+          onPress={() => void props.onKeyPress("1")}
+        >
+          <ReactNative.Text>1</ReactNative.Text>
+        </ReactNative.Pressable>
+        <ReactNative.Pressable
+          testID="key-done"
+          onPress={() => void props.onKeyPress("DONE")}
+        >
+          <ReactNative.Text>done</ReactNative.Text>
+        </ReactNative.Pressable>
+      </ReactNative.View>
+    );
+  },
 }));
 
 jest.mock("@/components/add-transaction/TypeTabs", () => ({
@@ -146,7 +171,29 @@ jest.mock("@/components/add-transaction/CategoryPicker", () => ({
 }));
 
 jest.mock("@/components/add-transaction/OptionalSection", () => ({
-  OptionalSection: (): React.JSX.Element => mockView("optional-section"),
+  OptionalSection: (props: {
+    readonly onChange: (updates: {
+      readonly isRecurring?: boolean;
+      readonly recurringName?: string;
+    }) => void;
+  }): React.JSX.Element => {
+    const ReactNative =
+      jest.requireActual<typeof import("react-native")>("react-native");
+
+    return (
+      <ReactNative.Pressable
+        testID="enable-recurring"
+        onPress={() =>
+          props.onChange({
+            isRecurring: true,
+            recurringName: "Monthly food",
+          })
+        }
+      >
+        <ReactNative.Text>enable recurring</ReactNative.Text>
+      </ReactNative.Pressable>
+    );
+  },
 }));
 
 jest.mock("@/components/common/CategoryIcon", () => ({
@@ -201,6 +248,10 @@ jest.mock("@/components/budget/BudgetAlertModal", () => ({
 
 jest.mock("@/services/recurring-payment-service", () => ({
   createRecurringPayment: jest.fn(),
+  RECURRING_PAYMENT_SERVICE_ERROR_CODES: {
+    ACCOUNT_UNAVAILABLE: "RECURRING_PAYMENT_ACCOUNT_UNAVAILABLE",
+    CATEGORY_UNAVAILABLE: "RECURRING_PAYMENT_CATEGORY_UNAVAILABLE",
+  },
 }));
 
 jest.mock("@/services/transaction-service", () => ({
@@ -212,6 +263,16 @@ jest.mock("@/services/transfer-service", () => ({
 }));
 
 import AddTransaction from "@/app/(private)/add-transaction";
+
+interface RecurringPaymentServiceMocks {
+  readonly createRecurringPayment: jest.Mock;
+}
+
+function recurringPaymentServiceMocks(): RecurringPaymentServiceMocks {
+  return jest.requireMock<RecurringPaymentServiceMocks>(
+    "@/services/recurring-payment-service"
+  );
+}
 
 function account(id: string, name: string, isDefault: boolean): MockAccount {
   return {
@@ -232,6 +293,8 @@ describe("AddTransaction account selection", () => {
     ];
     mockBack.mockClear();
     mockPush.mockClear();
+    mockShowToast.mockClear();
+    recurringPaymentServiceMocks().createRecurringPayment.mockReset();
   });
 
   it("selects a default account that appears after an initial no-default emission", async () => {
@@ -263,5 +326,33 @@ describe("AddTransaction account selection", () => {
     rerender(<AddTransaction />);
 
     await waitFor(() => expect(screen.getByText("Bank")).toBeTruthy());
+  });
+
+  it("shows a friendly error when recurring template creation preflight fails", async () => {
+    mockAccounts = [
+      account("cash-1", "Cash", true),
+      account("bank-1", "Bank", false),
+    ];
+    recurringPaymentServiceMocks().createRecurringPayment.mockRejectedValueOnce(
+      new Error("RECURRING_PAYMENT_CATEGORY_UNAVAILABLE")
+    );
+    render(<AddTransaction />);
+
+    await waitFor(() => expect(screen.getByText("Cash")).toBeTruthy());
+    fireEvent.press(screen.getByTestId("key-1"));
+    fireEvent.press(screen.getByText("add_more_details"));
+    fireEvent.press(screen.getByTestId("enable-recurring"));
+    fireEvent.press(screen.getByTestId("key-done"));
+
+    await waitFor(() => {
+      expect(mockShowToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "transaction_creation_failed",
+          message: "recurring_payment_category_unavailable",
+          type: "error",
+        })
+      );
+    });
+    expect(mockBack).not.toHaveBeenCalled();
   });
 });

@@ -36,13 +36,15 @@ export function useRecurringPayment(
         setIsLoading(false);
       },
       onAuthenticated: (currentUserId) => {
+        setPayment(null);
+        setIsLoading(true);
         const subscription = observeOwnedById<RecurringPayment>(
           database.get<RecurringPayment>("recurring_payments"),
           paymentId,
           currentUserId
         ).subscribe({
           next: (result) => {
-            setPayment(result);
+            setPayment(result && !result.deleted ? result : null);
             setObservedRevision((revision) => revision + 1);
             setIsLoading(false);
           },

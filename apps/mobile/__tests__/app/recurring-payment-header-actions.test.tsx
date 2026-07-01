@@ -6,7 +6,9 @@ import {
 } from "@testing-library/react-native";
 import React from "react";
 
-let mockPaymentStatus: "ACTIVE" | "PAUSED" = "ACTIVE";
+let mockPaymentStatus: "ACTIVE" | "PAUSED" | "COMPLETED" = "ACTIVE";
+let mockAccountsLoading = false;
+const mockShowToast = jest.fn();
 
 jest.mock("expo-router", () => ({
   router: { back: jest.fn() },
@@ -51,7 +53,7 @@ jest.mock("@/components/recurring-payments", () => {
   const RecurringPaymentForm = ReactActual.forwardRef(
     (
       props: {
-        readonly status?: "ACTIVE" | "PAUSED";
+        readonly status?: "ACTIVE" | "PAUSED" | "COMPLETED";
         readonly onSubmit: (values: {
           readonly name: string;
           readonly amount: string;
@@ -129,12 +131,14 @@ jest.mock("@/components/modals/ConfirmationModal", () => ({
     variant,
     icon,
     onConfirm,
+    onCancel,
   }: {
     readonly visible: boolean;
     readonly title: string;
     readonly variant?: string;
     readonly icon?: string;
     readonly onConfirm: () => void;
+    readonly onCancel: () => void;
   }): React.JSX.Element | null => {
     if (!visible) return null;
     const ReactNative =
@@ -151,6 +155,9 @@ jest.mock("@/components/modals/ConfirmationModal", () => ({
         <ReactNative.Pressable testID="modal-confirm" onPress={onConfirm}>
           <ReactNative.Text>confirm</ReactNative.Text>
         </ReactNative.Pressable>
+        <ReactNative.Pressable testID="modal-cancel" onPress={onCancel}>
+          <ReactNative.Text>cancel</ReactNative.Text>
+        </ReactNative.Pressable>
       </ReactNative.View>
     );
   },
@@ -161,11 +168,14 @@ jest.mock("@/components/ui/Skeleton", () => ({
 }));
 
 jest.mock("@/components/ui/Toast", () => ({
-  useToast: (): { readonly showToast: jest.Mock } => ({ showToast: jest.fn() }),
+  useToast: (): { readonly showToast: jest.Mock } => ({
+    showToast: mockShowToast,
+  }),
 }));
 
 jest.mock("@/hooks/useAccounts", () => ({
   useAccounts: (): {
+    readonly isLoading: boolean;
     readonly accounts: readonly [
       {
         readonly id: "account-1";
@@ -174,18 +184,23 @@ jest.mock("@/hooks/useAccounts", () => ({
       },
     ];
   } => ({
+    isLoading: mockAccountsLoading,
     accounts: [{ id: "account-1", name: "Cash", currency: "EGP" }],
   }),
 }));
 
 jest.mock("@/hooks/useCategories", () => ({
-  useCategories: (): {
-    readonly expenseCategories: readonly [];
-    readonly incomeCategories: readonly [];
-  } => ({
-    expenseCategories: [],
-    incomeCategories: [],
-  }),
+  useCategories: jest.fn(
+    (): {
+      readonly categories: readonly [];
+      readonly expenseCategories: readonly [];
+      readonly incomeCategories: readonly [];
+    } => ({
+      categories: [],
+      expenseCategories: [],
+      incomeCategories: [],
+    })
+  ),
 }));
 
 jest.mock("@/hooks/useRecurringPayment", () => ({
@@ -201,7 +216,7 @@ jest.mock("@/hooks/useRecurringPayment", () => ({
       readonly startDate: Date;
       readonly action: "NOTIFY";
       readonly notes: "";
-      readonly status: "ACTIVE" | "PAUSED";
+      readonly status: "ACTIVE" | "PAUSED" | "COMPLETED";
       readonly nextDueDate: Date;
     };
     readonly isLoading: false;
@@ -230,16 +245,22 @@ jest.mock("@/services/recurring-payment-service", () => ({
   pauseRecurringPayment: jest.fn().mockResolvedValue(undefined),
   resumeRecurringPayment: jest.fn().mockResolvedValue(undefined),
   deleteRecurringPayment: jest.fn().mockResolvedValue(undefined),
+  RECURRING_PAYMENT_SERVICE_ERROR_CODES: {
+    ACCOUNT_UNAVAILABLE: "RECURRING_PAYMENT_ACCOUNT_UNAVAILABLE",
+    CATEGORY_UNAVAILABLE: "RECURRING_PAYMENT_CATEGORY_UNAVAILABLE",
+  },
 }));
 
 import CreateRecurringPaymentScreen from "@/app/(private)/create-recurring-payment";
 import EditRecurringPaymentScreen from "@/app/(private)/edit-recurring-payment";
+import { router } from "expo-router";
 
 interface RecurringPaymentServiceMocks {
   readonly createRecurringPayment: jest.Mock;
   readonly updateRecurringPayment: jest.Mock;
   readonly pauseRecurringPayment: jest.Mock;
   readonly resumeRecurringPayment: jest.Mock;
+  readonly deleteRecurringPayment: jest.Mock;
 }
 
 function serviceMocks(): RecurringPaymentServiceMocks {
@@ -248,10 +269,21 @@ function serviceMocks(): RecurringPaymentServiceMocks {
   );
 }
 
+function categoryHookMock(): jest.MockedFunction<
+  typeof import("@/hooks/useCategories").useCategories
+> {
+  return jest.requireMock<{
+    readonly useCategories: jest.MockedFunction<
+      typeof import("@/hooks/useCategories").useCategories
+    >;
+  }>("@/hooks/useCategories").useCategories;
+}
+
 describe("recurring payment header and destructive actions", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockPaymentStatus = "ACTIVE";
+    mockAccountsLoading = false;
   });
 
   it("submits the add payment form from the header save action", async () => {
@@ -262,6 +294,23 @@ describe("recurring payment header and destructive actions", () => {
     await waitFor(() => {
       expect(serviceMocks().createRecurringPayment).toHaveBeenCalledWith(
         expect.objectContaining({ name: "Netflix", amount: 250 })
+      );
+    });
+  });
+
+  it("maps recurring create service codes to friendly toast messages", async () => {
+    serviceMocks().createRecurringPayment.mockRejectedValueOnce(
+      new Error("RECURRING_PAYMENT_CATEGORY_UNAVAILABLE")
+    );
+    render(<CreateRecurringPaymentScreen />);
+
+    fireEvent.press(screen.getByTestId("header-save"));
+
+    await waitFor(() => {
+      expect(mockShowToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: "recurring_payment_category_unavailable",
+        })
       );
     });
   });
@@ -277,6 +326,40 @@ describe("recurring payment header and destructive actions", () => {
         expect.objectContaining({ name: "Netflix", amount: 250 })
       );
     });
+  });
+
+  it("includes hidden categories in the edit display lookup", () => {
+    render(<EditRecurringPaymentScreen />);
+
+    expect(categoryHookMock()).toHaveBeenCalledWith({
+      topLevelOnly: false,
+      includeHidden: true,
+    });
+  });
+
+  it("maps recurring edit service codes to friendly toast messages", async () => {
+    serviceMocks().updateRecurringPayment.mockRejectedValueOnce(
+      new Error("RECURRING_PAYMENT_ACCOUNT_UNAVAILABLE")
+    );
+    render(<EditRecurringPaymentScreen />);
+
+    fireEvent.press(screen.getByTestId("header-save"));
+
+    await waitFor(() => {
+      expect(mockShowToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: "recurring_payment_account_unavailable",
+        })
+      );
+    });
+  });
+
+  it("waits for linked account data before rendering edit save actions", () => {
+    mockAccountsLoading = true;
+    render(<EditRecurringPaymentScreen />);
+
+    expect(screen.queryByTestId("header-save")).toBeNull();
+    expect(screen.queryByTestId("form-submit")).toBeNull();
   });
 
   it("confirms before pausing an active payment", async () => {
@@ -324,5 +407,78 @@ describe("recurring payment header and destructive actions", () => {
         "payment-1"
       );
     });
+  });
+
+  it("shows friendly fallback copy when pause fails with a raw service error", async () => {
+    serviceMocks().pauseRecurringPayment.mockRejectedValueOnce(
+      new Error("Record not found")
+    );
+    render(<EditRecurringPaymentScreen />);
+
+    fireEvent.press(screen.getByTestId("form-pause-toggle"));
+    fireEvent.press(screen.getByTestId("modal-confirm"));
+
+    await waitFor(() => {
+      expect(mockShowToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "failed_to_update_payment",
+          message: "error_generic",
+        })
+      );
+    });
+  });
+
+  it("does not render pause or resume for a completed payment", () => {
+    mockPaymentStatus = "COMPLETED";
+    render(<EditRecurringPaymentScreen />);
+
+    expect(screen.queryByTestId("form-pause-toggle")).toBeNull();
+    expect(screen.getByTestId("form-delete")).toBeTruthy();
+  });
+
+  it("confirms before deleting a payment", async () => {
+    render(<EditRecurringPaymentScreen />);
+
+    fireEvent.press(screen.getByTestId("form-delete"));
+
+    expect(serviceMocks().deleteRecurringPayment).not.toHaveBeenCalled();
+    expect(screen.getByText("delete_payment")).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId("modal-confirm"));
+
+    await waitFor(() => {
+      expect(serviceMocks().deleteRecurringPayment).toHaveBeenCalledWith(
+        "payment-1"
+      );
+      expect(router.back).toHaveBeenCalled();
+    });
+  });
+
+  it("shows friendly fallback copy when delete fails with a raw service error", async () => {
+    serviceMocks().deleteRecurringPayment.mockRejectedValueOnce(
+      new Error("OWNERSHIP_FAILED")
+    );
+    render(<EditRecurringPaymentScreen />);
+
+    fireEvent.press(screen.getByTestId("form-delete"));
+    fireEvent.press(screen.getByTestId("modal-confirm"));
+
+    await waitFor(() => {
+      expect(mockShowToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "failed_to_delete_payment",
+          message: "error_generic",
+        })
+      );
+    });
+  });
+
+  it("does not delete when the delete confirmation is cancelled", () => {
+    render(<EditRecurringPaymentScreen />);
+
+    fireEvent.press(screen.getByTestId("form-delete"));
+    fireEvent.press(screen.getByTestId("modal-cancel"));
+
+    expect(serviceMocks().deleteRecurringPayment).not.toHaveBeenCalled();
   });
 });

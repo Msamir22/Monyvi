@@ -308,17 +308,30 @@ export function calculateNextDueDate(
       next.setDate(next.getDate() + 7);
       break;
     case "MONTHLY":
-      next.setMonth(next.getMonth() + 1);
-      break;
+      return addMonthsClamped(currentDueDate, 1);
     case "QUARTERLY":
-      next.setMonth(next.getMonth() + 3);
-      break;
+      return addMonthsClamped(currentDueDate, 3);
     case "YEARLY":
-      next.setFullYear(next.getFullYear() + 1);
-      break;
+      return addMonthsClamped(currentDueDate, 12);
     default:
-      next.setMonth(next.getMonth() + 1);
+      return addMonthsClamped(currentDueDate, 1);
   }
+
+  return next;
+}
+
+function addMonthsClamped(date: Date, months: number): Date {
+  const next = new Date(date);
+  const dayOfMonth = next.getDate();
+
+  next.setDate(1);
+  next.setMonth(next.getMonth() + months);
+  const lastDayOfTargetMonth = new Date(
+    next.getFullYear(),
+    next.getMonth() + 1,
+    0
+  ).getDate();
+  next.setDate(Math.min(dayOfMonth, lastDayOfTargetMonth));
 
   return next;
 }

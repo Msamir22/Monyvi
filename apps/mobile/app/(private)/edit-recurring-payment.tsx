@@ -13,6 +13,7 @@ import { useRecurringPayment } from "@/hooks/useRecurringPayment";
 import {
   deleteRecurringPayment,
   pauseRecurringPayment,
+  RECURRING_PAYMENT_SERVICE_ERROR_CODES,
   resumeRecurringPayment,
   updateRecurringPayment,
 } from "@/services/recurring-payment-service";
@@ -26,8 +27,12 @@ export default function EditRecurringPaymentScreen(): React.JSX.Element {
   const { t } = useTranslation("transactions");
   const { t: tCommon } = useTranslation("common");
   const { payment, isLoading } = useRecurringPayment(id);
-  const { accounts } = useAccounts();
+  const { accounts, isLoading: isAccountsLoading } = useAccounts();
   const { expenseCategories, incomeCategories } = useCategories();
+  const { categories: allCategories } = useCategories({
+    topLevelOnly: false,
+    includeHidden: true,
+  });
   const { showToast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleteVisible, setIsDeleteVisible] = useState(false);
@@ -48,11 +53,22 @@ export default function EditRecurringPaymentScreen(): React.JSX.Element {
       action: payment.action,
       notes: payment.notes ?? "",
     };
-  }, [payment]);
+  }, [
+    payment,
+    payment?.accountId,
+    payment?.action,
+    payment?.amount,
+    payment?.categoryId,
+    payment?.frequency,
+    payment?.name,
+    payment?.notes,
+    payment?.startDate,
+    payment?.type,
+  ]);
 
   const handleSubmit = async (
     values: RecurringPaymentFormValues
-  ): Promise<void> => {
+  ): Promise<void | false> => {
     const selectedAccount =
       accounts.find((account) => account.id === values.accountId) ?? null;
 
@@ -67,7 +83,7 @@ export default function EditRecurringPaymentScreen(): React.JSX.Element {
         message: t("account_not_found"),
         type: "error",
       });
-      return;
+      return false;
     }
 
     setIsSubmitting(true);
@@ -86,13 +102,12 @@ export default function EditRecurringPaymentScreen(): React.JSX.Element {
       });
       router.back();
     } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : tCommon("error_generic");
       showToast({
         type: "error",
         title: t("failed_to_update_payment"),
-        message,
+        message: getRecurringPaymentErrorMessage(error, t, tCommon),
       });
+      return false;
     } finally {
       setIsSubmitting(false);
     }
@@ -108,12 +123,10 @@ export default function EditRecurringPaymentScreen(): React.JSX.Element {
         await pauseRecurringPayment(payment.id);
       }
     } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : tCommon("error_generic");
       showToast({
         type: "error",
         title: t("failed_to_update_payment"),
-        message,
+        message: getRecurringPaymentErrorMessage(error, t, tCommon),
       });
     }
   };
@@ -125,17 +138,15 @@ export default function EditRecurringPaymentScreen(): React.JSX.Element {
       await deleteRecurringPayment(payment.id);
       router.back();
     } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : tCommon("error_generic");
       showToast({
         type: "error",
         title: t("failed_to_delete_payment"),
-        message,
+        message: getRecurringPaymentErrorMessage(error, t, tCommon),
       });
     }
   };
 
-  if (isLoading) {
+  if (isLoading || isAccountsLoading) {
     return (
       <View className="flex-1 bg-background dark:bg-background-dark">
         <PageHeader title={t("edit_payment")} showBackButton />
@@ -185,22 +196,27 @@ export default function EditRecurringPaymentScreen(): React.JSX.Element {
         accounts={accounts}
         expenseCategories={expenseCategories}
         incomeCategories={incomeCategories}
+        allCategories={allCategories}
         status={payment.status}
         dueDate={payment.nextDueDate}
         isSubmitting={isSubmitting}
         submitLabel={t("save_changes")}
         onSubmit={handleSubmit}
-        onPauseToggle={() => {
-          setIsPauseResumeVisible(true);
-          return Promise.resolve();
-        }}
+        onPauseToggle={
+          payment.status === "COMPLETED"
+            ? undefined
+            : () => {
+                setIsPauseResumeVisible(true);
+                return Promise.resolve();
+              }
+        }
         onDelete={() => {
           setIsDeleteVisible(true);
           return Promise.resolve();
         }}
       />
       <ConfirmationModal
-        visible={isPauseResumeVisible}
+        visible={isPauseResumeVisible && payment.status !== "COMPLETED"}
         title={
           payment.status === "PAUSED" ? t("resume_payment") : t("pause_payment")
         }
@@ -233,4 +249,22 @@ export default function EditRecurringPaymentScreen(): React.JSX.Element {
       />
     </View>
   );
+}
+
+function getRecurringPaymentErrorMessage(
+  error: unknown,
+  t: (key: string) => string,
+  tCommon: (key: string) => string
+): string {
+  const message = error instanceof Error ? error.message : undefined;
+
+  if (message === RECURRING_PAYMENT_SERVICE_ERROR_CODES.ACCOUNT_UNAVAILABLE) {
+    return t("recurring_payment_account_unavailable");
+  }
+
+  if (message === RECURRING_PAYMENT_SERVICE_ERROR_CODES.CATEGORY_UNAVAILABLE) {
+    return t("recurring_payment_category_unavailable");
+  }
+
+  return tCommon("error_generic");
 }

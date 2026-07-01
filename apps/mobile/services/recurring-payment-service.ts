@@ -1,4 +1,4 @@
-import { calculateNextDueDate, getNextMonthSameDay } from "@/utils/dateHelpers";
+import { calculateNextDueDate } from "@/utils/dateHelpers";
 import {
   Account,
   Category,
@@ -27,16 +27,41 @@ export interface RecurringPaymentData {
 
 export type UpdateRecurringPaymentData = RecurringPaymentData;
 
+export const RECURRING_PAYMENT_SERVICE_ERROR_CODES = {
+  ACCOUNT_UNAVAILABLE: "RECURRING_PAYMENT_ACCOUNT_UNAVAILABLE",
+  CATEGORY_UNAVAILABLE: "RECURRING_PAYMENT_CATEGORY_UNAVAILABLE",
+} as const;
+
 async function resolveRecurringPaymentReferences(
   scope: Awaited<ReturnType<typeof getCurrentUserDataScope>>,
   accountId: string,
   categoryId: string
 ): Promise<void> {
-  await scope.findOwned(database.get<Account>("accounts"), accountId);
-  await scope.findAccessibleCategory(
-    database.get<Category>("categories"),
-    categoryId
-  );
+  let account: Account;
+  try {
+    account = await scope.findOwned(
+      database.get<Account>("accounts"),
+      accountId
+    );
+  } catch {
+    throw new Error(RECURRING_PAYMENT_SERVICE_ERROR_CODES.ACCOUNT_UNAVAILABLE);
+  }
+  if (account.deleted) {
+    throw new Error(RECURRING_PAYMENT_SERVICE_ERROR_CODES.ACCOUNT_UNAVAILABLE);
+  }
+
+  let category: Category;
+  try {
+    category = await scope.findAccessibleCategory(
+      database.get<Category>("categories"),
+      categoryId
+    );
+  } catch {
+    throw new Error(RECURRING_PAYMENT_SERVICE_ERROR_CODES.CATEGORY_UNAVAILABLE);
+  }
+  if (category.deleted) {
+    throw new Error(RECURRING_PAYMENT_SERVICE_ERROR_CODES.CATEGORY_UNAVAILABLE);
+  }
 }
 
 /**
@@ -66,7 +91,7 @@ export async function createRecurringPayment(
       rec.categoryId = data.categoryId;
       rec.frequency = data.frequency;
       rec.startDate = data.startDate;
-      rec.nextDueDate = getNextMonthSameDay(data.startDate);
+      rec.nextDueDate = calculateNextDueDate(data.startDate, data.frequency);
       rec.action = data.action;
       rec.status = "ACTIVE";
       rec.deleted = false;
@@ -98,9 +123,20 @@ export async function updateRecurringPayment(
       record.type = data.type;
       record.accountId = data.accountId;
       record.categoryId = data.categoryId;
+      const didStartDateChange =
+        record.startDate.getTime() !== data.startDate.getTime();
+      const didFrequencyChange = record.frequency !== data.frequency;
+      const nextDueDateAnchor = didStartDateChange
+        ? data.startDate
+        : record.nextDueDate;
       record.frequency = data.frequency;
       record.startDate = data.startDate;
-      record.nextDueDate = getNextMonthSameDay(data.startDate);
+      if (didStartDateChange || didFrequencyChange) {
+        record.nextDueDate = calculateNextDueDate(
+          nextDueDateAnchor,
+          data.frequency
+        );
+      }
       record.action = data.action;
       record.notes = data.notes;
     });

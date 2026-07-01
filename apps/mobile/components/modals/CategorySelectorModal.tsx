@@ -231,7 +231,6 @@ export function CategorySelectorModal({
             <View
               testID="category-selector-sheet"
               className="rounded-t-3xl overflow-hidden bg-white dark:bg-slate-900"
-              style={{ paddingBottom: insets.bottom }}
             >
               {/* Header */}
               <View className="flex-row justify-between items-center px-6 py-5 border-b border-slate-200 dark:border-slate-800">
@@ -284,6 +283,7 @@ export function CategorySelectorModal({
                   </View>
                 ) : (
                   <FlatList
+                    testID="category-selector-list"
                     data={filteredCategories}
                     keyExtractor={keyExtractor}
                     renderItem={renderItem}

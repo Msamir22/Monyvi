@@ -7,7 +7,10 @@ import { PageHeader } from "@/components/navigation/PageHeader";
 import { useToast } from "@/components/ui/Toast";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useCategories } from "@/hooks/useCategories";
-import { createRecurringPayment } from "@/services/recurring-payment-service";
+import {
+  createRecurringPayment,
+  RECURRING_PAYMENT_SERVICE_ERROR_CODES,
+} from "@/services/recurring-payment-service";
 import { router } from "expo-router";
 import React, { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -18,6 +21,7 @@ export default function CreateRecurringPaymentScreen(): React.JSX.Element {
   const { t: tCommon } = useTranslation("common");
   const { accounts } = useAccounts();
   const { expenseCategories, incomeCategories } = useCategories();
+  const { categories: allCategories } = useCategories({ topLevelOnly: false });
   const { showToast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const formRef = useRef<RecurringPaymentFormHandle>(null);
@@ -39,7 +43,7 @@ export default function CreateRecurringPaymentScreen(): React.JSX.Element {
 
   const handleSubmit = async (
     values: RecurringPaymentFormValues
-  ): Promise<void> => {
+  ): Promise<void | false> => {
     const selectedAccount =
       accounts.find((account) => account.id === values.accountId) ?? null;
 
@@ -49,7 +53,7 @@ export default function CreateRecurringPaymentScreen(): React.JSX.Element {
         message: t("account_not_found"),
         type: "error",
       });
-      return;
+      return false;
     }
 
     setIsSubmitting(true);
@@ -68,13 +72,12 @@ export default function CreateRecurringPaymentScreen(): React.JSX.Element {
       });
       router.back();
     } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : tCommon("error_generic");
       showToast({
         type: "error",
         title: t("failed_to_create_payment"),
-        message,
+        message: getRecurringPaymentErrorMessage(error, t, tCommon),
       });
+      return false;
     } finally {
       setIsSubmitting(false);
     }
@@ -103,10 +106,29 @@ export default function CreateRecurringPaymentScreen(): React.JSX.Element {
         accounts={accounts}
         expenseCategories={expenseCategories}
         incomeCategories={incomeCategories}
+        allCategories={allCategories}
         isSubmitting={isSubmitting}
         submitLabel={t("add_recurring_payment")}
         onSubmit={handleSubmit}
       />
     </View>
   );
+}
+
+function getRecurringPaymentErrorMessage(
+  error: unknown,
+  t: (key: string) => string,
+  tCommon: (key: string) => string
+): string {
+  const message = error instanceof Error ? error.message : undefined;
+
+  if (message === RECURRING_PAYMENT_SERVICE_ERROR_CODES.ACCOUNT_UNAVAILABLE) {
+    return t("recurring_payment_account_unavailable");
+  }
+
+  if (message === RECURRING_PAYMENT_SERVICE_ERROR_CODES.CATEGORY_UNAVAILABLE) {
+    return t("recurring_payment_category_unavailable");
+  }
+
+  return message ?? tCommon("error_generic");
 }

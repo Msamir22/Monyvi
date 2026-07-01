@@ -33,7 +33,7 @@ interface MockRecurringPayment {
   readonly type: "EXPENSE";
   readonly amount: number;
   readonly currency: "EGP";
-  readonly nextDueDate: Date;
+  nextDueDate: Date;
   readonly isActive: boolean;
   readonly isPaused: boolean;
   readonly isCompleted: boolean;
@@ -59,6 +59,30 @@ const payment: MockRecurringPayment = {
 };
 
 const payments = [payment] as unknown as readonly RecurringPayment[];
+
+const laterPayment: MockRecurringPayment = {
+  id: "payment-2",
+  userId: "user-1",
+  status: "ACTIVE",
+  type: "EXPENSE",
+  amount: 300,
+  currency: "EGP",
+  nextDueDate: new Date("2026-07-10T00:00:00.000Z"),
+  get isActive(): boolean {
+    return this.status === "ACTIVE";
+  },
+  get isPaused(): boolean {
+    return this.status === "PAUSED";
+  },
+  get isCompleted(): boolean {
+    return this.status === "COMPLETED";
+  },
+};
+
+const unsortedPayments = [
+  payment,
+  laterPayment,
+] as unknown as readonly RecurringPayment[];
 
 jest.mock("@monyvi/db", () => ({
   database: {
@@ -134,6 +158,18 @@ function RecurringPaymentsLoadingProbe(): React.JSX.Element {
   return <Text testID="is-loading">{String(isLoading)}</Text>;
 }
 
+function RecurringPaymentsOrderProbe(): React.JSX.Element {
+  const { filteredPayments } = useRecurringPayments();
+
+  return (
+    <View>
+      <Text testID="payment-order">
+        {filteredPayments.map((item) => item.id).join(",")}
+      </Text>
+    </View>
+  );
+}
+
 describe("useRecurringPayments", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -144,6 +180,9 @@ describe("useRecurringPayments", () => {
       isResolvingUser: false,
     };
     payment.status = "ACTIVE";
+    payment.nextDueDate = new Date("2026-07-01T00:00:00.000Z");
+    laterPayment.status = "ACTIVE";
+    laterPayment.nextDueDate = new Date("2026-07-10T00:00:00.000Z");
     mockObserveWithColumns.mockReturnValue({
       subscribe: (
         nextObserver: MockObserver<RecurringPayment>
@@ -173,6 +212,7 @@ describe("useRecurringPayments", () => {
       "currency",
       "type",
       "category_id",
+      "account_id",
       "frequency",
       "next_due_date",
       "status",
@@ -228,6 +268,36 @@ describe("useRecurringPayments", () => {
     await waitFor(() => {
       expect(screen.getByTestId("active-count")).toHaveTextContent("0");
       expect(screen.getByTestId("paused-count")).toHaveTextContent("1");
+    });
+  });
+
+  it("re-sorts recurring payments after a due-date update", async () => {
+    mockObserveWithColumns.mockReturnValue({
+      subscribe: (
+        nextObserver: MockObserver<RecurringPayment>
+      ): { unsubscribe: jest.Mock } => {
+        observer = nextObserver;
+        nextObserver.next(unsortedPayments);
+        return { unsubscribe: mockUnsubscribe };
+      },
+    });
+    render(<RecurringPaymentsOrderProbe />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("payment-order")).toHaveTextContent(
+        "payment-1,payment-2"
+      );
+    });
+
+    payment.nextDueDate = new Date("2026-08-01T00:00:00.000Z");
+    act(() => {
+      observer?.next(unsortedPayments);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("payment-order")).toHaveTextContent(
+        "payment-2,payment-1"
+      );
     });
   });
 });

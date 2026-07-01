@@ -17,8 +17,10 @@ jest.mock("@react-native-community/datetimepicker", () => ({
 jest.mock("react-i18next", () => ({
   useTranslation: (): {
     readonly t: (key: string) => string;
+    readonly i18n: { readonly language: string };
   } => ({
     t: (key: string): string => key,
+    i18n: { language: "en-US" },
   }),
 }));
 
@@ -37,25 +39,6 @@ jest.mock("@/components/modals/FrequencyPickerModal", () => ({
 
 jest.mock("@/components/navigation/PageHeader", () => ({
   PageHeader: (): null => null,
-}));
-
-jest.mock("@/components/ui/StarryBackground", () => ({
-  StarryBackground: ({
-    children,
-  }: {
-    readonly children?: React.ReactNode;
-  }): React.JSX.Element => {
-    const ReactNative =
-      jest.requireActual<typeof import("react-native")>("react-native");
-
-    return (
-      <ReactNative.View testID="starry-background">{children}</ReactNative.View>
-    );
-  },
-}));
-
-jest.mock("@/components/ui/TextField", () => ({
-  TextField: (): null => null,
 }));
 
 jest.mock("@/components/ui/Toast", () => ({

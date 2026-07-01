@@ -9,7 +9,7 @@ import { TextField } from "@/components/ui/TextField";
 import { palette } from "@/constants/colors";
 import { useTheme } from "@/context/ThemeContext";
 import { useFormScroll } from "@/hooks/useFormScroll";
-import { formatDate, getNextMonthSameDay } from "@/utils/dateHelpers";
+import { calculateNextDueDate, formatDate } from "@/utils/dateHelpers";
 import { validateRecurringPaymentForm } from "@/validation/recurring-payment-validation";
 import type {
   Account,
@@ -27,8 +27,10 @@ import DateTimePicker, {
 } from "@react-native-community/datetimepicker";
 import React, {
   useCallback,
+  useEffect,
   useImperativeHandle,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
@@ -55,17 +57,20 @@ export interface RecurringPaymentFormValues {
   readonly notes: string;
 }
 
+type SubmitResult = Promise<void | false>;
+
 interface RecurringPaymentFormProps {
   readonly mode: "create" | "edit";
   readonly initialValues: RecurringPaymentFormValues;
   readonly accounts: readonly Account[];
   readonly expenseCategories: readonly Category[];
   readonly incomeCategories: readonly Category[];
+  readonly allCategories?: readonly Category[];
   readonly isSubmitting: boolean;
   readonly submitLabel: string;
   readonly status?: RecurringStatus;
   readonly dueDate?: Date;
-  readonly onSubmit: (values: RecurringPaymentFormValues) => Promise<void>;
+  readonly onSubmit: (values: RecurringPaymentFormValues) => SubmitResult;
   readonly onPauseToggle?: () => Promise<void>;
   readonly onDelete?: () => Promise<void>;
 }
@@ -78,6 +83,7 @@ type FormErrors = Partial<
   Record<"name" | "amount" | "accountId" | "categoryId", string>
 >;
 type FormFieldName = keyof FormErrors;
+type RecurringPaymentFormField = keyof RecurringPaymentFormValues;
 
 const TYPE_OPTIONS: ReadonlyArray<{
   readonly value: TransactionType;
@@ -112,6 +118,17 @@ const ERROR_FIELD_ORDER: readonly FormFieldName[] = [
   "accountId",
   "categoryId",
 ];
+const FORM_VALUE_FIELDS: readonly RecurringPaymentFormField[] = [
+  "name",
+  "amount",
+  "type",
+  "accountId",
+  "categoryId",
+  "frequency",
+  "startDate",
+  "action",
+  "notes",
+];
 
 export const RecurringPaymentForm = React.forwardRef<
   RecurringPaymentFormHandle,
@@ -123,6 +140,7 @@ export const RecurringPaymentForm = React.forwardRef<
     accounts,
     expenseCategories,
     incomeCategories,
+    allCategories = [],
     isSubmitting,
     submitLabel,
     status = "ACTIVE",
@@ -153,30 +171,96 @@ export const RecurringPaymentForm = React.forwardRef<
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showFrequencyModal, setShowFrequencyModal] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const isSubmitInFlightRef = useRef(false);
+  const dirtyFieldsRef = useRef<Set<RecurringPaymentFormField>>(new Set());
   const nameFieldRef = getFieldRef("name");
   const amountFieldRef = getFieldRef("amount");
   const accountFieldRef = getFieldRef("accountId");
   const categoryFieldRef = getFieldRef("categoryId");
+  const initialValuesKey = useMemo(
+    () =>
+      [
+        initialValues.name,
+        initialValues.amount,
+        initialValues.type,
+        initialValues.accountId ?? "",
+        initialValues.categoryId ?? "",
+        initialValues.frequency,
+        initialValues.startDate.getTime(),
+        initialValues.action,
+        initialValues.notes,
+      ].join("|"),
+    [
+      initialValues.accountId,
+      initialValues.action,
+      initialValues.amount,
+      initialValues.categoryId,
+      initialValues.frequency,
+      initialValues.name,
+      initialValues.notes,
+      initialValues.startDate,
+      initialValues.type,
+    ]
+  );
 
   const selectedAccount = useMemo(
     () => accounts.find((account) => account.id === form.accountId) ?? null,
     [accounts, form.accountId]
   );
   const selectedCurrency = selectedAccount?.currency ?? DEFAULT_CURRENCY;
-  const categories =
+  const rootCategories =
     form.type === "EXPENSE" ? expenseCategories : incomeCategories;
+  const categoryLookupSource =
+    allCategories.length > 0 ? allCategories : rootCategories;
+  const categories = useMemo(
+    () =>
+      categoryLookupSource.filter((category) =>
+        form.type === "EXPENSE" ? category.isExpense : category.isIncome
+      ),
+    [categoryLookupSource, form.type]
+  );
   const selectedCategory = useMemo(
     () =>
       categories.find((category) => category.id === form.categoryId) ?? null,
     [categories, form.categoryId]
   );
-  const displayDueDate = dueDate ?? getNextMonthSameDay(form.startDate);
+  const hasScheduleChanges =
+    initialValues.startDate.getTime() !== form.startDate.getTime() ||
+    initialValues.frequency !== form.frequency;
+  const displayDueDate = getDisplayDueDate({
+    dueDate,
+    initialValues,
+    form,
+    hasScheduleChanges,
+  });
+
+  useEffect(() => {
+    const dirtyFields = dirtyFieldsRef.current;
+    if (dirtyFields.size > 0) {
+      setForm((prev) =>
+        mergePristineInitialValues(prev, initialValues, dirtyFields)
+      );
+      return;
+    }
+
+    setForm(initialValues);
+    setErrors({});
+  }, [initialValues, initialValuesKey]);
+
+  useEffect(() => {
+    if (form.accountId || !initialValues.accountId) return;
+    if (dirtyFieldsRef.current.has("accountId")) return;
+
+    setForm((prev) => ({ ...prev, accountId: initialValues.accountId }));
+    setErrors((prev) => ({ ...prev, accountId: undefined }));
+  }, [form.accountId, initialValues.accountId]);
 
   const updateField = useCallback(
     <K extends keyof RecurringPaymentFormValues>(
       field: K,
       value: RecurringPaymentFormValues[K]
     ): void => {
+      dirtyFieldsRef.current = new Set([...dirtyFieldsRef.current, field]);
       setForm((prev) => ({ ...prev, [field]: value }));
       if (field in errors) {
         setErrors((prev) => ({ ...prev, [field]: undefined }));
@@ -186,8 +270,10 @@ export const RecurringPaymentForm = React.forwardRef<
   );
 
   const handleSubmit = useCallback(async (): Promise<void> => {
+    if (isSubmitting || isSubmitInFlightRef.current) return;
+
     const result = validateRecurringPaymentForm({
-      name: form.name,
+      name: form.name.trim(),
       amount: form.amount,
       accountId: form.accountId,
       categoryId: form.categoryId,
@@ -199,8 +285,14 @@ export const RecurringPaymentForm = React.forwardRef<
       return;
     }
 
-    await onSubmit(form);
-  }, [form, onSubmit, scrollToFirstError]);
+    isSubmitInFlightRef.current = true;
+    try {
+      const didSubmit = await onSubmit(form);
+      if (didSubmit !== false) dirtyFieldsRef.current = new Set();
+    } finally {
+      isSubmitInFlightRef.current = false;
+    }
+  }, [form, isSubmitting, onSubmit, scrollToFirstError]);
 
   useImperativeHandle(
     ref,
@@ -408,51 +500,55 @@ export const RecurringPaymentForm = React.forwardRef<
 
         {mode === "edit" ? (
           <View testID="recurring-payment-edit-actions" className="mb-6">
-            <TouchableOpacity
-              testID="recurring-payment-pause-action"
-              onPress={() => void onPauseToggle?.()}
-            >
-              <View
-                testID="recurring-payment-pause-action-content"
-                className="py-4 px-4 flex-row items-center"
+            {status !== "COMPLETED" ? (
+              <TouchableOpacity
+                testID="recurring-payment-pause-action"
+                onPress={() => void onPauseToggle?.()}
               >
                 <View
-                  testID={
-                    status === "PAUSED"
-                      ? "recurring-payment-resume-icon"
-                      : "recurring-payment-pause-icon"
-                  }
-                  className="me-2"
+                  testID="recurring-payment-pause-action-content"
+                  className="py-4 px-4 flex-row items-center"
                 >
-                  <Ionicons
-                    name={
+                  <View
+                    testID={
                       status === "PAUSED"
-                        ? "play-circle-outline"
-                        : "pause-circle-outline"
+                        ? "recurring-payment-resume-icon"
+                        : "recurring-payment-pause-icon"
                     }
-                    size={20}
-                    color={
-                      status === "PAUSED"
-                        ? palette.nileGreen[500]
-                        : palette.gold[600]
-                    }
-                  />
+                    className="me-2"
+                  >
+                    <Ionicons
+                      name={
+                        status === "PAUSED"
+                          ? "play-circle-outline"
+                          : "pause-circle-outline"
+                      }
+                      size={20}
+                      color={
+                        status === "PAUSED"
+                          ? palette.nileGreen[500]
+                          : palette.gold[600]
+                      }
+                    />
+                  </View>
+                  <Text className="flex-1 text-base font-bold text-text-primary dark:text-text-primary-dark">
+                    {status === "PAUSED"
+                      ? t("resume_payment")
+                      : t("pause_payment")}
+                  </Text>
+                  <View testID="recurring-payment-pause-chevron">
+                    <Ionicons
+                      name="chevron-forward"
+                      size={18}
+                      color={palette.slate[400]}
+                    />
+                  </View>
                 </View>
-                <Text className="flex-1 text-base font-bold text-text-primary dark:text-text-primary-dark">
-                  {status === "PAUSED"
-                    ? t("resume_payment")
-                    : t("pause_payment")}
-                </Text>
-                <View testID="recurring-payment-pause-chevron">
-                  <Ionicons
-                    name="chevron-forward"
-                    size={18}
-                    color={palette.slate[400]}
-                  />
-                </View>
-              </View>
-            </TouchableOpacity>
-            <View className="h-px mx-4 bg-slate-200 dark:bg-slate-700" />
+              </TouchableOpacity>
+            ) : null}
+            {status !== "COMPLETED" ? (
+              <View className="h-px mx-4 bg-slate-200 dark:bg-slate-700" />
+            ) : null}
             <TouchableOpacity
               testID="recurring-payment-delete-action"
               onPress={() => void onDelete?.()}
@@ -517,7 +613,7 @@ export const RecurringPaymentForm = React.forwardRef<
       />
       <CategorySelectorModal
         visible={showCategoryModal}
-        rootCategories={categories}
+        rootCategories={rootCategories}
         selectedId={form.categoryId}
         type={form.type}
         onSelect={(categoryId) => updateField("categoryId", categoryId)}
@@ -599,6 +695,42 @@ function getFrequencyTypeLabel(
   const typeLabel = toTitleCase(t(type === "INCOME" ? "income" : "expense"));
 
   return `${frequencyLabel} ${typeLabel}`;
+}
+
+function getDisplayDueDate({
+  dueDate,
+  initialValues,
+  form,
+  hasScheduleChanges,
+}: {
+  readonly dueDate?: Date;
+  readonly initialValues: RecurringPaymentFormValues;
+  readonly form: RecurringPaymentFormValues;
+  readonly hasScheduleChanges: boolean;
+}): Date {
+  if (dueDate && !hasScheduleChanges) {
+    return dueDate;
+  }
+
+  const didStartDateChange =
+    initialValues.startDate.getTime() !== form.startDate.getTime();
+  const anchor = dueDate && !didStartDateChange ? dueDate : form.startDate;
+
+  return calculateNextDueDate(anchor, form.frequency);
+}
+
+function mergePristineInitialValues(
+  currentForm: RecurringPaymentFormValues,
+  initialValues: RecurringPaymentFormValues,
+  dirtyFields: ReadonlySet<RecurringPaymentFormField>
+): RecurringPaymentFormValues {
+  return FORM_VALUE_FIELDS.reduce<RecurringPaymentFormValues>(
+    (nextForm, field) =>
+      dirtyFields.has(field)
+        ? nextForm
+        : { ...nextForm, [field]: initialValues[field] },
+    currentForm
+  );
 }
 
 function toTitleCase(value: string): string {
