@@ -145,17 +145,16 @@ appId: com.monyvi.app
     link: monyvi://accounts
 - extendedWaitUntil:
     visible:
-      id: "accounts-add-button"
+      id: "fab-button"
     timeout: 30000
-- extendedWaitUntil:
-    notVisible: "Account created"
-    timeout: 10000
-- waitForAnimationToEnd:
-    timeout: 5000
 
 # Other wallet: user can bypass wallet presets and enter free-text provider/sender values.
 - tapOn:
-    id: "accounts-add-button"
+    id: "fab-button"
+- waitForAnimationToEnd
+- tapOn:
+    id: "fab-account"
+- waitForAnimationToEnd
 - extendedWaitUntil:
     visible: "Add Account"
     timeout: 30000
@@ -198,17 +197,16 @@ appId: com.monyvi.app
     link: monyvi://accounts
 - extendedWaitUntil:
     visible:
-      id: "accounts-add-button"
+      id: "fab-button"
     timeout: 30000
-- extendedWaitUntil:
-    notVisible: "Account created"
-    timeout: 10000
-- waitForAnimationToEnd:
-    timeout: 5000
 
 # Account-type switch during create: Bank picker changes to wallet picker and clears provider choice.
 - tapOn:
-    id: "accounts-add-button"
+    id: "fab-button"
+- waitForAnimationToEnd
+- tapOn:
+    id: "fab-account"
+- waitForAnimationToEnd
 - extendedWaitUntil:
     visible: "Add Account"
     timeout: 30000

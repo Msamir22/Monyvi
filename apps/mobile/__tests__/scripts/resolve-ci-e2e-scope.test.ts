@@ -157,7 +157,6 @@ describe("resolve-ci-e2e-scope", () => {
         "apps/mobile/hooks/index.ts",
         "apps/mobile/hooks/useRecurringPayment.ts",
         "apps/mobile/hooks/useRecurringPayments.ts",
-        "apps/mobile/locales/en/transactions.json",
         "apps/mobile/services/index.ts",
         "apps/mobile/services/recurring-payment-service.ts",
         "apps/mobile/validation/recurring-payment-validation.ts",
@@ -165,6 +164,17 @@ describe("resolve-ci-e2e-scope", () => {
     ).toEqual({
       shouldRun: true,
       suites: ["transactions", "recurring-payments"],
+    });
+  });
+
+  it("does not select suites for shared transaction locale files by filename alone", () => {
+    expect(
+      scopeResolver.resolveCiE2eScope([
+        "apps/mobile/locales/en/transactions.json",
+      ])
+    ).toEqual({
+      shouldRun: false,
+      suites: [],
     });
   });
 

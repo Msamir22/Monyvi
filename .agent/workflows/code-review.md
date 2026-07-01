@@ -40,7 +40,7 @@ have been read.
 - The agent MUST list which rule files it read as proof of compliance
 - **FAILURE TO READ ALL RULE FILES = REVIEW IS INCOMPLETE**
 
-### 🔹 1.3 Specs (CRITICAL — DO NOT SKIP)
+### 🔹 1.3 Specs and Linked Issues (CRITICAL — DO NOT SKIP)
 
 - Identify the current branch name
 - Locate the matching folder under `specs/`
@@ -56,8 +56,24 @@ have been read.
   - `tasks.md`
   - Any other `.md` files present
 
-- Treat these files as the **source of truth for feature requirements**
-- **FAILURE TO READ SPEC FILES = REVIEW CANNOT ASSESS COMPLETENESS**
+- If no matching spec folder exists, fetch and read the GitHub issue linked to
+  the PR before reviewing code. Use PR metadata, PR body closing keywords,
+  explicit issue links, or available GitHub tools to find it.
+
+- Source-of-truth rules:
+  - Spec folder only: treat the spec folder as the **source of truth for feature
+    requirements**
+  - Linked issue only: treat the issue as the **source of truth for feature
+    requirements and business logic**, subject to the constitution and
+    `docs/business/business-decisions.md`
+  - Spec folder and linked issue together: treat **both** as the source of
+    truth. The code MUST satisfy every requirement in both.
+
+- If both a spec folder and linked issue exist, compare them before reviewing
+  code. Any gap, contradiction, missing acceptance criterion, or mismatched
+  business rule between them MUST be reported as a review finding.
+- **FAILURE TO READ THE APPLICABLE SPEC/ISSUE ARTIFACTS = REVIEW CANNOT ASSESS
+  COMPLETENESS**
 
 ---
 
@@ -129,21 +145,25 @@ For **EVERY** change in the PR, the agent MUST:
 
 ---
 
-### 📂 2.2 Specs Compliance (MANDATORY — TASK-BY-TASK VERIFICATION)
+### 📂 2.2 Requirements Compliance (MANDATORY — TASK-BY-TASK VERIFICATION)
 
-> [!CAUTION] **The agent MUST go through EVERY task in `tasks.md` line by line
-> and verify that it was implemented. This is NOT optional. A high-level "looks
-> good" is NOT ACCEPTABLE.**
+> [!CAUTION] **When `tasks.md` exists, the agent MUST go through EVERY task line
+> by line and verify that it was implemented. When no spec folder exists, the
+> agent MUST instead verify every linked issue requirement and acceptance
+> criterion. A high-level "looks good" is NOT ACCEPTABLE.**
 
 - Review changed files under the `specs/` folder
 - Ensure the correct folder is used (matches branch name)
 
 For all code changes:
 
-- Verify full alignment with:
+- Verify full alignment with the applicable source-of-truth artifacts:
   - `spec.md` (specification) — every requirement implemented
   - `plan.md` (implementation approach) — architecture followed
   - `tasks.md` (execution checklist) — **EVERY task verified**
+  - Linked GitHub issue — every requirement, acceptance criterion, checklist
+    item, and clarified business rule implemented when no spec exists or when
+    both spec and issue exist
 
 #### Check for:
 
@@ -161,9 +181,14 @@ For EACH task in `tasks.md`, the agent MUST output:
 - [~] Task description — PARTIALLY IMPLEMENTED — <what's missing>
 ```
 
+For EACH linked issue requirement or acceptance criterion, the agent MUST output
+the same implemented / not implemented / partially implemented status and cite
+the issue number.
+
 🚨 **Blocking Rule:**
 
-- If ANY task in `tasks.md` is not implemented or justified → PR is **NOT
+- If ANY task in `tasks.md`, issue requirement, acceptance criterion, or
+  clarified business rule is not implemented or justified → PR is **NOT
   APPROVABLE**
 
 ---
@@ -236,8 +261,10 @@ The agent MUST ensure consistency across:
 - `spec.md` (what to build)
 - `plan.md` (how to build)
 - `tasks.md` (execution steps)
+- Linked GitHub issue, when present (feature requirements, acceptance criteria,
+  and business logic)
 
-#### Check for ALL 4:
+#### Check for ALL 6:
 
 1. **Spec → Plan Gaps**
    - Requirements in `spec.md` not reflected in `plan.md`
@@ -251,7 +278,16 @@ The agent MUST ensure consistency across:
    - Features defined in spec but missing in tasks
    - Tasks that implement undefined or unclear requirements
 
-4. **Inconsistencies**
+4. **Spec → Issue Gaps**
+   - Requirements, acceptance criteria, or business rules differ between the
+     spec folder and linked issue
+   - One artifact includes scope that the other omits
+
+5. **Issue → Tasks Gaps**
+   - Issue requirements or acceptance criteria are missing from `tasks.md`
+   - Tasks implement behavior not requested by the issue or spec
+
+6. **Inconsistencies**
    - Conflicting definitions between files
    - Different naming for same concepts
    - Mismatched data structures or flows
@@ -260,8 +296,8 @@ The agent MUST ensure consistency across:
 
 ### 🚨 Blocking Rule
 
-- If there are **critical gaps** between `spec.md`, `plan.md`, and `tasks.md`
-  that can lead to incorrect or incomplete implementation:
+- If there are **critical gaps** between `spec.md`, `plan.md`, `tasks.md`, and
+  the linked issue that can lead to incorrect or incomplete implementation:
 
   → Mark the PR as **NOT APPROVABLE**
 
@@ -273,6 +309,11 @@ The agent MUST ensure consistency across:
   - 📄 Files: `spec.md` / `plan.md` / `tasks.md`
   - 🧨 Issue: Description of inconsistency or missing linkage
   - ✅ Fix: What needs to be aligned or added
+
+- ❌ Spec/Issue Gap:
+  - 📄 Files: `specs/<feature>/*` / `GitHub issue #<number>`
+  - 🧨 Issue: Gap or contradiction between the spec folder and linked issue
+  - ✅ Fix: Required alignment or owner decision
 
 - ⚠️ Improvement:
   - 💡 Suggestion: Enhancement to spec clarity or completeness
@@ -479,7 +520,7 @@ Avoid duplicate fixes.
 #### Specs Violations
 
 - ❌ Violation: <title>
-  - 📄 Spec: `spec.md / plan.md / tasks.md`
+  - 📄 Spec: `spec.md / plan.md / tasks.md` or GitHub issue `#<number>`
   - 📍 Location: <file + line>
   - 🧨 Issue: missing or incorrect implementation
   - ✅ Fix: required implementation
@@ -546,7 +587,9 @@ The PR is **NOT APPROVABLE** if ANY of the following exist:
 
 - Constitution violations
 - Missing or incomplete tasks from `tasks.md`
-- Spec deviations
+- Missing or incomplete linked issue requirements or acceptance criteria
+- Spec or linked issue deviations
+- Unresolved gaps or contradictions between the spec folder and linked issue
 - Type safety violations
 - Incorrect architecture or layering
 - Broken monorepo boundaries
@@ -560,8 +603,9 @@ The PR is **NOT APPROVABLE** if ANY of the following exist:
 - Code fully matches:
   - `constitution.md`
   - `.agent/rules/*.md`
-  - `specs/<branch-name>/*`
-  - `specs/<branch-name>/mockups/*`
+  - `specs/<branch-name>/*` when present
+  - Linked GitHub issue when present
+  - `specs/<branch-name>/mockups/*` when present
 
 - No missing features
 - No architectural violations

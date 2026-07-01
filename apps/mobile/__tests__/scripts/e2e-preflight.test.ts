@@ -8,6 +8,7 @@ interface E2ePreflightModule {
   getHttpClientNameForUrl(url: string): "http" | "https";
   isAppReady(uiXml: string): boolean;
   isNativeRootMounted(uiXml: string): boolean;
+  isRetryableMaestroTransportFailure(output: string): boolean;
   shouldRestoreFromDevLauncher(uiXml: string, currentFocus: string): boolean;
   resolveMetroUrls(env?: Readonly<Record<string, string | undefined>>): {
     hostMetroUrl: string;
@@ -103,6 +104,29 @@ describe("e2e-preflight", () => {
     expect(preflight.didDumpUiHierarchy("ERROR: null root node returned")).toBe(
       false
     );
+  });
+
+  it("detects retryable Maestro view hierarchy transport failures", () => {
+    expect(
+      preflight.isRetryableMaestroTransportFailure(
+        "viewHierarchy failed: io.grpc.StatusRuntimeException: UNAVAILABLE: End of stream or IOException"
+      )
+    ).toBe(true);
+    expect(
+      preflight.isRetryableMaestroTransportFailure(
+        "Maestro timed out while reading the Android view hierarchy"
+      )
+    ).toBe(true);
+    expect(
+      preflight.isRetryableMaestroTransportFailure(
+        "Timed out while reading the Android view-hierarchy"
+      )
+    ).toBe(true);
+    expect(
+      preflight.isRetryableMaestroTransportFailure(
+        'Assertion is false: "Transactions" is visible'
+      )
+    ).toBe(false);
   });
 
   it("does not treat stale DevMenuActivity records as the focused dev menu", () => {

@@ -198,6 +198,12 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      - name: Free Android E2E disk space
+        if: steps.e2e-scope.outputs.should_run == 'true'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/.ghcup /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h
+
       - name: Start Metro
         if: steps.e2e-scope.outputs.should_run == 'true'
         working-directory: apps/mobile
@@ -213,6 +219,7 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_7
+          disk-size: 4096M
           disable-animations: true
           script: bash apps/mobile/scripts/run-android-e2e-ci.sh
 

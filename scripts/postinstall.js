@@ -9,8 +9,6 @@
  *   compatible with Android Gradle Plugin 8 / React Native 0.83.
  * - @supabase/supabase-js 2.106.0: remove an optional OpenTelemetry dynamic
  *   import that Hermes cannot parse in React Native release bundles.
- * - react-native-css-interop 0.2.4: emit Metro 0.83-compatible virtual CSS
- *   change events for NativeWind fast refresh.
  */
 
 const fs = require("fs");
@@ -81,52 +79,6 @@ const patches = [
 }`,
     description:
       "@supabase/supabase-js: disable optional OpenTelemetry dynamic import in CJS bundle",
-  },
-  {
-    packageName: "react-native-css-interop",
-    expectedVersion: "0.2.4",
-    file: path.join(
-      __dirname,
-      "..",
-      "node_modules",
-      "react-native-css-interop",
-      "dist",
-      "metro",
-      "index.js"
-    ),
-    search: `            haste.emit("change", {
-                eventsQueue: [
-                    {
-                        filePath,
-                        metadata: {
-                            modifiedTime: Date.now(),
-                            size: 1,
-                            type: "virtual",
-                        },
-                        type: "change",
-                    },
-                ],
-            });`,
-    replace: `            const modifiedTime = Date.now();
-            haste.emit("change", {
-                changes: {
-                    addedFiles: new Map(),
-                    modifiedFiles: new Map([
-                        [
-                            path_1.default.basename(filePath),
-                            {
-                                isSymlink: false,
-                                modifiedTime,
-                            },
-                        ],
-                    ]),
-                    removedFiles: new Map(),
-                },
-                logger: null,
-                rootDir: path_1.default.dirname(filePath),
-            });`,
-    description:
-      "react-native-css-interop: emit Metro 0.83-compatible virtual CSS change events",
   },
 ];
 

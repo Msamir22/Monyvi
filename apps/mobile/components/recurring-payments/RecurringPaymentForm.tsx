@@ -4,6 +4,7 @@ import {
   FrequencyPickerModal,
   getFrequencyLabel,
 } from "@/components/modals/FrequencyPickerModal";
+import { RecurringPaymentEditActions } from "./RecurringPaymentEditActions";
 import { RecurringPaymentSummaryCard } from "./RecurringPaymentSummaryCard";
 import { Divider, ErrorText, FormRow } from "./RecurringPaymentFormRows";
 import { TextField } from "@/components/ui/TextField";
@@ -234,6 +235,7 @@ export const RecurringPaymentForm = React.forwardRef<
     form,
     hasScheduleChanges,
   });
+  const startDateMinimumDate = getStartDateMinimumDate(mode, form.startDate);
 
   useEffect(() => {
     const dirtyFields = dirtyFieldsRef.current;
@@ -502,81 +504,11 @@ export const RecurringPaymentForm = React.forwardRef<
         </View>
 
         {mode === "edit" ? (
-          <View testID="recurring-payment-edit-actions" className="mb-6">
-            {status !== "COMPLETED" ? (
-              <TouchableOpacity
-                testID="recurring-payment-pause-action"
-                onPress={() => void onPauseToggle?.()}
-              >
-                <View
-                  testID="recurring-payment-pause-action-content"
-                  className="py-4 px-4 flex-row items-center"
-                >
-                  <View
-                    testID={
-                      status === "PAUSED"
-                        ? "recurring-payment-resume-icon"
-                        : "recurring-payment-pause-icon"
-                    }
-                    className="me-2"
-                  >
-                    <Ionicons
-                      name={
-                        status === "PAUSED"
-                          ? "play-circle-outline"
-                          : "pause-circle-outline"
-                      }
-                      size={20}
-                      color={
-                        status === "PAUSED"
-                          ? palette.nileGreen[500]
-                          : palette.gold[600]
-                      }
-                    />
-                  </View>
-                  <Text className="flex-1 text-base font-bold text-text-primary dark:text-text-primary-dark">
-                    {status === "PAUSED"
-                      ? t("resume_payment")
-                      : t("pause_payment")}
-                  </Text>
-                  <View testID="recurring-payment-pause-chevron">
-                    <Ionicons
-                      name="chevron-forward"
-                      size={18}
-                      color={palette.slate[400]}
-                    />
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ) : null}
-            {status !== "COMPLETED" ? (
-              <View className="h-px mx-4 bg-slate-200 dark:bg-slate-700" />
-            ) : null}
-            <TouchableOpacity
-              testID="recurring-payment-delete-action"
-              onPress={() => void onDelete?.()}
-            >
-              <View className="py-4 px-4 flex-row items-center">
-                <View testID="recurring-payment-delete-icon" className="me-2">
-                  <Ionicons
-                    name="trash-outline"
-                    size={20}
-                    color={palette.red[500]}
-                  />
-                </View>
-                <Text className="flex-1 text-base font-bold text-red-500">
-                  {t("delete_payment")}
-                </Text>
-                <View testID="recurring-payment-delete-chevron">
-                  <Ionicons
-                    name="chevron-forward"
-                    size={18}
-                    color={palette.slate[400]}
-                  />
-                </View>
-              </View>
-            </TouchableOpacity>
-          </View>
+          <RecurringPaymentEditActions
+            status={status}
+            onPauseToggle={onPauseToggle}
+            onDelete={onDelete}
+          />
         ) : null}
 
         {mode === "edit" ? (
@@ -603,7 +535,7 @@ export const RecurringPaymentForm = React.forwardRef<
           value={form.startDate}
           mode="date"
           display="default"
-          minimumDate={new Date()}
+          minimumDate={startDateMinimumDate}
           onChange={handleDateChange}
         />
       ) : null}
@@ -721,6 +653,19 @@ function getDisplayDueDate({
   const anchor = dueDate && !didStartDateChange ? dueDate : form.startDate;
 
   return calculateNextDueDate(anchor, form.frequency);
+}
+
+function getStartDateMinimumDate(
+  mode: RecurringPaymentFormProps["mode"],
+  startDate: Date
+): Date {
+  const today = new Date();
+
+  if (mode === "edit" && startDate.getTime() < today.getTime()) {
+    return startDate;
+  }
+
+  return today;
 }
 
 function mergePristineInitialValues(

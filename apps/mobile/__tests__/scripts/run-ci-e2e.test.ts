@@ -21,7 +21,30 @@ interface RunCiE2eModule {
   ):
     | "helpers/ci-auth-bootstrap.yaml"
     | "helpers/ci-auth-deeplink-bootstrap.yaml";
+  getMaestroSuiteFlowOptions(
+    flow: string,
+    env?: Readonly<Record<string, string | undefined>>
+  ): {
+    readonly prepareRetry?: () => Promise<void>;
+    readonly retryOnDeviceFailure: boolean;
+  };
   isDeviceOfflineFailure(output: string): boolean;
+  shouldResetMaestroFlowBeforeRetry(
+    flow: string,
+    env?: Readonly<Record<string, string | undefined>>
+  ): boolean;
+  shouldRetryMaestroSuiteFlow(
+    flow: string,
+    env?: Readonly<Record<string, string | undefined>>
+  ): boolean;
+  shouldRetryChildScriptFailure(
+    output: string,
+    options?: { readonly retryOnDeviceFailure?: boolean }
+  ): boolean;
+  shouldRetryStabilizationFailure(
+    attempt: number,
+    maxAttempts: number
+  ): boolean;
   shouldBootstrapBeforeLiveSms(
     selectedSuites: ReadonlySet<string>,
     supabaseMode: "local" | "remote"
@@ -102,6 +125,16 @@ describe("run-ci-e2e helpers", () => {
         "io.grpc.StatusRuntimeException: UNAVAILABLE"
       )
     ).toBe(true);
+    expect(
+      runCiE2e.isDeviceOfflineFailure(
+        "viewHierarchy failed: io.grpc.StatusRuntimeException: UNAVAILABLE: End of stream or IOException"
+      )
+    ).toBe(true);
+    expect(
+      runCiE2e.isDeviceOfflineFailure(
+        "Maestro timed out while reading the Android view hierarchy"
+      )
+    ).toBe(true);
   });
 
   it("does not retry normal assertion failures", () => {
@@ -110,6 +143,147 @@ describe("run-ci-e2e helpers", () => {
         'Assertion is false: "Transactions" is visible'
       )
     ).toBe(false);
+  });
+
+  it("retries child script transport failures only when the caller opts in", () => {
+    expect(
+      runCiE2e.shouldRetryChildScriptFailure(
+        "io.grpc.StatusRuntimeException: UNAVAILABLE"
+      )
+    ).toBe(false);
+    expect(
+      runCiE2e.shouldRetryChildScriptFailure(
+        "io.grpc.StatusRuntimeException: UNAVAILABLE",
+        { retryOnDeviceFailure: true }
+      )
+    ).toBe(true);
+    expect(
+      runCiE2e.shouldRetryChildScriptFailure(
+        "io.grpc.StatusRuntimeException: UNAVAILABLE",
+        { retryOnDeviceFailure: false }
+      )
+    ).toBe(false);
+  });
+
+  it("retries only explicitly safe Maestro suite flows when the emulator disconnects", () => {
+    expect(
+      runCiE2e.shouldRetryMaestroSuiteFlow(
+        "sms-sync/sms-sync-permission-requestable.yaml"
+      )
+    ).toBe(true);
+    expect(
+      runCiE2e.getMaestroSuiteFlowOptions(
+        "sms-sync/sms-sync-permission-requestable.yaml"
+      )
+    ).toMatchObject({
+      retryOnDeviceFailure: true,
+    });
+    expect(
+      runCiE2e.getMaestroSuiteFlowOptions(
+        "sms-sync/sms-sync-permission-requestable.yaml"
+      ).prepareRetry
+    ).toBeUndefined();
+    expect(
+      runCiE2e.shouldRetryMaestroSuiteFlow(
+        "transactions/create-transaction.yaml",
+        { E2E_SUPABASE_MODE: "local" }
+      )
+    ).toBe(true);
+    expect(
+      runCiE2e.getMaestroSuiteFlowOptions(
+        "transactions/create-transaction.yaml",
+        { E2E_SUPABASE_MODE: "local" }
+      )
+    ).toMatchObject({
+      retryOnDeviceFailure: true,
+    });
+    expect(
+      runCiE2e.getMaestroSuiteFlowOptions(
+        "transactions/create-transaction.yaml",
+        { E2E_SUPABASE_MODE: "local" }
+      ).prepareRetry
+    ).toEqual(expect.any(Function));
+  });
+
+  it("does not retry side-effecting Maestro flows when clean local reset is unavailable", () => {
+    expect(
+      runCiE2e.shouldResetMaestroFlowBeforeRetry(
+        "transactions/create-transaction.yaml",
+        { E2E_SUPABASE_MODE: "remote" }
+      )
+    ).toBe(false);
+    expect(
+      runCiE2e.shouldResetMaestroFlowBeforeRetry(
+        "accounts/egyptian-institution-presets.yaml",
+        { E2E_SUPABASE_MODE: "remote" }
+      )
+    ).toBe(false);
+    expect(
+      runCiE2e.shouldResetMaestroFlowBeforeRetry(
+        "transactions/create-transaction.yaml",
+        { E2E_SUPABASE_MODE: "local" }
+      )
+    ).toBe(true);
+    expect(
+      runCiE2e.shouldResetMaestroFlowBeforeRetry(
+        "sms-sync/sms-sync-permission-requestable.yaml",
+        { E2E_SUPABASE_MODE: "local" }
+      )
+    ).toBe(false);
+    expect(
+      runCiE2e.shouldResetMaestroFlowBeforeRetry(
+        "transactions/create-transaction.yaml",
+        {
+          E2E_SKIP_AUTH_BOOTSTRAP: "1",
+          E2E_SUPABASE_MODE: "local",
+        }
+      )
+    ).toBe(false);
+    expect(
+      runCiE2e.shouldResetMaestroFlowBeforeRetry(
+        "transactions/create-transaction.yaml",
+        {
+          E2E_SKIP_SEED: "1",
+          E2E_SUPABASE_MODE: "local",
+        }
+      )
+    ).toBe(false);
+    expect(
+      runCiE2e.shouldRetryMaestroSuiteFlow(
+        "transactions/create-transaction.yaml",
+        { E2E_SUPABASE_MODE: "remote" }
+      )
+    ).toBe(false);
+    expect(
+      runCiE2e.shouldRetryMaestroSuiteFlow(
+        "transactions/create-transaction.yaml",
+        {
+          E2E_SKIP_AUTH_BOOTSTRAP: "1",
+          E2E_SUPABASE_MODE: "local",
+        }
+      )
+    ).toBe(false);
+    expect(
+      runCiE2e.shouldRetryMaestroSuiteFlow(
+        "transactions/create-transaction.yaml",
+        {
+          E2E_SKIP_SEED: "1",
+          E2E_SUPABASE_MODE: "local",
+        }
+      )
+    ).toBe(false);
+    expect(
+      runCiE2e.getMaestroSuiteFlowOptions("live-sms/live-sms-foreground.yaml", {
+        E2E_SUPABASE_MODE: "local",
+      })
+    ).toMatchObject({
+      retryOnDeviceFailure: false,
+    });
+  });
+
+  it("keeps stabilization failures inside the bounded retry window", () => {
+    expect(runCiE2e.shouldRetryStabilizationFailure(1, 5)).toBe(true);
+    expect(runCiE2e.shouldRetryStabilizationFailure(5, 5)).toBe(false);
   });
 
   it("bootstraps auth for remote live-SMS-only suites", () => {

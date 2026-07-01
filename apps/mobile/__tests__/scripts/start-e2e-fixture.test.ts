@@ -31,4 +31,13 @@ describe("start-e2e-fixture script helpers", () => {
     expect(env.EXPO_PUBLIC_SUPABASE_URL).toBe("http://custom-supabase.test");
     expect(env.EXPO_PUBLIC_SUPABASE_ANON_KEY).toBe("custom-anon-key");
   });
+
+  it("does not opt out of Expo monorepo root detection", () => {
+    const env = startE2eFixture.buildE2eFixtureEnv({
+      E2E_LOCAL_JWT_SECRET: "local-test-jwt-secret-with-enough-length",
+      EXPO_NO_METRO_WORKSPACE_ROOT: "1",
+    });
+
+    expect(env.EXPO_NO_METRO_WORKSPACE_ROOT).toBeUndefined();
+  });
 });

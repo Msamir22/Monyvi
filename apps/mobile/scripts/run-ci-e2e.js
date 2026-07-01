@@ -1,7 +1,12 @@
 const { join } = require("node:path");
-const { spawn, spawnSync } = require("node:child_process");
+const { spawn } = require("node:child_process");
 const { createClient } = require("@supabase/supabase-js");
 const { applyE2eAuthDeepLink } = require("./e2e-auth-deeplink");
+const {
+  isRetryableMaestroTransportFailure,
+  reconnectAndroidDevice,
+  stabilizeAndroidDevice,
+} = require("./e2e-preflight");
 const { getE2eSeedConfig, seedE2eData } = require("./e2e-seed");
 
 const mobileRoot = join(__dirname, "..");
@@ -116,9 +121,49 @@ function assertRequiredEnv() {
 }
 
 function isDeviceOfflineFailure(output) {
-  return /device offline|StatusRuntimeException: UNAVAILABLE|host:transport:.*device offline/i.test(
-    output
+  return isRetryableMaestroTransportFailure(output);
+}
+
+function shouldRetryChildScriptFailure(output, options = {}) {
+  return (
+    options.retryOnDeviceFailure === true && isDeviceOfflineFailure(output)
   );
+}
+
+function shouldRetryStabilizationFailure(attempt, maxAttempts) {
+  return attempt < maxAttempts;
+}
+
+function isLocalSupabaseMode(env = process.env) {
+  return (env.E2E_SUPABASE_MODE ?? "local") === "local";
+}
+
+function shouldBootstrapAuthForEnv(env = process.env) {
+  return env.E2E_SKIP_AUTH_BOOTSTRAP !== "1";
+}
+
+function shouldResetMaestroFlowBeforeRetry(flow, env = process.env) {
+  if (!isLocalSupabaseMode(env)) return false;
+  if (!shouldBootstrapAuthForEnv(env)) return false;
+  if (env.E2E_SKIP_SEED === "1") return false;
+
+  return flow.startsWith("accounts/") || flow.startsWith("transactions/");
+}
+
+function shouldRetryMaestroSuiteFlow(flow, env = process.env) {
+  return (
+    flow === "sms-sync/sms-sync-permission-requestable.yaml" ||
+    shouldResetMaestroFlowBeforeRetry(flow, env)
+  );
+}
+
+function getMaestroSuiteFlowOptions(flow, env = process.env) {
+  return {
+    prepareRetry: shouldResetMaestroFlowBeforeRetry(flow, env)
+      ? prepareCleanMaestroFlowRetry
+      : undefined,
+    retryOnDeviceFailure: shouldRetryMaestroSuiteFlow(flow, env),
+  };
 }
 
 function appendOutputTail(
@@ -176,29 +221,11 @@ function getRequestedCiSuites(env = process.env) {
   return new Set(requested);
 }
 
-function runAdb(args, options = {}) {
-  return spawnSync("adb", args, {
-    cwd: mobileRoot,
-    env: process.env,
-    shell: false,
-    stdio: "inherit",
-    ...options,
-  });
-}
-
 function reconnectAdb(attempt, maxAttempts) {
   console.warn(
     `ADB device went offline. Reconnecting before retry ${attempt + 1} of ${maxAttempts}.`
   );
-  runAdb(["kill-server"], { timeout: 30_000 });
-  runAdb(["start-server"], { timeout: 30_000 });
-  const waitResult = runAdb(["wait-for-device"], { timeout: 60_000 });
-
-  if (waitResult.status !== 0) {
-    throw new Error("ADB device did not come back online after reconnect.");
-  }
-
-  runAdb(["reverse", "tcp:8081", "tcp:8081"], { timeout: 30_000 });
+  reconnectAndroidDevice();
 }
 
 function runNodeScriptOnce(script, args, options = {}) {
@@ -252,14 +279,32 @@ async function runNodeScript(script, args, options = {}) {
   const maxAttempts = getDeviceOfflineRetryCount();
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      stabilizeAndroidDevice();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      process.stderr.write(`${message}\n`);
+      if (shouldRetryStabilizationFailure(attempt, maxAttempts)) {
+        reconnectAdb(attempt, maxAttempts);
+        continue;
+      }
+      throw error;
+    }
+
     const result = await runNodeScriptOnce(script, args, options);
 
     if (result.status === 0) {
       return;
     }
 
-    if (attempt < maxAttempts && isDeviceOfflineFailure(result.output)) {
+    if (
+      attempt < maxAttempts &&
+      shouldRetryChildScriptFailure(result.output, options)
+    ) {
       reconnectAdb(attempt, maxAttempts);
+      if (typeof options.prepareRetry === "function") {
+        await options.prepareRetry();
+      }
       continue;
     }
 
@@ -279,6 +324,29 @@ async function maybeSeedE2eData() {
   console.log(
     `Seeded E2E data for ${config.email} (${result.userId}) on ${config.mode} Supabase`
   );
+}
+
+async function prepareCleanMaestroFlowRetry() {
+  if (!isLocalSupabaseMode()) return;
+
+  await maybeSeedE2eData();
+  const previousClearAppState = process.env.E2E_CLEAR_APP_STATE;
+  process.env.E2E_CLEAR_APP_STATE = "1";
+
+  try {
+    await runNodeScript(
+      "scripts/run-maestro.js",
+      ["test", join("e2e", "maestro", getAuthBootstrapFlow())],
+      { retryOnDeviceFailure: true }
+    );
+    hasRunAuthBootstrap = true;
+  } finally {
+    if (previousClearAppState === undefined) {
+      delete process.env.E2E_CLEAR_APP_STATE;
+    } else {
+      process.env.E2E_CLEAR_APP_STATE = previousClearAppState;
+    }
+  }
 }
 
 function isFixtureE2eMode() {
@@ -315,10 +383,11 @@ function shouldBootstrapBeforeLiveSms(selectedSuites, supabaseMode) {
 
 async function maybeRunAuthBootstrap() {
   if (shouldBootstrapAuth && !hasRunAuthBootstrap) {
-    await runNodeScript("scripts/run-maestro.js", [
-      "test",
-      join("e2e", "maestro", getAuthBootstrapFlow()),
-    ]);
+    await runNodeScript(
+      "scripts/run-maestro.js",
+      ["test", join("e2e", "maestro", getAuthBootstrapFlow())],
+      { retryOnDeviceFailure: true }
+    );
     hasRunAuthBootstrap = true;
   }
 }
@@ -335,10 +404,11 @@ async function runMaestroFlows(flows) {
   await maybeRunAuthBootstrap();
 
   for (const flow of flows) {
-    await runNodeScript("scripts/run-maestro.js", [
-      "test",
-      join("e2e", "maestro", flow),
-    ]);
+    await runNodeScript(
+      "scripts/run-maestro.js",
+      ["test", join("e2e", "maestro", flow)],
+      getMaestroSuiteFlowOptions(flow)
+    );
   }
 }
 
@@ -399,6 +469,11 @@ module.exports = {
   getLiveSmsTimeoutMs,
   getRequestedCiSuites,
   getAuthBootstrapFlow,
+  getMaestroSuiteFlowOptions,
   isDeviceOfflineFailure,
+  shouldResetMaestroFlowBeforeRetry,
+  shouldRetryMaestroSuiteFlow,
+  shouldRetryChildScriptFailure,
+  shouldRetryStabilizationFailure,
   shouldBootstrapBeforeLiveSms,
 };
