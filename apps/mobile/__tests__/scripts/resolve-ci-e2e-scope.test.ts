@@ -61,7 +61,7 @@ describe("resolve-ci-e2e-scope", () => {
     });
   });
 
-  it("selects only recurring payment E2E for the dashboard redesign PR shape", () => {
+  it("selects only recurring payment E2E for recurring dashboard code changes", () => {
     expect(
       scopeResolver.resolveCiE2eScope([
         "apps/mobile/__tests__/app/recurring-payments-style.test.tsx",
@@ -70,9 +70,6 @@ describe("resolve-ci-e2e-scope", () => {
         "apps/mobile/e2e/maestro/recurring-payments/recurring-payments-crud-actions.yaml",
         "apps/mobile/hooks/useRecurringPayments.ts",
         "apps/mobile/i18n/translation-schema.ts",
-        "apps/mobile/locales/ar/transactions.json",
-        "apps/mobile/locales/en/transactions.json",
-        "apps/mobile/providers/MarketRatesRealtimeProvider.tsx",
         "apps/mobile/services/recurring-payments-dashboard-read-model.ts",
         "apps/mobile/utils/recurring-payment-due-labels.ts",
       ])
@@ -84,10 +81,7 @@ describe("resolve-ci-e2e-scope", () => {
 
   it("ignores global mobile files that do not directly affect E2E journeys", () => {
     expect(
-      scopeResolver.resolveCiE2eScope([
-        "apps/mobile/i18n/translation-schema.ts",
-        "apps/mobile/providers/MarketRatesRealtimeProvider.tsx",
-      ])
+      scopeResolver.resolveCiE2eScope(["apps/mobile/i18n/translation-schema.ts"])
     ).toEqual({
       shouldRun: false,
       suites: [],
@@ -167,14 +161,31 @@ describe("resolve-ci-e2e-scope", () => {
     });
   });
 
-  it("does not select suites for shared transaction locale files by filename alone", () => {
+  it("selects suites that assert shared transaction locale copy", () => {
     expect(
       scopeResolver.resolveCiE2eScope([
         "apps/mobile/locales/en/transactions.json",
       ])
     ).toEqual({
-      shouldRun: false,
-      suites: [],
+      shouldRun: true,
+      suites: ["transactions", "recurring-payments", "sms-sync"],
+    });
+  });
+
+  it("runs every suite for private provider runtime changes", () => {
+    expect(
+      scopeResolver.resolveCiE2eScope([
+        "apps/mobile/providers/MarketRatesRealtimeProvider.tsx",
+      ])
+    ).toEqual({
+      shouldRun: true,
+      suites: [
+        "accounts",
+        "transactions",
+        "recurring-payments",
+        "sms-sync",
+        "live-sms",
+      ],
     });
   });
 

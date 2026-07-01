@@ -203,6 +203,26 @@ describe("run-ci-e2e helpers", () => {
         { E2E_SUPABASE_MODE: "local" }
       ).prepareRetry
     ).toEqual(expect.any(Function));
+    expect(
+      runCiE2e.shouldRetryMaestroSuiteFlow(
+        "recurring-payments/recurring-payments-crud-actions.yaml",
+        { E2E_SUPABASE_MODE: "local" }
+      )
+    ).toBe(true);
+    expect(
+      runCiE2e.getMaestroSuiteFlowOptions(
+        "recurring-payments/recurring-payments-crud-actions.yaml",
+        { E2E_SUPABASE_MODE: "local" }
+      )
+    ).toMatchObject({
+      retryOnDeviceFailure: true,
+    });
+    expect(
+      runCiE2e.getMaestroSuiteFlowOptions(
+        "recurring-payments/recurring-payments-crud-actions.yaml",
+        { E2E_SUPABASE_MODE: "local" }
+      ).prepareRetry
+    ).toEqual(expect.any(Function));
   });
 
   it("does not retry side-effecting Maestro flows when clean local reset is unavailable", () => {
@@ -215,6 +235,12 @@ describe("run-ci-e2e helpers", () => {
     expect(
       runCiE2e.shouldResetMaestroFlowBeforeRetry(
         "accounts/egyptian-institution-presets.yaml",
+        { E2E_SUPABASE_MODE: "remote" }
+      )
+    ).toBe(false);
+    expect(
+      runCiE2e.shouldResetMaestroFlowBeforeRetry(
+        "recurring-payments/recurring-payments-crud-actions.yaml",
         { E2E_SUPABASE_MODE: "remote" }
       )
     ).toBe(false);
@@ -251,6 +277,12 @@ describe("run-ci-e2e helpers", () => {
     expect(
       runCiE2e.shouldRetryMaestroSuiteFlow(
         "transactions/create-transaction.yaml",
+        { E2E_SUPABASE_MODE: "remote" }
+      )
+    ).toBe(false);
+    expect(
+      runCiE2e.shouldRetryMaestroSuiteFlow(
+        "recurring-payments/recurring-payments-crud-actions.yaml",
         { E2E_SUPABASE_MODE: "remote" }
       )
     ).toBe(false);

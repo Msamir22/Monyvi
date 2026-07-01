@@ -147,7 +147,11 @@ function shouldResetMaestroFlowBeforeRetry(flow, env = process.env) {
   if (!shouldBootstrapAuthForEnv(env)) return false;
   if (env.E2E_SKIP_SEED === "1") return false;
 
-  return flow.startsWith("accounts/") || flow.startsWith("transactions/");
+  return (
+    flow.startsWith("accounts/") ||
+    flow.startsWith("transactions/") ||
+    flow.startsWith("recurring-payments/")
+  );
 }
 
 function shouldRetryMaestroSuiteFlow(flow, env = process.env) {

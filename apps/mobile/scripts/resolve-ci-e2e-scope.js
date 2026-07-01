@@ -48,6 +48,7 @@ function isFullE2eAppRuntimeFile(filePath) {
   return (
     /^apps\/mobile\/app\/(?:_layout|index)\.tsx$/.test(filePath) ||
     /^apps\/mobile\/app\/.*\/(?:_layout|index)\.tsx$/.test(filePath) ||
+    filePath.startsWith("apps/mobile/providers/") ||
     /AuthContext|Session|PrivateRuntime|Startup|Onboarding/i.test(filePath)
   );
 }
@@ -155,8 +156,12 @@ function getSuitesForFile(filePath) {
     suites.push("sms-sync", "live-sms");
   }
 
+  if (isTransactionsLocaleFile) {
+    suites.push("transactions", "recurring-payments", "sms-sync");
+  }
+
   if (
-    /recurring-payment|recurringPayment|recurring-payments|FrequencyPickerModal/i.test(
+    /recurring-payment|recurringPayment|recurring-payments|AccountSelectorModal|CategorySelectorModal|ConfirmationModal|FrequencyPickerModal|useFormScroll/i.test(
       normalized
     )
   ) {
