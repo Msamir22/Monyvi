@@ -18,6 +18,7 @@ import {
   View,
 } from "react-native";
 import { useTranslation } from "react-i18next";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -66,6 +67,7 @@ export function FrequencyPickerModal({
 }: FrequencyPickerModalProps): React.JSX.Element {
   const { isDark } = useTheme();
   const { t } = useTranslation("transactions");
+  const insets = useSafeAreaInsets();
 
   return (
     <Modal
@@ -84,7 +86,10 @@ export function FrequencyPickerModal({
             />
             <View className="absolute inset-0 bg-white/95 dark:bg-slate-900/95" />
 
-            <View>
+            <View
+              testID="frequency-picker-sheet-content"
+              style={{ paddingBottom: insets.bottom }}
+            >
               {/* Header */}
               <View className="flex-row justify-between items-center px-6 py-5 border-b border-slate-200 dark:border-slate-800">
                 <Text className="text-xl font-bold text-slate-800 dark:text-slate-100">

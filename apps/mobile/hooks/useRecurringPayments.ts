@@ -63,6 +63,18 @@ const BILLS_PERIOD_LABELS: Record<BillsPeriodFilter, string> = {
   one_year: "1 Year",
 };
 
+const RECURRING_PAYMENT_LIST_OBSERVED_COLUMNS = [
+  "name",
+  "amount",
+  "currency",
+  "type",
+  "category_id",
+  "account_id",
+  "frequency",
+  "next_due_date",
+  "status",
+] as const;
+
 /**
  * Computes a date range (start, end) for a given bills period filter.
  * Start is always today (start of day). End is the last millisecond of the target period.
@@ -161,10 +173,10 @@ export function useRecurringPayments(
           Q.where("deleted", false),
           Q.sortBy("next_due_date", Q.asc)
         )
-          .observe()
+          .observeWithColumns([...RECURRING_PAYMENT_LIST_OBSERVED_COLUMNS])
           .subscribe({
             next: (result) => {
-              setAllPayments(result);
+              setAllPayments(sortRecurringPaymentsByDueDate(result));
               setIsLoading(false);
             },
             error: (err) => {
@@ -297,4 +309,13 @@ function getThisMonthTotal(
   return payments
     .filter((p) => p.isInThisMonth)
     .reduce((sum, p) => sum + toPreferred(p.amount, p.currency), 0);
+}
+
+function sortRecurringPaymentsByDueDate(
+  payments: readonly RecurringPayment[]
+): RecurringPayment[] {
+  return [...payments].sort(
+    (first, second) =>
+      first.nextDueDate.getTime() - second.nextDueDate.getTime()
+  );
 }

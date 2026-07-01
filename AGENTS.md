@@ -429,6 +429,18 @@ chore, perf, ci.
 
 ## Tooling Guardrails
 
+- **Secondary worktree dependencies**: Never run `npm install`, `npm ci`, or
+  package-manager install commands inside a secondary git worktree. Secondary
+  worktrees must reuse the main checkout dependency tree through a Windows
+  directory junction to the main workspace `node_modules`.
+- To link a secondary worktree, run
+  `powershell -ExecutionPolicy Bypass -File scripts/link-worktree-node-modules.ps1 -RootWorkspace "<main checkout path>"`
+  from the secondary worktree. If a partial `node_modules` exists there from an
+  accidental install, rerun the script with `-ReplaceExisting` only after
+  confirming the resolved path is inside that secondary worktree.
+- If the junction cannot be created or tooling does not work through the
+  junction, switch the task to the main checkout instead of downloading another
+  dependency tree.
 - When adding architectural ESLint rules or custom static-analysis guardrails,
   wire every lint entry point consistently: package scripts, Nx targets,
   lint-staged, VSCode/IDE settings, CI, and any scripts that invoke ESLint

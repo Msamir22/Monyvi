@@ -271,8 +271,8 @@ export default function RecurringPaymentsScreen(): React.JSX.Element {
     COMPLETED: t("status_completed"),
   };
 
-  const handlePaymentPress = (_payment: RecurringPayment): void => {
-    // TODO: Navigate to edit payment screen
+  const handlePaymentPress = (payment: RecurringPayment): void => {
+    router.push(`/edit-recurring-payment?id=${payment.id}`);
   };
 
   const renderPaymentItem = useCallback(
@@ -285,7 +285,10 @@ export default function RecurringPaymentsScreen(): React.JSX.Element {
   const keyExtractor = useCallback((item: RecurringPayment) => item.id, []);
 
   return (
-    <View className="flex-1">
+    <View
+      testID="recurring-payments-screen"
+      className="flex-1 bg-background dark:bg-background-dark"
+    >
       <PageHeader
         title={t("my_bills")}
         showBackButton={true}

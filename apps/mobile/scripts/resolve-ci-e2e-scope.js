@@ -18,8 +18,22 @@ function isDocsOnlyFile(filePath) {
 }
 
 function requiresFullE2e(filePath) {
+  if (filePath === "apps/mobile/scripts/resolve-ci-e2e-scope.js") {
+    return false;
+  }
+
+  if (filePath === ".github/workflows/ci.yml") {
+    return true;
+  }
+
+  if (
+    filePath.startsWith("scripts/") &&
+    filePath !== "scripts/link-worktree-node-modules.ps1"
+  ) {
+    return true;
+  }
+
   return (
-    filePath === ".github/workflows/ci.yml" ||
     filePath === "package.json" ||
     filePath === "package-lock.json" ||
     filePath === "apps/mobile/package.json" ||
@@ -28,7 +42,6 @@ function requiresFullE2e(filePath) {
     filePath.startsWith("apps/mobile/config/e2e") ||
     filePath.startsWith("packages/db/") ||
     filePath.startsWith("packages/logic/") ||
-    filePath.startsWith("scripts/") ||
     filePath.startsWith("supabase/")
   );
 }
@@ -41,6 +54,17 @@ function getSuitesForFile(filePath) {
   }
 
   const suites = [];
+  const isScopeResolverFile =
+    normalized === "apps/mobile/scripts/resolve-ci-e2e-scope.js";
+  const isBarrelIndexFile =
+    /\/index\.(ts|tsx|js|jsx)$/.test(normalized) &&
+    !normalized.startsWith("apps/mobile/app/");
+  const isTestFile =
+    normalized.includes("/__tests__/") ||
+    normalized.endsWith(".test.ts") ||
+    normalized.endsWith(".test.tsx") ||
+    normalized.endsWith(".spec.ts") ||
+    normalized.endsWith(".spec.tsx");
   const isSharedSmsParserPath =
     /ai-sms|sms-fixture|sms-hash|sms-keyword|egyptian-bank/i.test(normalized);
   if (
@@ -59,19 +83,47 @@ function getSuitesForFile(filePath) {
     suites.push("sms-sync");
   }
 
-  if (
-    /transaction|category|account|transfer|recurring-payment/i.test(normalized)
-  ) {
-    if (/account/i.test(normalized)) {
-      suites.push("accounts");
-      suites.push("transactions");
-    }
-    if (/transaction|category|transfer|recurring-payment/i.test(normalized)) {
-      suites.push("transactions");
-    }
+  const isAccountManagementPath =
+    /add-account|edit-account|account-form|institution|useCreateAccount|useUpdateAccount|edit-account-service/i.test(
+      normalized
+    );
+  if (isAccountManagementPath) {
+    suites.push("accounts");
+    suites.push("transactions");
   }
 
-  if (suites.length === 0 && normalized.startsWith("apps/mobile/")) {
+  if (/locales\/(?:ar|en)\/accounts\.json/i.test(normalized)) {
+    suites.push("accounts");
+  }
+
+  if (/locales\/(?:ar|en)\/common\.json/i.test(normalized)) {
+    suites.push(...orderedSuites);
+  }
+
+  if (/locales\/(?:ar|en)\/(?:auth|onboarding)\.json/i.test(normalized)) {
+    suites.push(...orderedSuites);
+  }
+
+  if (/locales\/(?:ar|en)\/settings\.json/i.test(normalized)) {
+    suites.push("sms-sync", "live-sms");
+  }
+
+  if (
+    /transaction|category|transfer|recurring-payment|recurringPayment|budget|AccountSelectorModal|FrequencyPickerModal|ConfirmationModal|useFormScroll|locales\/(?:ar|en)\/transactions\.json/i.test(
+      normalized
+    )
+  ) {
+    suites.push("transactions");
+  }
+
+  if (
+    suites.length === 0 &&
+    !isScopeResolverFile &&
+    normalized.startsWith("apps/mobile/") &&
+    !isTestFile &&
+    !normalized.startsWith("apps/mobile/locales/") &&
+    !isBarrelIndexFile
+  ) {
     return orderedSuites;
   }
 

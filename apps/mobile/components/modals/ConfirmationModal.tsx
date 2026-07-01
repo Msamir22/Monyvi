@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { palette } from "@/constants/colors";
 
-type ConfirmationVariant = "danger" | "warning" | "info";
+type ConfirmationVariant = "danger" | "warning" | "success" | "info";
 
 interface ConfirmationModalProps {
   readonly visible: boolean;
@@ -42,11 +42,18 @@ const VARIANT_CONFIG: Record<
     defaultIcon: "trash-outline",
   },
   warning: {
-    iconBg: "bg-amber-100",
-    darkIconBg: "dark:bg-amber-500/20",
+    iconBg: "bg-gold-100",
+    darkIconBg: "dark:bg-gold-800",
     iconColor: palette.gold[500],
-    buttonBg: "bg-amber-500",
+    buttonBg: "bg-gold-600",
     defaultIcon: "warning-outline",
+  },
+  success: {
+    iconBg: "bg-nileGreen-100",
+    darkIconBg: "dark:bg-nileGreen-900",
+    iconColor: palette.nileGreen[500],
+    buttonBg: "bg-nileGreen-500",
+    defaultIcon: "checkmark-circle-outline",
   },
   info: {
     iconBg: "bg-blue-100",

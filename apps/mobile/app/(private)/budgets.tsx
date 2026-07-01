@@ -22,7 +22,10 @@ export default function BudgetsScreen(): React.JSX.Element {
   const { t } = useTranslation("budgets");
 
   return (
-    <View className="flex-1">
+    <View
+      testID="budgets-screen"
+      className="flex-1 bg-background dark:bg-background-dark"
+    >
       <PageHeader
         title={t("budgets")}
         showBackButton={false}

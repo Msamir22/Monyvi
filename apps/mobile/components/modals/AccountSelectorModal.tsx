@@ -15,6 +15,7 @@ import type { Account, AccountType } from "@monyvi/db";
 import { useTranslation } from "react-i18next";
 import { buildAccountDisplayNames } from "@/utils/account-display";
 import { formatAccountBalance } from "@/utils/financial-display";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface AccountSelectorModalProps {
   visible: boolean;
@@ -34,6 +35,7 @@ export function AccountSelectorModal({
   const { isDark } = useTheme();
   const { t } = useTranslation("common");
   const { t: tAccounts } = useTranslation("accounts");
+  const insets = useSafeAreaInsets();
 
   // Resolve display names so duplicate-named accounts (e.g. two "Cash"
   // accounts in different currencies) are visually disambiguated in the
@@ -90,7 +92,11 @@ export function AccountSelectorModal({
 
               {/* Account List */}
               <ScrollView className="p-4" showsVerticalScrollIndicator={false}>
-                <View className="gap-3 pb-10">
+                <View
+                  testID="account-selector-list-content"
+                  className="gap-3"
+                  style={{ paddingBottom: insets.bottom + 40 }}
+                >
                   {accounts.map((account) => {
                     const isSelected = account.id === selectedId;
 

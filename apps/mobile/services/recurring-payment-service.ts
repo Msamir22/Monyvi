@@ -1,5 +1,7 @@
-import { calculateNextDueDate, getNextMonthSameDay } from "@/utils/dateHelpers";
+import { calculateNextDueDate } from "@/utils/dateHelpers";
 import {
+  Account,
+  Category,
   CurrencyType,
   database,
   RecurringAction,
@@ -23,6 +25,45 @@ export interface RecurringPaymentData {
   notes?: string;
 }
 
+export type UpdateRecurringPaymentData = RecurringPaymentData;
+
+export const RECURRING_PAYMENT_SERVICE_ERROR_CODES = {
+  ACCOUNT_UNAVAILABLE: "RECURRING_PAYMENT_ACCOUNT_UNAVAILABLE",
+  CATEGORY_UNAVAILABLE: "RECURRING_PAYMENT_CATEGORY_UNAVAILABLE",
+} as const;
+
+async function resolveRecurringPaymentReferences(
+  scope: Awaited<ReturnType<typeof getCurrentUserDataScope>>,
+  accountId: string,
+  categoryId: string
+): Promise<void> {
+  let account: Account;
+  try {
+    account = await scope.findOwned(
+      database.get<Account>("accounts"),
+      accountId
+    );
+  } catch {
+    throw new Error(RECURRING_PAYMENT_SERVICE_ERROR_CODES.ACCOUNT_UNAVAILABLE);
+  }
+  if (account.deleted) {
+    throw new Error(RECURRING_PAYMENT_SERVICE_ERROR_CODES.ACCOUNT_UNAVAILABLE);
+  }
+
+  let category: Category;
+  try {
+    category = await scope.findAccessibleCategory(
+      database.get<Category>("categories"),
+      categoryId
+    );
+  } catch {
+    throw new Error(RECURRING_PAYMENT_SERVICE_ERROR_CODES.CATEGORY_UNAVAILABLE);
+  }
+  if (category.deleted) {
+    throw new Error(RECURRING_PAYMENT_SERVICE_ERROR_CODES.CATEGORY_UNAVAILABLE);
+  }
+}
+
 /**
  * Create a new recurring payment record.
  */
@@ -30,6 +71,11 @@ export async function createRecurringPayment(
   data: RecurringPaymentData
 ): Promise<RecurringPayment> {
   const scope = await getCurrentUserDataScope();
+  await resolveRecurringPaymentReferences(
+    scope,
+    data.accountId,
+    data.categoryId
+  );
 
   const recurringCollection =
     database.get<RecurringPayment>("recurring_payments");
@@ -45,11 +91,91 @@ export async function createRecurringPayment(
       rec.categoryId = data.categoryId;
       rec.frequency = data.frequency;
       rec.startDate = data.startDate;
-      rec.nextDueDate = getNextMonthSameDay(data.startDate);
+      rec.nextDueDate = calculateNextDueDate(data.startDate, data.frequency);
       rec.action = data.action;
       rec.status = "ACTIVE";
       rec.deleted = false;
       rec.notes = data.notes;
+    });
+  });
+}
+
+export async function updateRecurringPayment(
+  paymentId: string,
+  data: UpdateRecurringPaymentData
+): Promise<void> {
+  const scope = await getCurrentUserDataScope();
+  await resolveRecurringPaymentReferences(
+    scope,
+    data.accountId,
+    data.categoryId
+  );
+
+  const recurringCollection =
+    database.get<RecurringPayment>("recurring_payments");
+
+  await database.write(async () => {
+    const payment = await scope.findOwned(recurringCollection, paymentId);
+    await payment.update((record) => {
+      record.name = data.name;
+      record.amount = Math.abs(data.amount);
+      record.currency = data.currency;
+      record.type = data.type;
+      record.accountId = data.accountId;
+      record.categoryId = data.categoryId;
+      const didStartDateChange =
+        record.startDate.getTime() !== data.startDate.getTime();
+      const didFrequencyChange = record.frequency !== data.frequency;
+      const nextDueDateAnchor = didStartDateChange
+        ? data.startDate
+        : record.nextDueDate;
+      record.frequency = data.frequency;
+      record.startDate = data.startDate;
+      if (didStartDateChange || didFrequencyChange) {
+        record.nextDueDate = calculateNextDueDate(
+          nextDueDateAnchor,
+          data.frequency
+        );
+      }
+      record.action = data.action;
+      record.notes = data.notes;
+    });
+  });
+}
+
+export async function pauseRecurringPayment(paymentId: string): Promise<void> {
+  await updateRecurringPaymentStatus(paymentId, "PAUSED");
+}
+
+export async function resumeRecurringPayment(paymentId: string): Promise<void> {
+  await updateRecurringPaymentStatus(paymentId, "ACTIVE");
+}
+
+export async function deleteRecurringPayment(paymentId: string): Promise<void> {
+  const scope = await getCurrentUserDataScope();
+  const recurringCollection =
+    database.get<RecurringPayment>("recurring_payments");
+
+  await database.write(async () => {
+    const payment = await scope.findOwned(recurringCollection, paymentId);
+    await payment.update((record) => {
+      record.deleted = true;
+    });
+  });
+}
+
+async function updateRecurringPaymentStatus(
+  paymentId: string,
+  status: "ACTIVE" | "PAUSED"
+): Promise<void> {
+  const scope = await getCurrentUserDataScope();
+  const recurringCollection =
+    database.get<RecurringPayment>("recurring_payments");
+
+  await database.write(async () => {
+    const payment = await scope.findOwned(recurringCollection, paymentId);
+    await payment.update((record) => {
+      record.status = status;
     });
   });
 }
