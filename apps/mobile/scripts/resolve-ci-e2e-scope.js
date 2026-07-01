@@ -1,7 +1,13 @@
 const { appendFileSync } = require("node:fs");
 const { spawnSync } = require("node:child_process");
 
-const orderedSuites = ["accounts", "transactions", "sms-sync", "live-sms"];
+const orderedSuites = [
+  "accounts",
+  "transactions",
+  "recurring-payments",
+  "sms-sync",
+  "live-sms",
+];
 
 function normalizePath(filePath) {
   return filePath.replace(/\\/g, "/");
@@ -17,8 +23,41 @@ function isDocsOnlyFile(filePath) {
   );
 }
 
+function getSuiteForMaestroFlow(filePath) {
+  const match = filePath.match(/^apps\/mobile\/e2e\/maestro\/([^/]+)\//);
+  if (!match) return null;
+
+  const suite = match[1];
+  return orderedSuites.includes(suite) ? suite : null;
+}
+
+function isFullE2eMobileHarnessFile(filePath) {
+  return (
+    filePath === "apps/mobile/scripts/run-ci-e2e.js" ||
+    filePath === "apps/mobile/scripts/run-maestro.js" ||
+    filePath === "apps/mobile/scripts/e2e-preflight.js" ||
+    filePath === "apps/mobile/scripts/e2e-seed.js" ||
+    filePath === "apps/mobile/scripts/e2e-auth-deeplink.js" ||
+    filePath === "apps/mobile/scripts/run-android-e2e-ci.sh" ||
+    filePath === "apps/mobile/e2e/maestro/config.yaml" ||
+    filePath.startsWith("apps/mobile/e2e/maestro/helpers/")
+  );
+}
+
+function isFullE2eAppRuntimeFile(filePath) {
+  return (
+    /^apps\/mobile\/app\/(?:_layout|index)\.tsx$/.test(filePath) ||
+    /^apps\/mobile\/app\/.*\/(?:_layout|index)\.tsx$/.test(filePath) ||
+    /AuthContext|Session|PrivateRuntime|Startup|Onboarding/i.test(filePath)
+  );
+}
+
 function requiresFullE2e(filePath) {
   if (filePath === "apps/mobile/scripts/resolve-ci-e2e-scope.js") {
+    return false;
+  }
+
+  if (getSuiteForMaestroFlow(filePath)) {
     return false;
   }
 
@@ -37,8 +76,8 @@ function requiresFullE2e(filePath) {
     filePath === "package.json" ||
     filePath === "package-lock.json" ||
     filePath === "apps/mobile/package.json" ||
-    filePath.startsWith("apps/mobile/e2e/") ||
-    filePath.startsWith("apps/mobile/scripts/") ||
+    isFullE2eMobileHarnessFile(filePath) ||
+    isFullE2eAppRuntimeFile(filePath) ||
     filePath.startsWith("apps/mobile/config/e2e") ||
     filePath.startsWith("packages/db/") ||
     filePath.startsWith("packages/logic/") ||
@@ -67,6 +106,14 @@ function getSuitesForFile(filePath) {
     normalized.endsWith(".spec.tsx");
   const isSharedSmsParserPath =
     /ai-sms|sms-fixture|sms-hash|sms-keyword|egyptian-bank/i.test(normalized);
+  const isTransactionsLocaleFile = /locales\/(?:ar|en)\/transactions\.json/i.test(
+    normalized
+  );
+  const maestroSuite = getSuiteForMaestroFlow(normalized);
+  if (maestroSuite) {
+    suites.push(maestroSuite);
+  }
+
   if (
     isSharedSmsParserPath ||
     /live-sms|sms-live|notification-service|SmsPermission|useSmsPermission/i.test(
@@ -109,22 +156,20 @@ function getSuitesForFile(filePath) {
   }
 
   if (
-    /transaction|category|transfer|recurring-payment|recurringPayment|budget|AccountSelectorModal|FrequencyPickerModal|ConfirmationModal|useFormScroll|locales\/(?:ar|en)\/transactions\.json/i.test(
+    /recurring-payment|recurringPayment|recurring-payments|FrequencyPickerModal/i.test(
+      normalized
+    )
+  ) {
+    suites.push("recurring-payments");
+  }
+
+  if (
+    !isTransactionsLocaleFile &&
+    /transaction|category|transfer|budget|AccountSelectorModal|ConfirmationModal|useFormScroll/i.test(
       normalized
     )
   ) {
     suites.push("transactions");
-  }
-
-  if (
-    suites.length === 0 &&
-    !isScopeResolverFile &&
-    normalized.startsWith("apps/mobile/") &&
-    !isTestFile &&
-    !normalized.startsWith("apps/mobile/locales/") &&
-    !isBarrelIndexFile
-  ) {
-    return orderedSuites;
   }
 
   return suites;
