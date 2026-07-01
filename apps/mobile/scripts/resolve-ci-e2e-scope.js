@@ -108,6 +108,10 @@ function getSuitesForFile(filePath) {
     suites.push("sms-sync", "live-sms");
   }
 
+  if (/locales\/(?:ar|en)\/transactions\.json/i.test(normalized)) {
+    suites.push("sms-sync");
+  }
+
   if (
     /transaction|category|transfer|recurring-payment|recurringPayment|budget|AccountSelectorModal|FrequencyPickerModal|ConfirmationModal|useFormScroll|locales\/(?:ar|en)\/transactions\.json/i.test(
       normalized
