@@ -117,7 +117,7 @@ function isDeviceOfflineFailure(output) {
 
 function shouldRetryChildScriptFailure(output, options = {}) {
   return (
-    options.retryOnDeviceFailure !== false && isDeviceOfflineFailure(output)
+    options.retryOnDeviceFailure === true && isDeviceOfflineFailure(output)
   );
 }
 

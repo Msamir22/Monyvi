@@ -142,7 +142,18 @@ describe("run-ci-e2e helpers", () => {
     ).toBe(false);
   });
 
-  it("does not retry child script failures when the caller disables retry", () => {
+  it("retries child script transport failures only when the caller opts in", () => {
+    expect(
+      runCiE2e.shouldRetryChildScriptFailure(
+        "io.grpc.StatusRuntimeException: UNAVAILABLE"
+      )
+    ).toBe(false);
+    expect(
+      runCiE2e.shouldRetryChildScriptFailure(
+        "io.grpc.StatusRuntimeException: UNAVAILABLE",
+        { retryOnDeviceFailure: true }
+      )
+    ).toBe(true);
     expect(
       runCiE2e.shouldRetryChildScriptFailure(
         "io.grpc.StatusRuntimeException: UNAVAILABLE",
