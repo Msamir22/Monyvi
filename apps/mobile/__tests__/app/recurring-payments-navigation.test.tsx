@@ -34,6 +34,10 @@ jest.mock("@/hooks/usePreferredCurrency", () => ({
   }),
 }));
 
+jest.mock("@/hooks/useMarketRates", () => ({
+  useMarketRates: (): { readonly latestRates: null } => ({ latestRates: null }),
+}));
+
 jest.mock("@/hooks/useRecurringPayments", () => ({
   useRecurringPayments: (): unknown => ({
     filteredPayments: [

@@ -179,7 +179,7 @@ export function useRecurringPayments(
           .observeWithColumns([...RECURRING_PAYMENT_LIST_OBSERVED_COLUMNS])
           .subscribe({
             next: (result) => {
-              setAllPayments(result);
+              setAllPayments(sortRecurringPaymentsByDueDate(result));
               setIsLoading(false);
             },
             error: (err) => {
@@ -312,4 +312,13 @@ function getThisMonthTotal(
   return payments
     .filter((p) => p.isInThisMonth)
     .reduce((sum, p) => sum + toPreferred(p.amount, p.currency), 0);
+}
+
+function sortRecurringPaymentsByDueDate(
+  payments: readonly RecurringPayment[]
+): RecurringPayment[] {
+  return [...payments].sort(
+    (first, second) =>
+      first.nextDueDate.getTime() - second.nextDueDate.getTime()
+  );
 }
