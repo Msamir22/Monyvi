@@ -9,6 +9,7 @@ export type SortOption =
   | "name_a_z";
 
 export interface PaymentSection {
+  readonly key: string;
   readonly title: string;
   readonly data: readonly RecurringPayment[];
 }
@@ -45,19 +46,30 @@ export function groupPaymentsByDueDate(
   payments: readonly RecurringPayment[]
 ): PaymentSection[] {
   return payments.reduce<PaymentSection[]>((sections, payment) => {
+    const key = getDueGroupKey(payment);
     const title = getRecurringPaymentDueGroupTitle(payment);
-    const existingSection = sections.find((section) => section.title === title);
+    const existingSection = sections.find((section) => section.key === key);
 
     if (existingSection) {
       return sections.map((section) =>
-        section.title === title
+        section.key === key
           ? { ...section, data: [...section.data, payment] }
           : section
       );
     }
 
-    return [...sections, { title, data: [payment] }];
+    return [...sections, { key, title, data: [payment] }];
   }, []);
+}
+
+function getDueGroupKey(payment: RecurringPayment): string {
+  const date = payment.nextDueDate;
+
+  return [
+    date.getFullYear(),
+    date.getMonth() + 1,
+    date.getDate(),
+  ].join("-");
 }
 
 function getComparableAmount(

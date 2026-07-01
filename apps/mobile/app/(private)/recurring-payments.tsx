@@ -65,25 +65,30 @@ export default function RecurringPaymentsScreen(): React.JSX.Element {
       return groupPaymentsByDueDate(sortedPayments);
     }
 
-    return [{ title: "", data: sortedPayments }];
+    return [{ key: "sorted-payments", title: "", data: sortedPayments }];
   }, [selectedSort, sortedPayments]);
+
+  const billPayments = useMemo(
+    () => allPayments.filter((payment) => payment.isExpense),
+    [allPayments]
+  );
 
   const nextPayment = useMemo(
     () =>
       sortPayments(
-        allPayments.filter(
+        billPayments.filter(
           (payment) => payment.isActive && !payment.isOverdue
         ),
         "next_due"
       )[0] ?? null,
-    [allPayments]
+    [billPayments]
   );
 
   const overdueCount = useMemo(
     () =>
-      allPayments.filter((payment) => payment.isActive && payment.isOverdue)
+      billPayments.filter((payment) => payment.isActive && payment.isOverdue)
         .length,
-    [allPayments]
+    [billPayments]
   );
 
   const statusLabelMap = useMemo<Record<RecurringStatus, string>>(

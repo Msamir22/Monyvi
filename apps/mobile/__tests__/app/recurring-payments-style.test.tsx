@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react-native";
 import type { CurrencyType, RecurringPayment } from "@monyvi/db";
 import React from "react";
+import { groupPaymentsByDueDate } from "@/services/recurring-payments-dashboard-read-model";
 
 const mockSetStatusFilter = jest.fn();
 
@@ -275,6 +276,59 @@ describe("RecurringPaymentsScreen dashboard", () => {
 
     expect(screen.getByText("Jul 1")).toBeTruthy();
     expect(screen.getByText("Jul 1, 2027")).toBeTruthy();
+  });
+
+  it("keys due groups by calendar date instead of display label", () => {
+    const currentYearPayment = createPayment({
+      id: "payment-current-year-key",
+      name: "Current Year Key",
+      nextDueDate: new Date("2026-07-01T00:00:00.000Z"),
+    });
+    const nextYearPayment = createPayment({
+      id: "payment-next-year-key",
+      name: "Next Year Key",
+      nextDueDate: new Date("2027-07-01T00:00:00.000Z"),
+    });
+
+    const sections = groupPaymentsByDueDate([
+      currentYearPayment,
+      nextYearPayment,
+    ]);
+
+    expect(sections.map((section) => section.key)).toEqual([
+      "2026-7-1",
+      "2027-7-1",
+    ]);
+  });
+
+  it("uses expenses only for bill-focused insight and overdue metrics", () => {
+    const incomePayment = createPayment({
+      id: "payment-income",
+      name: "Salary",
+      amount: 5000,
+      type: "INCOME",
+      nextDueDate: new Date("2026-06-21T00:00:00.000Z"),
+      isOverdue: true,
+    });
+    const expensePayment = createPayment({
+      id: "payment-expense",
+      name: "Gym",
+      amount: 350,
+      nextDueDate: new Date("2026-07-01T00:00:00.000Z"),
+    });
+    mockRecurringPaymentsState = {
+      ...mockRecurringPaymentsState,
+      allPayments: [incomePayment, expensePayment],
+      filteredPayments: [incomePayment, expensePayment],
+      counts: { ACTIVE: 2, PAUSED: 0, COMPLETED: 0 },
+    };
+
+    render(<RecurringPaymentsScreen />);
+
+    expect(screen.getByTestId("recurring-payments-next-insight")).toHaveTextContent(
+      /EGP 350/
+    );
+    expect(screen.getByText("0")).toBeTruthy();
   });
 
   it("opens a sort sheet that clearly labels sorting, not filtering", () => {
